@@ -54,13 +54,20 @@ public sealed class Store
         return map.Count - before;
     }
 
-    public string ToCsv(IEnumerable<Txn> txns)
+    // ---------- your corrections (recurring yes/no, category, name), kept in data/user-rules.json ----------
+    private string RulesFile => Path.Combine(_dir, "user-rules.json");
+
+    public UserRules LoadUserRules() =>
+        File.Exists(RulesFile) ? JsonSerializer.Deserialize<UserRules>(File.ReadAllText(RulesFile)) ?? new() : new();
+
+    public void SaveUserRules(UserRules r) => File.WriteAllText(RulesFile, JsonSerializer.Serialize(r, Json));
+
+    public static string ToCsv(Analysis a)
     {
         static string Q(string s) => "\"" + s.Replace("\"", "\"\"") + "\"";
-        var sb = new StringBuilder("Date;Amount;Currency;Counterparty;Description;Category;Fixed\n");
-        var analysis = new Analysis(txns.ToList(), Categories.Rules);
-        foreach (var t in txns.OrderBy(t => t.Date))
-            sb.Append($"{t.Date:yyyy-MM-dd};{t.Amount.ToString(CultureInfo.InvariantCulture)};{t.Currency};{Q(t.Counterparty)};{Q(t.Description)};{Q(analysis.CategoryOf(t))};{(analysis.IsFixed(t) ? "yes" : "")}\n");
+        var sb = new StringBuilder("Date;Amount;Currency;Name;Category;Fixed;Kind;Description\n");
+        foreach (var i in a.Items.OrderBy(i => i.T.Date))
+            sb.Append($"{i.T.Date:yyyy-MM-dd};{i.T.Amount.ToString(CultureInfo.InvariantCulture)};{i.T.Currency};{Q(i.Name)};{Q(i.Category)};{(i.IsRecurring ? "yes" : "")};{i.Kind};{Q(i.T.Description)}\n");
         return sb.ToString();
     }
 
@@ -123,4 +130,13 @@ public sealed class FixedRule
     public decimal? Amount { get; set; }
     /// <summary>Optional: expected day of month.</summary>
     public int? Day { get; set; }
+}
+
+/// <summary>Corrections you make in the UI. Keys are "series keys" (one per contract / shop / IBAN).</summary>
+public sealed class UserRules
+{
+    public HashSet<string> Recurring { get; set; } = [];
+    public HashSet<string> NotRecurring { get; set; } = [];
+    public Dictionary<string, string> Categories { get; set; } = [];
+    public Dictionary<string, string> Names { get; set; } = [];
 }

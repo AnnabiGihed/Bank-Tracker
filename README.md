@@ -16,10 +16,19 @@ next to the app — nothing leaves your machine except the calls to Enable Banki
 5. `dotnet dev-certs https --trust` (once), then `dotnet run`.
 6. Open https://localhost:5001 → **Connect KBC Brussels** → log in again → transactions download.
 
-## Day to day
-- Open the dashboard and click **Sync now** (or call `/sync` from a scheduled task).
-- Consent lasts up to 180 days; the header warns you 15 days before — click **Reconnect**.
-- **Export CSV** gives every transaction with category and fixed/variable flag.
+## Using it
+Pick a month at the top (‹ › or the drop-down); every tab follows it.
+- **Overview**: income, spending (fixed vs variable), savings, what's left, last months chart,
+  spending by category, fixed payments still to come, biggest expenses.
+- **Fixed payments**: every recurring payment with its usual day and amount, and whether it is
+  paid, due, late or changed this month. ✕ = not a fixed payment, ✎ = rename.
+- **Transactions**: search, filter by type/category, change a category (applies to all payments
+  to that payee), ☆ = mark as fixed payment.
+- **Categories**: spending per category vs. the average of previous months.
+- **Settings**: sync, full re-sync, reconnect, CSV export, reset your corrections.
+
+Your corrections are stored in `data/user-rules.json`. Bank consent lasts up to 180 days; the header
+warns you 15 days before — use **Reconnect**.
 
 ## Transaction history
 - The first sync after connecting uses Enable Banking's `strategy=longest`: it asks KBC for the
@@ -30,11 +39,16 @@ next to the app — nothing leaves your machine except the calls to Enable Banki
 - Everything is stored in `./data`, and daily syncs only add to it, so your history keeps growing
   even when the bank's window is short.
 
-## Tuning
-- Categories: keyword lists in `appsettings.json` → `Categories`.
-- Fixed-payment detection (`Analysis.cs`), in this order:
-  1. your own rules in `appsettings.json` → `FixedPayments` (`Match` = text, alternatives with `|`);
-  2. same payee (IBAN, else name) in ≥3 months, about once a month, amount within ±15%;
-  3. same amount (±2%) around the same day each month — catches loans whose description changes monthly.
-- **Search** page: find any transaction by text, IBAN or amount and see the raw bank data,
-  to write a `FixedPayments` rule.
+## How payments are classified
+Uses the ISO bank transaction code KBC sends with each transaction:
+- direct debits (`IDDT`) — one series per mandate, so two contracts with the same company stay separate;
+- loan instalments (`CSLN`), savings/investment plans (`SETT/SUBS`), account fees (`OPCL`);
+- card payments (`CCRD`) — grouped by shop name;
+- transfers — grouped by IBAN; transfers to/from accounts in your own name are **own transfers**
+  (not spending, not income), as are the loan disbursement and cash deposits.
+
+Fixed payment = direct debit / loan / savings plan / fee seen in ≥2 months, or a transfer/card payment
+to the same payee in ≥3 months, about once a month, with a stable amount and day. Your ☆/✕ always win.
+
+Categories: keywords in `appsettings.json` → `Categories` (shop name first; the longest matching
+keyword wins). Anything in **Own transfers** or **Savings & investments** is excluded from spending.
