@@ -21,7 +21,20 @@ next to the app — nothing leaves your machine except the calls to Enable Banki
 - Consent lasts up to 180 days; the header warns you 15 days before — click **Reconnect**.
 - **Export CSV** gives every transaction with category and fixed/variable flag.
 
+## Transaction history
+- The first sync after connecting uses Enable Banking's `strategy=longest`: it asks KBC for the
+  oldest transaction it will release and downloads everything after it.
+- Banks usually release more than 90 days only right after you log in (strong authentication).
+  If **Full re-sync** still returns only recent data, click **Reconnect**, log in, and the full
+  history is pulled immediately afterwards.
+- Everything is stored in `./data`, and daily syncs only add to it, so your history keeps growing
+  even when the bank's window is short.
+
 ## Tuning
 - Categories: keyword lists in `appsettings.json` → `Categories`.
-- Fixed-payment detection (`Analysis.cs`): same payee in ≥3 months (2 if less data),
-  about once a month, amount stable within ±15%. Flags missed payments and price changes.
+- Fixed-payment detection (`Analysis.cs`), in this order:
+  1. your own rules in `appsettings.json` → `FixedPayments` (`Match` = text, alternatives with `|`);
+  2. same payee (IBAN, else name) in ≥3 months, about once a month, amount within ±15%;
+  3. same amount (±2%) around the same day each month — catches loans whose description changes monthly.
+- **Search** page: find any transaction by text, IBAN or amount and see the raw bank data,
+  to write a `FixedPayments` rule.

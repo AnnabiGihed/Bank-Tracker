@@ -86,15 +86,22 @@ public sealed class EnableBankingClient(HttpClient http, EnableBankingOptions op
         return (sessionId, uids, json);
     }
 
-    /// <summary>Downloads all transactions since <paramref name="from"/>, following continuation keys.</summary>
-    public async Task<List<JsonNode>> GetTransactionsAsync(string accountUid, DateOnly from)
+    /// <summary>
+    /// Downloads transactions, following continuation keys (pages can be empty while the API is still searching).
+    /// <paramref name="longest"/> = Enable Banking "strategy=longest": finds the earliest transaction the bank
+    /// will give and returns everything after it (date_from is only a hint). Use it for the first/full sync.
+    /// </summary>
+    public async Task<List<JsonNode>> GetTransactionsAsync(string accountUid, DateOnly? from, bool longest = false)
     {
         var all = new List<JsonNode>();
         string? continuation = null;
         do
         {
-            var path = $"/accounts/{accountUid}/transactions?date_from={from:yyyy-MM-dd}";
-            if (!string.IsNullOrEmpty(continuation)) path += $"&continuation_key={Uri.EscapeDataString(continuation)}";
+            var query = new List<string>();
+            if (from is not null) query.Add($"date_from={from:yyyy-MM-dd}");
+            if (longest) query.Add("strategy=longest");
+            var path = $"/accounts/{accountUid}/transactions" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
+            if (!string.IsNullOrEmpty(continuation)) path += (query.Count > 0 ? "&" : "?") + $"continuation_key={Uri.EscapeDataString(continuation)}";
             var json = await SendAsync(HttpMethod.Get, path);
             all.AddRange(json["transactions"]?.AsArray().Where(t => t is not null).Select(t => t!.DeepClone()) ?? []);
             continuation = json["continuation_key"]?.GetValue<string>();

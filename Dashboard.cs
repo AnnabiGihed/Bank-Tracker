@@ -43,12 +43,13 @@ public static class Dashboard
         else
         {
             sb.Append($"Last sync: {(session.LastSync?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "never")} · ");
+            if (txns.Count > 0) sb.Append($"History since {txns.Min(t => t.Date):dd/MM/yyyy} ({txns.Count} transactions) · ");
             var daysLeft = (int)(session.ValidUntil - DateTimeOffset.UtcNow).TotalDays;
             sb.Append(daysLeft < 15 ? $"<b style='color:var(--bad)'>Bank consent expires in {daysLeft} days — reconnect</b>" : $"Bank consent valid {daysLeft} more days");
         }
         sb.Append("</div></div><div style='display:flex;gap:8px'>");
-        sb.Append(session is null ? "<a class=btn href=/banks>Connect KBC Brussels</a>" : "<a class=btn href=/sync>Sync now</a><a class='btn ghost' href=/banks>Reconnect</a>");
-        if (txns.Count > 0) sb.Append("<a class='btn ghost' href=/export.csv>Export CSV</a>");
+        sb.Append(session is null ? "<a class=btn href=/banks>Connect KBC Brussels</a>" : "<a class=btn href=/sync>Sync now</a><a class='btn ghost' href='/sync?full=true' title='If this still returns little history, use Reconnect: banks often release older history only right after you log in'>Full re-sync</a><a class='btn ghost' href=/banks>Reconnect</a>");
+        if (txns.Count > 0) sb.Append("<a class='btn ghost' href=/search>Search</a><a class='btn ghost' href=/export.csv>Export CSV</a>");
         sb.Append("</div></div>");
 
         if (txns.Count == 0)
@@ -76,10 +77,13 @@ public static class Dashboard
         sb.Append("<div class='card' style='margin-bottom:14px'><h2>Fixed payments</h2><table><tr><th>Payee</th><th class=num>Usual</th><th class=num>Day</th><th class=num>Last paid</th><th>This month</th></tr>");
         foreach (var f in a.Fixed)
         {
-            var status = f.PaidThisMonth
-                ? (f.AmountChanged ? $"<span class='pill chg'>paid {M(f.LastAmount)} — changed</span>" : "<span class='pill ok'>paid</span>")
-                : $"<span class='pill due'>due ~{f.UsualDay}</span>";
-            sb.Append($"<tr><td>{E(f.Name)}<div class=muted>{f.MonthsSeen} months seen</div></td><td class=num>{M(f.TypicalAmount)}</td><td class=num>{f.UsualDay}</td><td class=num>{f.LastPaid:dd/MM}</td><td>{status}</td></tr>");
+            var status = f.LastPaid is null
+                ? "<span class='pill chg'>no payment found — check the Match text</span>"
+                : f.PaidThisMonth
+                    ? (f.AmountChanged ? $"<span class='pill chg'>paid {M(f.LastAmount ?? 0)} — changed</span>" : "<span class='pill ok'>paid</span>")
+                    : $"<span class='pill due'>due ~{f.UsualDay}</span>";
+            var how = f.Source switch { "manual" => "your rule", "amount" => "same amount each month", _ => "same payee" };
+            sb.Append($"<tr><td>{E(f.Name)}<div class=muted>{f.MonthsSeen} months seen · {how}</div></td><td class=num>{M(f.TypicalAmount)}</td><td class=num>{f.UsualDay}</td><td class=num>{f.LastPaid:dd/MM}</td><td>{status}</td></tr>");
         }
         if (a.Fixed.Count == 0) sb.Append("<tr><td colspan=5 class=muted>Not enough history yet to detect recurring payments (needs 2–3 months).</td></tr>");
         sb.Append($"<tr><th>Total</th><th class=num>{M(fixedTotal)}</th><th colspan=3></th></tr></table></div>");
@@ -129,6 +133,28 @@ public static class Dashboard
 
     private static void Kpi(StringBuilder sb, string label, string value, string sub) =>
         sb.Append($"<div class='card kpi'><div class=l>{E(label)}</div><div class=v>{value}</div><div class=muted>{E(sub)}</div></div>");
+
+    /// <summary>Find any transaction and see exactly what the bank sends (helps writing FixedPayments rules).</summary>
+    public static string Search(string? q, List<Txn> txns, Analysis a)
+    {
+        var sb = new StringBuilder($"<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Search</title><style>{Css} pre{{white-space:pre-wrap;font-size:12px;margin:6px 0 0;color:var(--muted)}}</style></head><body><main>");
+        sb.Append($"<div class=bar><h1>Search transactions</h1><a class='btn ghost' href=/>Back</a></div>");
+        sb.Append($"<form class=card style='display:flex;gap:8px;margin-bottom:14px'><input name=q value='{E(q ?? "")}' placeholder='payee, word, IBAN or amount e.g. 452,30' style='flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)'><button>Search</button></form>");
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var needle = q.Trim().ToUpperInvariant();
+            var amountQ = decimal.TryParse(q.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var amt) ? amt : (decimal?)null;
+            var hits = txns.Where(t => Analysis.Text(t).Contains(needle) || (amountQ is not null && Math.Abs(Math.Abs(t.Amount) - amountQ.Value) < 0.01m))
+                           .OrderByDescending(t => t.Date).Take(100).ToList();
+            sb.Append($"<div class=card><table><tr><th>Date</th><th>Details (raw bank data below)</th><th class=num>Amount</th></tr>");
+            foreach (var t in hits)
+                sb.Append($"<tr><td>{t.Date:dd/MM/yyyy}</td><td><b>{E(t.Counterparty)}</b> · {E(a.CategoryOf(t))}{(a.IsFixed(t) ? " · <span class='pill ok'>fixed</span>" : "")}<div class=muted>{E(t.Description)} {E(t.CounterpartyIban ?? "")} {E(t.BankCode ?? "")}</div><details><summary class=muted>raw</summary><pre>{E(t.Raw ?? "(re-sync with Full re-sync to see raw data)")}</pre></details></td><td class=num>{M(t.Amount)}</td></tr>");
+            if (hits.Count == 0) sb.Append("<tr><td colspan=3 class=muted>Nothing found. If you expected it, the payment may come from another account — check it's linked.</td></tr>");
+            sb.Append("</table></div>");
+        }
+        sb.Append("</main></body></html>");
+        return sb.ToString();
+    }
 
     public static string Banks(List<(string Name, string Country)> banks)
     {

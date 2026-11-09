@@ -12,7 +12,10 @@ public sealed record Txn(
     decimal Amount,          // negative = money out, positive = money in
     string Currency,
     string Counterparty,
-    string Description);
+    string Description,
+    string? CounterpartyIban = null,   // IBAN of the other side when the bank provides it (best key for loans/rent)
+    string? BankCode = null,           // bank_transaction_code description, e.g. "Loan repayment"
+    string? Raw = null);               // original JSON from the bank, for troubleshooting
 
 public sealed class SessionInfo
 {
@@ -79,21 +82,45 @@ public sealed class Store
         var remittance = t["remittance_information"] is JsonArray arr
             ? string.Join(" ", arr.Select(x => x?.ToString()).Where(x => !string.IsNullOrWhiteSpace(x)))
             : S("remittance_information") ?? "";
+        // extra free-text fields some banks fill instead of remittance_information
+        var extra = string.Join(" ", new[] { S("note"), S("additional_information"), S("remittance_information_unstructured"), S("reference_number") }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+        var description = string.Join(" ", new[] { remittance, extra }.Where(x => x.Length > 0)).Trim();
+
+        var bankCode = S("bank_transaction_code", "description") ?? S("proprietary_bank_transaction_code", "description");
+        var iban = amount < 0
+            ? S("creditor_account", "iban") ?? S("creditor_account", "other", "identification")
+            : S("debtor_account", "iban") ?? S("debtor_account", "other", "identification");
 
         var counterparty = amount < 0
             ? S("creditor", "name") ?? S("creditor_name")
             : S("debtor", "name") ?? S("debtor_name");
         if (string.IsNullOrWhiteSpace(counterparty))
-            counterparty = remittance.Length > 0 ? remittance[..Math.Min(remittance.Length, 45)] : "(unknown)";
+            counterparty = description.Length > 0 ? description[..Math.Min(description.Length, 45)]
+                         : bankCode ?? iban ?? "(unknown)";
 
         var id = S("entry_reference") ?? S("transaction_id")
                  ?? Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(accountUid + t.ToJsonString())));
 
-        return new Txn(id, accountUid, date, amount, S("transaction_amount", "currency") ?? "EUR", counterparty.Trim(), remittance.Trim());
+        return new Txn(id, accountUid, date, amount, S("transaction_amount", "currency") ?? "EUR",
+            counterparty.Trim(), description, iban?.Replace(" ", ""), bankCode, t.ToJsonString());
     }
 }
 
 public static class Categories
 {
     public static Dictionary<string, string[]> Rules { get; set; } = [];
+    public static List<FixedRule> FixedRules { get; set; } = [];
+}
+
+/// <summary>A payment you declare as fixed yourself (appsettings.json → "FixedPayments").</summary>
+public sealed class FixedRule
+{
+    public string Name { get; set; } = "";
+    /// <summary>Text to look for in payee, description, IBAN or bank code (case-insensitive). Several alternatives: "LENING|PRET|LOAN".</summary>
+    public string Match { get; set; } = "";
+    /// <summary>Optional: expected amount (positive). Used when no payment found yet and to tolerate small differences.</summary>
+    public decimal? Amount { get; set; }
+    /// <summary>Optional: expected day of month.</summary>
+    public int? Day { get; set; }
 }
