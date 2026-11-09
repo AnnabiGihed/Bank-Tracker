@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests of KbcTracker.Application. Test packages and settings come from test/Directory.Build.props. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Core\KbcTracker.Application\KbcTracker.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Feature namespaces used across the project">
+    <Using Include="KbcTracker.Application.Features.BankConnection.Abstractions" />
+    <Using Include="KbcTracker.Application.Features.BankConnection.Services" />
+    <Using Include="KbcTracker.Application.Features.Shared.Abstractions" />
+    <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.Services" />
+    <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
+  </ItemGroup>
+
+</Project>

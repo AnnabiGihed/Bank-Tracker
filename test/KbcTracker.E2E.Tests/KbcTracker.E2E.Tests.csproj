@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- End-to-end tests: the web host started in memory over a temporary data folder. Test packages and settings
+       come from test/Directory.Build.props. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Containers\UI\Hosting\KbcTracker.Web\KbcTracker.Web.csproj" />
+  </ItemGroup>
+
+</Project>

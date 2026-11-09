@@ -1,0 +1,7 @@
+# Narrower analyzer settings for test projects (Static Analysis and Quality Gates / R11).
+# Documentation rules (SA1600, CS1591) stay on: test classes and methods are documented too.
+
+[*.cs]
+dotnet_diagnostic.CA1707.severity = none    # tests are named Method_Condition_ExpectedResult (dotnet-unit-tests)
+dotnet_diagnostic.MA0002.severity = none    # assertions on strings compare ordinally already; a comparer adds noise
+dotnet_diagnostic.CA1861.severity = none    # expected values are written inline as arrays for readability

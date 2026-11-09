@@ -1,0 +1,30 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Containers/" />
+  <Folder Name="/src/Containers/UI/" />
+  <Folder Name="/src/Containers/UI/Hosting/">
+    <Project Path="src/Containers/UI/Hosting/KbcTracker.Web/KbcTracker.Web.csproj" />
+  </Folder>
+  <Folder Name="/src/Core/">
+    <Project Path="src/Core/KbcTracker.Domain/KbcTracker.Domain.csproj" />
+    <Project Path="src/Core/KbcTracker.Application/KbcTracker.Application.csproj" />
+  </Folder>
+  <Folder Name="/src/Infrastructure/">
+    <Project Path="src/Infrastructure/KbcTracker.Infrastructure/KbcTracker.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/test/Containers/" />
+  <Folder Name="/test/Containers/UI/" />
+  <Folder Name="/test/Containers/UI/Hosting/">
+    <Project Path="test/Containers/UI/Hosting/KbcTracker.Web.Tests/KbcTracker.Web.Tests.csproj" />
+  </Folder>
+  <Folder Name="/test/Core/">
+    <Project Path="test/Core/KbcTracker.Domain.Tests/KbcTracker.Domain.Tests.csproj" />
+    <Project Path="test/Core/KbcTracker.Application.Tests/KbcTracker.Application.Tests.csproj" />
+  </Folder>
+  <Folder Name="/test/Infrastructure/">
+    <Project Path="test/Infrastructure/KbcTracker.Infrastructure.Tests/KbcTracker.Infrastructure.Tests.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/KbcTracker.E2E.Tests/KbcTracker.E2E.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    External services of KbcTracker (ADR-0003): the Enable Banking client, its JSON mapping, and the bank transaction
+    source the application layer uses. Build settings come from Directory.Build.props.
+  -->
+  <PropertyGroup>
+    <RootNamespace>KbcTracker.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\KbcTracker.Application\KbcTracker.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Feature namespaces used across the project">
+    <Using Include="KbcTracker.Application.Features.BankConnection.Abstractions" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
+  </ItemGroup>
+
+</Project>
