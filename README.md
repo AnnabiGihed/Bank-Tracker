@@ -18,37 +18,45 @@ next to the app — nothing leaves your machine except the calls to Enable Banki
 
 ## Using it
 Pick a month at the top (‹ › or the drop-down); every tab follows it.
-- **Overview**: income, spending (fixed vs variable), savings, what's left, last months chart,
-  spending by category, fixed payments still to come, biggest expenses.
-- **Fixed payments**: every recurring payment with its usual day and amount, and whether it is
-  paid, due, late or changed this month. ✕ = not a fixed payment, ✎ = rename.
-- **Transactions**: search, filter by type/category, change a category (applies to all payments
-  to that payee), ☆ = mark as fixed payment.
-- **Categories**: spending per category vs. the average of previous months.
-- **Settings**: sync, full re-sync, reconnect, CSV export, reset your corrections.
+- **Overview**: income, spending (fixed vs variable), savings, what's left, last months, spending by category,
+  fixed payments still to come, biggest expenses. A banner tells you when something needs your attention.
+- **Fixed payments**: *suggestions* found in your history (✓ = it's a fixed payment, ✕ = not), then your
+  confirmed fixed payments with their status this month (paid / due / late / amount changed). ✎ edits name,
+  category, amount and rhythm (monthly / quarterly / yearly).
+- **Transactions**: search and filter. Change a category → it applies to all payments of that payee, with an
+  "Only this one" option. Dashed category = automatic, ✓ confirms it. ☆ = mark as fixed payment.
+- **To review**: every payee whose automatic category you haven't confirmed yet; confirm one by one or all at once.
+- **Categories**: create / edit / delete categories: name, colour, keywords, and how they count
+  (spending, income, savings, own transfer). Totals per month vs. previous months.
+- **Settings**: bank connection, history stored, data folder, CSV export.
 
-Your corrections are stored in `data/user-rules.json`. Bank consent lasts up to 180 days; the header
-warns you 15 days before — use **Reconnect**.
-
-## Transaction history
-- The first sync after connecting uses Enable Banking's `strategy=longest`: it asks KBC for the
-  oldest transaction it will release and downloads everything after it.
-- Banks usually release more than 90 days only right after you log in (strong authentication).
-  If **Full re-sync** still returns only recent data, click **Reconnect**, log in, and the full
-  history is pulled immediately afterwards.
-- Everything is stored in `./data`, and daily syncs only add to it, so your history keeps growing
-  even when the bank's window is short.
+## Your history is kept, independently from KBC
+KBC only shares the last ~90 days. The app stores every transaction it has ever downloaded and never deletes
+any, so history keeps growing.
+- Data folder: `%LOCALAPPDATA%\KbcTracker` (change with `DataDirectory` in appsettings.json). Data from older
+  versions (in `bin\…\data`) is moved there automatically on first start.
+- Daily backup of the transactions in `backups\` (last 30 kept).
+- While the app runs it syncs every 6 hours (`AutoSyncHours`).
+- To sync every day even when the app is closed, run once:
+  `powershell -ExecutionPolicy Bypass -File .\scripts\install-daily-sync.ps1`
+  (builds the app to `%LOCALAPPDATA%\KbcTracker\app` and registers a Windows scheduled task running `--sync`).
+- The only manual step left: reconnect every 180 days (the app warns you 15 days before).
 
 ## How payments are classified
 Uses the ISO bank transaction code KBC sends with each transaction:
-- direct debits (`IDDT`) — one series per mandate, so two contracts with the same company stay separate;
-- loan instalments (`CSLN`), savings/investment plans (`SETT/SUBS`), account fees (`OPCL`);
-- card payments (`CCRD`) — grouped by shop name;
-- transfers — grouped by IBAN; transfers to/from accounts in your own name are **own transfers**
-  (not spending, not income), as are the loan disbursement and cash deposits.
+- direct debits (`IDDT`) — one payee per mandate, so two contracts with the same company stay separate;
+- loan instalments (`CSLN`), savings plans (`SETT/SUBS`), account fees (`OPCL`), spare-change investing;
+- card payments (`CCRD`) — grouped by shop name, cleaned from the bank label
+  (`WL*GOOGLE YouTube IED02 R296 Dublin` and `GOOGLE *YouTube IEUNKNOWN` both become *Google YouTube*);
+- transfers — grouped by IBAN; transfers to/from your own name are own transfers.
 
-Fixed payment = direct debit / loan / savings plan / fee seen in ≥2 months, or a transfer/card payment
-to the same payee in ≥3 months, about once a month, with a stable amount and day. Your ☆/✕ always win.
+**Fixed-payment suggestions**: payments are grouped by payee, and payments with almost the same amount (±3%) that
+share a distinctive shop word are merged too. A group is suggested when it comes back on a regular rhythm
+(monthly, quarterly or yearly) with a stable amount — or, for direct debits, loans, savings plans and fees, as soon
+as it appears in 2 months. Once accepted, new payments are matched by payee *or* by shop words + amount, so a
+changed bank label doesn't break it.
 
-Categories: keywords in `appsettings.json` → `Categories` (shop name first; the longest matching
-keyword wins). Anything in **Own transfers** or **Savings & investments** is excluded from spending.
+**Categories**: your choice per transaction > per payee > the fixed payment's category > automatic (keywords,
+longest match wins; for card payments only the shop name is used). Categories the bank code makes certain
+(loan, own transfers, fees, savings plan, cash) are confirmed automatically.
+
