@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests of the web host's own code (JSON storage). Test packages and settings come from test/Directory.Build.props. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\..\src\Containers\UI\Hosting\KbcTracker.Web\KbcTracker.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Feature namespaces used across the project">
+    <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
+    <Using Include="KbcTracker.Web.Features.Shared.Storage" />
+  </ItemGroup>
+
+</Project>

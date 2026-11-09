@@ -1,7 +1,9 @@
 # KbcTracker (Bank-Tracker)
 
-Personal expense tracker for a KBC Brussels current account. ASP.NET Core minimal API (.NET 8), server-rendered HTML
+Personal expense tracker for a KBC Brussels current account. ASP.NET Core minimal API (.NET 10), server-rendered HTML
 (no Razor/Blazor), Chart.js from CDN. Runs locally at https://localhost:5001. Single user, personal use only.
+Built on **Pivot.Framework**, running entirely on the phone (MAUI + SQLite, no server, no login): see
+`docs/adr/0003-…`, which supersedes ADR-0001. Step 1 (canonical layout, xUnit, tabs) is on branch `chore/shared-core`.
 
 ## How data gets in
 - Bank access via **Enable Banking** (PSD2 aggregator), free "restricted mode": only accounts linked in their
@@ -13,18 +15,31 @@ Personal expense tracker for a KBC Brussels current account. ASP.NET Core minima
 - **KBC only returns ~90 days** (confirmed: earliest = today − 89 days). That's why history is persisted forever.
 
 ## Files
-- `Models.cs` — Txn, SessionInfo, Category/CategoryType, RecurringPayment, UserData (all user decisions).
-- `Store.cs` — JSON files in the data folder (default `%LOCALAPPDATA%\KbcTracker`, `DataDirectory` setting);
-  transactions are merged by id and never deleted; daily backups in `backups/`; atomic writes; Enable Banking
-  JSON → Txn mapping (raw JSON kept in `Txn.Raw`). Migrates old `bin/.../data` on first start.
-- `Analysis.cs` — the brain: classification by ISO bank transaction code (`bank_transaction_code.code/sub_code`),
-  payee "series keys", merchant-name cleaning, category resolution, recurring **suggestions**, matching of
-  accepted recurring payments, month summaries, review queue.
-- `Pages.cs` — all HTML: tabs Overview / Fixed payments / Transactions / To review / Categories / Settings,
-  month selector `?m=yyyy-MM`. Client JS calls `POST /api` with `{action,...}`.
-- `Program.cs` — routes, `POST /api` action switch, `--sync` CLI mode.
-- `SyncService.cs` — sync logic + `AutoSync` background service (every `AutoSyncHours`).
-- `EnableBankingClient.cs` — REST client. `scripts/install-daily-sync.ps1` — Windows scheduled task for `--sync`.
+Solution `KbcTracker.slnx` in the Pivot canonical layout: `src/Core`, `src/Infrastructure`, `src/Containers`; every
+project organised as `Features/<Feature>/…` (`Features/Shared/` for cross-feature pieces); `test/` mirrors `src/`.
+Namespaces follow folders; each project file lists its feature namespaces as global usings. Tabs, one type per file.
+
+- `src/Core/KbcTracker.Domain` — `Features/Transactions` (`Txn`, `Kind`, `TxnInfo`, internal `BankFields` reading
+  the ISO code from `Txn.Raw`), `Categories` (`Category`, `CategoryType`, `PayeeAssignment`, `CategoryDefaults`),
+  `FixedPayments` (`RecurringPayment`, `Suggestion`, `FixedRow`, `FixedStatus`), `BankConnection` (`SessionInfo`),
+  `Overview` (`MonthSummary`), `Review` (`ReviewItem`), `Shared` (`UserData` = all user decisions; `Analysis`, the
+  brain: classification by ISO code, series keys, merchant cleaning, categories, suggestions, matching, month
+  summaries, review queue; optional `today` for tests; `Signature` builds dismissal keys).
+- `src/Core/KbcTracker.Application` — `Features/Shared/Abstractions/IStore` (never deletes transactions),
+  `Features/BankConnection` (`IBankTransactionSource` port, `SyncSettings`, `SyncService`).
+- `src/Infrastructure/KbcTracker.Infrastructure` — `Features/BankConnection`: `EnableBankingClient` (REST + JWT),
+  `EnableBankingOptions`, `EnableBankingMapper` (JSON → Txn, raw kept), `EnableBankingTransactionSource`.
+- `src/Containers/UI/Hosting/KbcTracker.Web` — `Program.cs` (routes, `POST /api` switch, `--sync` mode),
+  `appsettings.json`; `Features/<Tab>/<Tab>Page.cs` render each tab (`Render`), `Features/Shared/Pages/PageKit`
+  (CSS, layout, formatting helpers), `Features/Shared/Storage/Store` (JSON `IStore` in the data folder, merged by
+  id, daily backups, atomic writes), `Features/Shared/Api/ApiRequest`, `Features/BankConnection/AutoSync`,
+  `Features/Categories/CategorySeed`.
+- `scripts/install-daily-sync.ps1` — Windows scheduled task running `KbcTracker.Web.dll --sync`.
+
+Tests (xUnit + AwesomeAssertions + NSubstitute): `test/Core/…Domain.Tests` (analysis, categories, `RealDataTests`
+with `[RealDataFact]`, skipped without data), `…Application.Tests`, `test/Infrastructure/…Infrastructure.Tests`,
+`test/Containers/UI/Hosting/…Web.Tests` (Store), `test/KbcTracker.E2E.Tests` (in-memory host, temp data folder).
+Decisions: `docs/adr/`. User docs: `docs/index.md`.
 
 ## Domain rules (decided with the user — keep them)
 - KBC codes seen in real data: `CCRD/POSD` card, `IDDT/PMDD` direct debit, `CSLN/PPAY` loan instalment,
@@ -41,20 +56,29 @@ Personal expense tracker for a KBC Brussels current account. ASP.NET Core minima
   union of same series + fuzzy links (amount ±3% and a shared ≥5-letter token), regular cadence
   (monthly 26–35d / quarterly / yearly), stable amount; contracts (DD/loan/plan/fee) need just 2 months.
   Accepted ones match by series key OR all tokens + amount within tolerance.
-- Categories: per transaction > per payee > recurring payment's category > automatic (keywords, longest match
-  wins; for card payments only the shop name, never the description — it contains "Google Pay", "KBC").
+- Categories: per transaction > per payee > recurring payment's category > automatic (keywords matched at the
+  start of a word, so "AD " never hits "AZAD"; longest match wins; for card payments only the shop name, never
+  the description — it contains "Google Pay", "KBC").
   Automatic categories need user confirmation, except bank-certain kinds (loan, own transfer, fee, plan, cash).
 - Category type decides totals: Expense = spending, Income, Savings (separate), Transfer (ignored).
 - The user wants: clear UI, little scrolling, no manual exports/imports, everything user-correctable.
 
 ## Build / run
-- `dotnet run` (needs `dotnet dev-certs https --trust` once). `dotnet run -- --sync` syncs once and exits.
-- No NuGet packages beyond the shared framework — keep it that way unless there is a strong reason.
-- No test project yet. When changing detection, verify against the real data in `%LOCALAPPDATA%\KbcTracker\transactions.json`
-  (e.g. accepted suggestions should still include Google YouTube 13.99 €, rent 940 €, loan 375.50 €).
+- `dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web` (needs `dotnet dev-certs https --trust` once);
+  add `-- --sync` to sync once and exit. `dotnet build` / `dotnet test` at the root use `KbcTracker.slnx`.
+- Packages: versions in `Directory.Packages.props`, reasons in ADR-0002/0003. `Pivot.Framework.*` (2.0.0) come from
+  the private feed in `nuget.config`; restoring them needs `PIVOT_PACKAGES_USER`/`PIVOT_PACKAGES_TOKEN` (GitHub token
+  with `read:packages`, e.g. `gh auth token`). Never write the token into a file.
+- Analyzers + warnings as errors for every project (`Directory.Build.props`); the web host is waived until it is
+  retired (ADR-0003 step 5).
+  Deviations and suppressions are listed in ADR-0002 — fix findings, don't suppress them.
+- `dotnet test`. When changing detection, add a test and keep `RealDataTests` passing:
+  it checks the real data in `%LOCALAPPDATA%\KbcTracker`
+  (YouTube 13.99 €, rent 940 €, loan 375.50 € still suggested).
 
 ## Open ideas / known gaps
 - Fixed payments and categories set in the version before `34987bb` (`user-rules.json`) are not migrated.
 - Chart.js is loaded from a CDN (fails offline) — could be bundled into `wwwroot`.
-- Possible next steps: installable PWA for Android, unit tests for `Analysis`, budgets per category,
-  notifications when a fixed payment changes amount or is late, hosting on Azure.
+- Next: steps 2–6 of ADR-0003 (domain on Pivot types, EF Core SQLite persistence, mediator commands/queries, MAUI
+  app, then savings account, salary/quarterly/yearly detection, Loan and Salary tabs, notifications).
+  Later ideas: budgets per category.

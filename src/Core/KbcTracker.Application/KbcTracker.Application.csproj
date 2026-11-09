@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The use cases of KbcTracker (ADR-0003): syncing the bank, and the ports to storage and to the bank. Depends on the
+    domain only. Build settings come from Directory.Build.props.
+  -->
+  <PropertyGroup>
+    <RootNamespace>KbcTracker.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ILogger for SyncService; every host provides an implementation. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KbcTracker.Domain\KbcTracker.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Feature namespaces used across the project">
+    <Using Include="KbcTracker.Application.Features.BankConnection.Abstractions" />
+    <Using Include="KbcTracker.Application.Features.Shared.Abstractions" />
+    <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,41 @@
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{csproj,props,targets,json,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# Pivot.Framework house style (ADR-0003): C# is indented with tabs.
+indent_style = tab
+indent_size = 4
+
+# StyleCop: naming, layout and documentation rules only (Static Analysis and Quality Gates / R1).
+dotnet_analyzer_diagnostic.category-StyleCop.CSharp.SpacingRules.severity = none
+dotnet_analyzer_diagnostic.category-StyleCop.CSharp.ReadabilityRules.severity = none
+dotnet_analyzer_diagnostic.category-StyleCop.CSharp.OrderingRules.severity = none
+dotnet_analyzer_diagnostic.category-StyleCop.CSharp.MaintainabilityRules.severity = none
+
+# Required local additions (Static Analysis and Quality Gates / R4).
+dotnet_diagnostic.SA1124.severity = none    # regions are mandatory (csharp-regions)
+dotnet_diagnostic.SA1123.severity = error   # but never inside members
+dotnet_diagnostic.SA1633.severity = none    # no file banners; the type header lives in <summary>
+dotnet_diagnostic.SA1600.severity = error   # documentation (csharp-xml-documentation)
+dotnet_diagnostic.CS1591.severity = error
+dotnet_diagnostic.SA1623.severity = none    # summaries use "Gets …" without SA1623's exact wording (csharp-xml-documentation §5)
+
+# StyleCop rules that contradict the adopted house style; the house skills win (ADR-0002).
+dotnet_diagnostic.SA1309.severity = none    # csharp-xml-documentation and csharp-regions use _camelCase fields (_logger)
+dotnet_diagnostic.SA1514.severity = none    # csharp-regions: no blank line directly after #region, before the first member's docs
+dotnet_diagnostic.SA1642.severity = none    # csharp-xml-documentation: constructors read "Initialises a new <see cref="T"/>."
+dotnet_diagnostic.CA1716.severity = none    # Pivot layout requires Features/Shared/; "Shared" is only a Visual Basic keyword
+
+[*.{g.cs,Designer.cs}]
+generated_code = true

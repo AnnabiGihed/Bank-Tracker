@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests of KbcTracker.Infrastructure. Test packages and settings come from test/Directory.Build.props. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Infrastructure\KbcTracker.Infrastructure\KbcTracker.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Feature namespaces used across the project">
+    <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
+    <Using Include="KbcTracker.Infrastructure.Features.BankConnection" />
+  </ItemGroup>
+
+</Project>
