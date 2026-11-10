@@ -81,4 +81,31 @@ public sealed class SessionInfoTests
 		incremental.Should().Throw<ArgumentOutOfRangeException>();
 	}
 	#endregion
+
+	#region Error Message Tests
+	/// <summary>
+	/// Verifies that error messages are cut to the length a session keeps, and that shorter ones are kept as they are.
+	/// </summary>
+	/// <param name="length">The length of the message.</param>
+	/// <param name="expected">The expected length after cutting.</param>
+	[Theory]
+	[InlineData(10, 10)]
+	[InlineData(SessionInfo.MaxErrorLength, SessionInfo.MaxErrorLength)]
+	[InlineData(SessionInfo.MaxErrorLength + 1, SessionInfo.MaxErrorLength)]
+	public void ShortenError_Length_CutToLimit(int length, int expected)
+	{
+		SessionInfo.ShortenError(new string('x', length)).Should().HaveLength(expected);
+	}
+
+	/// <summary>
+	/// Verifies that a missing message is refused.
+	/// </summary>
+	[Fact]
+	public void ShortenError_Null_Throws()
+	{
+		var shorten = () => SessionInfo.ShortenError(null!);
+
+		shorten.Should().Throw<ArgumentNullException>();
+	}
+	#endregion
 }

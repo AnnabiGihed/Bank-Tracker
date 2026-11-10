@@ -25,7 +25,21 @@ if (args.Contains("--sync"))
 {
 	using var scope = app.Services.CreateScope();
 	var (added, error) = await scope.ServiceProvider.GetRequiredService<SyncService>().SyncAsync();
-	var skipped = scope.ServiceProvider.GetRequiredService<Store>().LoadSession()?.SkippedTransactions ?? 0;
+	var skipped = 0;
+	try
+	{
+		// The error line never shows the left-out count, so the session is read only after a successful sync.
+		if (error is null)
+		{
+			skipped = scope.ServiceProvider.GetRequiredService<Store>().LoadSession()?.SkippedTransactions ?? 0;
+		}
+	}
+	catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+	{
+		// The count is only extra information: the outcome line is still printed, and this says the count is unknown.
+		await Console.Error.WriteLineAsync($"Left-out count unavailable: {ex.Message}").ConfigureAwait(false);
+	}
+
 	Console.WriteLine(SyncReport.Describe(added, error, skipped));
 	return error is null ? 0 : 1;
 }

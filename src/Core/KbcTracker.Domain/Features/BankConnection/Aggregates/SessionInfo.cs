@@ -14,7 +14,7 @@ public sealed class SessionInfo : LightweightAggregateRoot<BankSessionId>
 	/// <summary>
 	/// The longest error message kept, so a long bank response does not fill the page.
 	/// </summary>
-	private const int MaxErrorLength = 300;
+	public const int MaxErrorLength = 300;
 	#endregion
 
 	#region Fields
@@ -46,8 +46,8 @@ public sealed class SessionInfo : LightweightAggregateRoot<BankSessionId>
 	public DateTimeOffset? LastSync { get; private set; }
 
 	/// <summary>
-	/// Gets the error of the last failed sync (at most 300 characters), or <see langword="null"/> when the last sync
-	/// succeeded.
+	/// Gets the error of the last failed sync (at most <see cref="MaxErrorLength"/> characters), or
+	/// <see langword="null"/> when the last sync succeeded.
 	/// </summary>
 	public string? LastError { get; private set; }
 
@@ -147,12 +147,27 @@ public sealed class SessionInfo : LightweightAggregateRoot<BankSessionId>
 	/// <summary>
 	/// Records a failed sync so the user sees why; the last successful sync is kept.
 	/// </summary>
-	/// <param name="message">The error message; cut to 300 characters.</param>
+	/// <param name="message">The error message; cut to <see cref="MaxErrorLength"/> characters.</param>
 	/// <exception cref="ArgumentNullException"><paramref name="message"/> is <see langword="null"/>.</exception>
 	public void RecordFailure(string message)
 	{
 		ArgumentNullException.ThrowIfNull(message);
-		LastError = message.Length > MaxErrorLength ? message[..MaxErrorLength] : message;
+		LastError = ShortenError(message);
+	}
+	#endregion
+
+	#region Public Methods
+	/// <summary>
+	/// Cuts an error message to the length a session keeps, so every sync error shown to the user fits the same
+	/// limit.
+	/// </summary>
+	/// <param name="message">The error message.</param>
+	/// <returns>The message, cut to <see cref="MaxErrorLength"/> characters.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="message"/> is <see langword="null"/>.</exception>
+	public static string ShortenError(string message)
+	{
+		ArgumentNullException.ThrowIfNull(message);
+		return message.Length > MaxErrorLength ? message[..MaxErrorLength] : message;
 	}
 	#endregion
 }
