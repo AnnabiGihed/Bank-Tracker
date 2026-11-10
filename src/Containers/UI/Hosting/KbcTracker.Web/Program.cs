@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Text.Json.Serialization;
+using Pivot.Framework.Domain.Shared;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -6,6 +8,7 @@ var ebOptions = builder.Configuration.GetSection("EnableBanking").Get<EnableBank
 CategorySeed.Keywords = builder.Configuration.GetSection("Categories").Get<Dictionary<string, string[]>>() ?? new Dictionary<string, string[]>(StringComparer.Ordinal);
 
 builder.Services.AddSingleton(ebOptions);
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<Store>();
 builder.Services.AddSingleton<IStore>(sp => sp.GetRequiredService<Store>());
 builder.Services.AddSingleton(new SyncSettings(ebOptions.HistoryMonths));
@@ -22,7 +25,8 @@ if (args.Contains("--sync"))
 {
 	using var scope = app.Services.CreateScope();
 	var (added, error) = await scope.ServiceProvider.GetRequiredService<SyncService>().SyncAsync();
-	Console.WriteLine(error ?? $"OK, {added} new transactions");
+	var skipped = scope.ServiceProvider.GetRequiredService<Store>().LoadSession()?.SkippedTransactions ?? 0;
+	Console.WriteLine(SyncReport.Describe(added, error, skipped));
 	return error is null ? 0 : 1;
 }
 
@@ -31,6 +35,7 @@ var pendingStates = new HashSet<string>();
 Analysis Analyse(Store s) => new(s.LoadTransactions(), s.LoadCategories(CategorySeed.Keywords), s.LoadUserData());
 string Month(string? m, Analysis a) => m is not null && a.AvailableMonths.Contains(m) ? m : a.AvailableMonths.FirstOrDefault() ?? $"{DateTime.Today:yyyy-MM}";
 IResult HtmlResult(string html) => Results.Content(html, "text/html");
+CategoryId? CategoryIdOrNull(string? id) => string.IsNullOrWhiteSpace(id) ? null : new CategoryId(id);
 
 // ---------- pages (one per tab; ?m=yyyy-MM selects the month) ----------
 app.MapGet("/", () => Results.Redirect("/overview"));
@@ -42,113 +47,202 @@ app.MapGet("/categories", (string? m, Store s) => { var a = Analyse(s); return H
 app.MapGet("/settings", (string? m, Store s) => { var a = Analyse(s); return HtmlResult(SettingsPage.Render(a, Month(m, a), s.LoadSession(), s.Dir)); });
 
 // ---------- everything you change in the UI ----------
-app.MapPost("/api", (ApiRequest r, Store store) =>
+char[] keywordSeparators = [',', '\n'];
+
+// Each action names the fields it needs in its case guard; a request without them falls through to the default
+// branch and is answered 400, instead of failing inside the domain.
+app.MapPost("/api", (ApiRequest r, Store store, TimeProvider clock) =>
 {
 	var user = store.LoadUserData();
 	object? result = null;
 	switch (r.Action)
 	{
 		// fixed payments
-		case "accept":
+		case "accept" when Has(r.Key, out var signature):
 		{
-			var a = Analyse(store);
-			var sug = a.Suggestions.FirstOrDefault(x => x.Signature == r.Key);
-			if (sug is null) return Results.NotFound();
-			user.Recurring.Add(Analysis.ToDefinition(sug));
-			break;
-		}
-		case "dismiss":
-			user.DismissedSuggestions.Add(r.Key!);
-			break;
-		case "mark":
-		{
-			var g = Analyse(store).GroupFor(r.Key!);
-			user.DismissedSuggestions.Remove(g.Signature);
-			user.Recurring.Add(Analysis.ToDefinition(g));
-			break;
-		}
-		case "updateFixed":
-		{
-			var d = user.Recurring.First(x => x.Id == r.Id);
-			if (!string.IsNullOrWhiteSpace(r.Name)) d.Name = r.Name.Trim();
-			if (r.CategoryId is not null) d.CategoryId = r.CategoryId;
-			if (r.Amount is > 0) d.Amount = r.Amount.Value;
-			if (r.Cadence is > 0) d.CadenceDays = r.Cadence.Value;
-			break;
-		}
-		case "removeFixed":
-		{
-			var d = user.Recurring.First(x => x.Id == r.Id);
-			user.Recurring.Remove(d);
-			user.DismissedSuggestions.Add(Analysis.Signature(d.SeriesKeys));
+			var suggestion = Analyse(store).Suggestions.FirstOrDefault(x => string.Equals(x.Signature, signature, StringComparison.Ordinal));
+			if (suggestion is null)
+			{
+				return Results.NotFound("This suggestion no longer exists.");
+			}
+
+			var accepted = Analysis.ToDefinition(suggestion, RecurringPaymentId.New(), clock.GetUtcNow());
+			if (accepted.IsFailure)
+			{
+				return Results.BadRequest(accepted.Error.Message);
+			}
+
+			user.AcceptFixedPayment(accepted.Value);
 			break;
 		}
 
-		// categories of payments
-		case "payeeCategory":   // applies to every payment of this payee; returns what it was before (for "only this one")
-		{
-			result = user.Payees.TryGetValue(r.Key!, out var prev) ? new { prev.CategoryId, prev.Confirmed } : null;
-			user.Payees[r.Key!] = new PayeeAssignment { CategoryId = r.CategoryId, Confirmed = true };
+		case "dismiss" when Has(r.Key, out var signature):
+			user.DismissSuggestion(signature);
 			break;
-		}
-		case "txnOnly":         // undo the payee change and set the category on one transaction only
+		case "mark" when Has(r.Key, out var seriesKey):
 		{
-			if (r.Restore is null) user.Payees.Remove(r.Key!); else user.Payees[r.Key!] = r.Restore;
-			user.TxnCategories[r.Id!] = r.CategoryId!;
-			break;
-		}
-		case "confirm":         // accept the automatic category for these payees
-		{
-			var a = Analyse(store);
-			foreach (var key in r.Keys ?? [r.Key!])
+			var analysis = Analyse(store);
+			if (!analysis.Items.Any(i => i.T.Amount < 0 && string.Equals(i.SeriesKey, seriesKey, StringComparison.Ordinal)))
 			{
-				var cur = a.Items.FirstOrDefault(i => i.SeriesKey == key);
-				if (cur is not null) user.Payees[key] = new PayeeAssignment { CategoryId = cur.Category.Id, Confirmed = true };
+				return Results.NotFound("This payee has no payments to mark.");
 			}
+
+			var marked = Analysis.ToDefinition(analysis.GroupFor(seriesKey), RecurringPaymentId.New(), clock.GetUtcNow());
+			if (marked.IsFailure)
+			{
+				return Results.BadRequest(marked.Error.Message);
+			}
+
+			user.AcceptFixedPayment(marked.Value);
 			break;
 		}
-		case "rename":
-			user.PayeeNames[r.Key!] = r.Name!.Trim();
+
+		case "updateFixed" when Has(r.Id, out var id):
+		{
+			var updated = user.UpdateFixedPayment(new RecurringPaymentId(id), r.Name, CategoryIdOrNull(r.CategoryId), r.Amount, r.Cadence);
+			if (updated.IsFailure)
+			{
+				return Results.NotFound(updated.Error.Message);
+			}
+
 			break;
+		}
+
+		case "removeFixed" when Has(r.Id, out var id):
+		{
+			var removed = user.RemoveFixedPayment(new RecurringPaymentId(id));
+			if (removed.IsFailure)
+			{
+				return Results.NotFound(removed.Error.Message);
+			}
+
+			break;
+		}
+
+		// categories of payments: "payeeCategory" applies to every payment of the payee and returns what it was
+		// before, which "txnOnly" sends back to undo it and set the category on one transaction only.
+		case "payeeCategory" when Has(r.Key, out var seriesKey):
+			result = user.Payees.TryGetValue(seriesKey, out var previous) ? PayeeAssignmentDocument.From(previous) : null;
+			user.AssignPayeeCategory(seriesKey, CategoryIdOrNull(r.CategoryId));
+			break;
+		case "txnOnly" when Has(r.Key, out var seriesKey) && Has(r.Id, out var txnId) && Has(r.CategoryId, out var categoryId):
+			user.RestorePayeeCategory(seriesKey, r.Restore?.ToDomain());
+			user.AssignTransactionCategory(new TxnId(txnId), new CategoryId(categoryId));
+			break;
+		case "confirm":
+		{
+			var analysis = Analyse(store);
+			var keys = r.Keys ?? (Has(r.Key, out var single) ? [single] : []);
+			foreach (var key in keys.Where(k => !string.IsNullOrWhiteSpace(k)))
+			{
+				var current = analysis.Items.FirstOrDefault(i => string.Equals(i.SeriesKey, key, StringComparison.Ordinal));
+				if (current is not null)
+				{
+					user.AssignPayeeCategory(key, current.Category.Id);
+				}
+			}
+
+			break;
+		}
+
+		case "rename" when Has(r.Key, out var seriesKey):
+		{
+			var renamed = user.RenamePayee(seriesKey, r.Name);
+			if (renamed.IsFailure)
+			{
+				return Results.BadRequest(renamed.Error.Message);
+			}
+
+			break;
+		}
 
 		// category definitions
 		case "saveCategory":
 		{
-			var cats = store.LoadCategories(CategorySeed.Keywords);
-			var c = cats.FirstOrDefault(x => x.Id == r.Id);
-			if (c is null)
+			var categories = store.LoadCategories(CategorySeed.Keywords);
+			var saved = SaveCategory(categories, r);
+			if (saved.IsFailure)
 			{
-				var id = Store.Slug(r.Name!);
-				while (cats.Any(x => x.Id == id)) id += "-2";
-				c = new Category { Id = id };
-				cats.Add(c);
+				return Results.BadRequest(saved.Error.Message);
 			}
-			c.Name = r.Name!.Trim();
-			c.Type = Enum.TryParse<CategoryType>(r.Type, out var t) ? t : CategoryType.Expense;
-			c.Color = r.Color ?? c.Color;
-			c.Keywords = (r.Keywords ?? "").Split(new[] { ',', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-			store.SaveCategories(cats);
-			result = new { c.Id };
+
+			store.SaveCategories(categories);
+			result = new { Id = saved.Value.Value };
 			break;
 		}
-		case "deleteCategory":
+
+		case "deleteCategory" when Has(r.Id, out var id):
 		{
-			var cats = store.LoadCategories(CategorySeed.Keywords);
-			var c = cats.FirstOrDefault(x => x.Id == r.Id);
-			if (c is null || c.Id == "other") return Results.BadRequest("This category can't be deleted.");
-			cats.Remove(c);
-			store.SaveCategories(cats);
-			// its payees go back to automatic categorisation (and show up in "To review")
-			foreach (var k in user.Payees.Where(kv => kv.Value.CategoryId == c.Id).Select(kv => kv.Key).ToList()) user.Payees.Remove(k);
-			foreach (var k in user.TxnCategories.Where(kv => kv.Value == c.Id).Select(kv => kv.Key).ToList()) user.TxnCategories.Remove(k);
-			foreach (var d in user.Recurring.Where(d => d.CategoryId == c.Id)) d.CategoryId = null;
+			var categories = store.LoadCategories(CategorySeed.Keywords);
+			var category = categories.FirstOrDefault(x => string.Equals(x.Id.Value, id, StringComparison.Ordinal));
+			if (category is null)
+			{
+				return Results.NotFound("This category does not exist.");
+			}
+
+			if (category.Id == CategoryId.Other)
+			{
+				return Results.BadRequest(CategoryErrors.OtherCannotBeDeleted.Message);
+			}
+
+			categories.Remove(category);
+			store.SaveCategories(categories);
+
+			// Its payees go back to automatic categorisation (and show up in "To review").
+			user.ForgetCategory(category.Id);
 			break;
 		}
-		default: return Results.BadRequest();
+
+		default:
+			return Results.BadRequest("Unknown action, or a field it needs is missing.");
 	}
+
 	store.SaveUserData(user);
 	return Results.Ok(result);
 });
+
+// Reads a request field an action needs: true, with the value, when it is present and not blank.
+static bool Has(string? field, out string value)
+{
+	value = field ?? "";
+	return !string.IsNullOrWhiteSpace(field);
+}
+
+// Creates a category (its id is the slug of its first name, made unique) or updates an existing one.
+Result<CategoryId> SaveCategory(IList<Category> categories, ApiRequest r)
+{
+	var name = r.Name ?? "";
+	var type = Enum.TryParse<CategoryType>(r.Type, out var parsed) ? parsed : CategoryType.Expense;
+	var keywords = (r.Keywords ?? "").Split(keywordSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+	var existing = categories.FirstOrDefault(x => string.Equals(x.Id.Value, r.Id, StringComparison.Ordinal));
+	if (existing is not null)
+	{
+		var changed = existing.Update(name, type, r.Color ?? existing.Color, keywords);
+		return changed.IsSuccess ? existing.Id : Result.Failure<CategoryId>(changed.Error);
+	}
+
+	var slug = Store.Slug(name);
+	if (slug.Length == 0)
+	{
+		return Result.Failure<CategoryId>(CategoryErrors.NameRequired);
+	}
+
+	var id = slug;
+	var suffix = 2;
+	while (categories.Any(x => string.Equals(x.Id.Value, id, StringComparison.Ordinal)))
+	{
+		id = string.Create(CultureInfo.InvariantCulture, $"{slug}-{suffix++}");
+	}
+
+	var created = Category.Create(new CategoryId(id), name, type, r.Color ?? Category.DefaultColor, keywords, builtIn: false);
+	if (created.IsFailure)
+	{
+		return Result.Failure<CategoryId>(created.Error);
+	}
+
+	categories.Add(created.Value);
+	return created.Value.Id;
+}
 
 // ---------- bank connection ----------
 app.MapGet("/banks", async (EnableBankingClient eb) => HtmlResult(BankPickerPage.Render([.. await eb.GetBanksAsync()])));
@@ -160,21 +254,21 @@ app.MapGet("/connect", async (string name, string country, EnableBankingClient e
 	return Results.Redirect(await eb.StartAuthAsync(name, country, state));
 });
 
-app.MapGet("/callback", async (string? code, string? state, string? error, string? error_description, EnableBankingClient eb, Store store) =>
+app.MapGet("/callback", async (string? code, string? state, string? error, string? error_description, EnableBankingClient eb, Store store, TimeProvider clock) =>
 {
 	if (error is not null) return Results.Content($"Bank authorisation failed: {error} {error_description}", "text/plain");
 	if (code is null || state is null || !pendingStates.Remove(state)) return Results.BadRequest("Unknown or expired authorisation request — start again from /banks.");
 
 	var (sessionId, uids, _) = await eb.CreateSessionAsync(code);
 	var old = store.LoadSession();
-	store.SaveSession(new SessionInfo
+	var now = clock.GetUtcNow();
+	var session = SessionInfo.Connect(new BankSessionId(sessionId), uids, now, now.AddDays(ebOptions.ConsentDays), old?.LastSync);
+	if (session.IsFailure)
 	{
-		SessionId = sessionId,
-		AccountUids = uids,
-		ConnectedAt = DateTimeOffset.UtcNow,
-		ValidUntil = DateTimeOffset.UtcNow.AddDays(ebOptions.ConsentDays),
-		LastSync = old?.LastSync
-	});
+		return Results.Content($"Bank authorisation failed: {session.Error.Message}", "text/plain");
+	}
+
+	store.SaveSession(session.Value);
 	return Results.Redirect("/sync?full=true&back=/settings");
 });
 

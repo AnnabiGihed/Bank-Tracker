@@ -10,8 +10,10 @@
     <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.FixedPayments.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.ValueObjects" />
     <Using Include="KbcTracker.Web.Features.Shared.Storage" />
   </ItemGroup>
 

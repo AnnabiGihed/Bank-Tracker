@@ -32,7 +32,7 @@ public static class TransactionsPage
 		sb.Append("<select id=type><option value=spend>Spending</option><option value=income>Income</option><option value=save>Savings</option><option value=own>Own transfers</option><option value=all>Everything</option></select>");
 		sb.Append("<select id=cat><option value=''>All categories</option>");
 		foreach (var c in items.Select(i => i.Category).DistinctBy(c => c.Id).OrderBy(c => c.Name))
-			sb.Append($"<option value='{Html(c.Id)}'{(c.Id == cat ? " selected" : "")}>{Html(c.Name)}</option>");
+			sb.Append($"<option value='{Html(c.Id.Value)}'{(c.Id.Value == cat ? " selected" : "")}>{Html(c.Name)}</option>");
 		sb.Append("</select><label class=muted><input type=checkbox id=unconf> not confirmed only</label></div>");
 
 		sb.Append("<div class=card><div class=scroll><table id=tx><tr><th>Date</th><th>Name</th><th>Category</th><th class=num>Amount</th><th title='Fixed payment'>Fixed</th></tr>");
@@ -40,8 +40,8 @@ public static class TransactionsPage
 		{
 			var type = i.IsOwnMove ? "own" : i.IsSaving ? "save" : i.T.Amount > 0 ? "income" : "spend";
 			var search = $"{i.Name} {i.T.Description} {Math.Abs(i.T.Amount).ToString("0.00", Be)}".ToLowerInvariant();
-			var ctx = JsonAttribute(new { key = i.SeriesKey, id = i.T.Id, name = i.Name });
-			sb.Append($"<tr data-type={type} data-cat='{Html(i.Category.Id)}' data-conf={(i.CategoryConfirmed ? 1 : 0)} data-s='{Html(search)}' data-a='{(-i.T.Amount).ToString(CultureInfo.InvariantCulture)}'>");
+			var ctx = JsonAttribute(new { key = i.SeriesKey, id = i.T.Id.Value, name = i.Name });
+			sb.Append($"<tr data-type={type} data-cat='{Html(i.Category.Id.Value)}' data-conf={(i.CategoryConfirmed ? 1 : 0)} data-s='{Html(search)}' data-a='{(-i.T.Amount).ToString(CultureInfo.InvariantCulture)}'>");
 			sb.Append($"<td class=muted style='width:1%'>{i.T.Date:dd/MM}</td>");
 			sb.Append($"<td><b>{Html(i.Name)}</b><div class='muted ell' title='{Html(i.T.Description)}'>{Html(i.T.Description)}</div></td>");
 			sb.Append("<td style='white-space:nowrap'>").Append(CategorySelect(a, i.Category, i.CategoryConfirmed, $"setCat({ctx},this)"));

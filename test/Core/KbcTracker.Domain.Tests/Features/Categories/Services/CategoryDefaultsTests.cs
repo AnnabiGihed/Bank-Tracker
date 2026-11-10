@@ -42,11 +42,23 @@ public sealed class CategoryDefaultsTests
 			["Groceries"] = ["DELHAIZE"],
 		});
 
-		var ownTransfers = categories.Where(c => string.Equals(c.Id, "own-transfers", StringComparison.Ordinal)).ToList();
+		var ownTransfers = categories.Where(c => string.Equals(c.Id.Value, "own-transfers", StringComparison.Ordinal)).ToList();
 		ownTransfers.Should().HaveCount(1);
 		ownTransfers[0].Keywords.Should().Contain("REVOLUT");
-		categories.Single(c => string.Equals(c.Id, "groceries", StringComparison.Ordinal)).Type.Should().Be(CategoryType.Expense);
-		categories.Any(c => string.Equals(c.Id, "other", StringComparison.Ordinal) && c.BuiltIn).Should().BeTrue("The analysis needs the built-in 'other' category.");
+		categories.Single(c => string.Equals(c.Id.Value, "groceries", StringComparison.Ordinal)).Type.Should().Be(CategoryType.Expense);
+		categories.Any(c => string.Equals(c.Id.Value, "other", StringComparison.Ordinal) && c.BuiltIn).Should().BeTrue("The analysis needs the built-in 'other' category.");
+	}
+
+	/// <summary>
+	/// Verifies that a seed entry whose name has no letter or digit is skipped: it would have no id.
+	/// </summary>
+	[Fact]
+	public void Create_SeedWithoutLettersOrDigits_Skipped()
+	{
+		var categories = CategoryDefaults.Create(new Dictionary<string, string[]>(StringComparer.Ordinal) { ["&&"] = ["X"] });
+
+		categories.Should().NotContain(c => c.Name == "&&");
+		categories.Should().Contain(c => c.Id == CategoryId.Other);
 	}
 	#endregion
 }

@@ -23,6 +23,8 @@ public static class EnableBankingMapper
 	/// <param name="transaction">The transaction JSON as returned by <c>GET /accounts/{uid}/transactions</c>.</param>
 	/// <returns>The mapped transaction. Its id is the bank's entry reference or transaction id, or a hash of the
 	/// account and JSON when the bank sends neither, so the same transaction always gets the same id.</returns>
+	/// <exception cref="InvalidDataException">The JSON does not make a valid transaction (for example a malformed
+	/// currency or no account).</exception>
 	public static Txn Map(string accountUid, JsonNode transaction)
 	{
 		var amount = decimal.Parse(Text(transaction, "transaction_amount", "amount") ?? "0", CultureInfo.InvariantCulture);
@@ -39,20 +41,42 @@ public static class EnableBankingMapper
 		var description = Description(transaction);
 		var bankCode = Text(transaction, "bank_transaction_code", "description");
 		var iban = amount < 0 ? Text(transaction, "creditor_account", "iban") : Text(transaction, "debtor_account", "iban");
-		var counterparty = amount < 0 ? Text(transaction, "creditor", "name") : Text(transaction, "debtor", "name");
-		if (string.IsNullOrWhiteSpace(counterparty))
-		{
-			counterparty = description.Length > 0 ? description[..Math.Min(description.Length, 45)] : bankCode ?? iban ?? "(unknown)";
-		}
+		var counterparty = Present(amount < 0 ? Text(transaction, "creditor", "name") : Text(transaction, "debtor", "name"))
+			?? Present(description.Length > 0 ? description[..Math.Min(description.Length, 45)] : null)
+			?? Present(bankCode) ?? Present(iban) ?? "(unknown)";
 
-		var id = Text(transaction, "entry_reference") ?? Text(transaction, "transaction_id") ?? ContentId(accountUid, transaction);
-
-		return new Txn(id, accountUid, date, amount, Text(transaction, "transaction_amount", "currency") ?? "EUR",
-			counterparty.Trim(), description, iban?.Replace(" ", ""), bankCode, transaction.ToJsonString());
+		var id = IdOf(accountUid, transaction);
+		var money = Required(Money.Create(amount, Text(transaction, "transaction_amount", "currency") ?? "EUR"));
+		var party = Required(Counterparty.Create(counterparty, iban));
+		return Required(Txn.Create(new TxnId(id), accountUid, date, money, party, description, new BankRecord(bankCode, transaction.ToJsonString())));
 	}
+
+	/// <summary>
+	/// Gives the id a transaction gets: the bank's entry reference or transaction id, or a hash of the account and
+	/// JSON when the bank sends neither. A blank reference counts as missing: as an id it would merge unrelated
+	/// transactions. Also used to rebuild the id of a transaction an older version stored with a blank one, so a
+	/// re-sync updates it instead of adding a copy.
+	/// </summary>
+	/// <param name="accountUid">The Enable Banking account the transaction belongs to.</param>
+	/// <param name="transaction">The transaction JSON as returned by the bank.</param>
+	/// <returns>The id; never blank.</returns>
+	public static string IdOf(string accountUid, JsonNode transaction) =>
+		Present(Text(transaction, "entry_reference")) ?? Present(Text(transaction, "transaction_id")) ?? ContentId(accountUid, transaction);
 	#endregion
 
 	#region Private Helpers
+	/// <summary>
+	/// Returns the text, or <see langword="null"/> when it is blank, so blank bank fields count as missing.
+	/// </summary>
+	private static string? Present(string? text) => string.IsNullOrWhiteSpace(text) ? null : text;
+
+	/// <summary>
+	/// Unwraps a domain result, turning a failure into an <see cref="InvalidDataException"/>: the bank sent data the
+	/// domain rejects, which no retry can fix.
+	/// </summary>
+	private static T Required<T>(Result<T> result) =>
+		result.IsSuccess ? result.Value : throw new InvalidDataException($"{result.Error.Code}: {result.Error.Message}");
+
 	/// <summary>
 	/// Derives an id from the account and the transaction JSON, for banks that send neither an entry reference nor
 	/// a transaction id. The same transaction always gets the same id, so a re-sync does not duplicate it.

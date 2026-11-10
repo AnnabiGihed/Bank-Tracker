@@ -35,7 +35,7 @@ public sealed class AnalysisTests
 	/// Runs the analysis on the given transactions with no user decisions unless some are given.
 	/// </summary>
 	private static Analysis Analyse(IEnumerable<Txn> txns, UserData? user = null) =>
-		new([.. txns], Categories(), user ?? new UserData(), Today);
+		new([.. txns], Categories(), user ?? UserData.Empty(), Today);
 
 	/// <summary>
 	/// Three months of a YouTube card subscription, a rent transfer and a loan instalment, with the labels
@@ -79,7 +79,7 @@ public sealed class AnalysisTests
 		var item = Analyse([BankJson.LoanInstalment("2026-10-07", 375.50m, "726-0000000-01")]).Items.Single();
 
 		item.Kind.Should().Be(Kind.Loan);
-		item.Category.Id.Should().Be("loan");
+		item.Category.Id.Value.Should().Be("loan");
 		item.CategoryConfirmed.Should().BeTrue("Bank-certain kinds need no confirmation.");
 		item.SeriesKey.Should().Be("LOAN:726-0000000-01");
 	}
@@ -129,7 +129,7 @@ public sealed class AnalysisTests
 	{
 		var item = Analyse([BankJson.Card("2026-10-20", 20m, shopLabel)]).Items.Single();
 
-		item.Category.Id.Should().Be(expectedCategory, $"Shop label: {shopLabel}");
+		item.Category.Id.Value.Should().Be(expectedCategory, $"Shop label: {shopLabel}");
 		item.CategoryConfirmed.Should().BeFalse("Keyword categories wait for the user's confirmation.");
 	}
 
@@ -141,7 +141,7 @@ public sealed class AnalysisTests
 	{
 		var item = Analyse([BankJson.TransferOut("2026-11-09", 500m, "CARREFOUR WALLON AUTOMOBILE", "BE00444455556666")]).Items.Single();
 
-		item.Category.Id.Should().Be("car");
+		item.Category.Id.Value.Should().Be("car");
 	}
 	#endregion
 
@@ -185,7 +185,8 @@ public sealed class AnalysisTests
 	{
 		var txns = ThreeMonthsOfFixedPayments();
 		var rent = Analyse(txns).Suggestions.Single(s => s.Amount == 940m);
-		var user = new UserData { DismissedSuggestions = new HashSet<string>(StringComparer.Ordinal) { rent.Signature } };
+		var user = UserData.Empty();
+		user.DismissSuggestion(rent.Signature);
 
 		var suggestions = Analyse(txns, user).Suggestions;
 
@@ -202,7 +203,7 @@ public sealed class AnalysisTests
 	{
 		var txns = ThreeMonthsOfFixedPayments();
 		var youTube = Analyse(txns).Suggestions.Single(s => s.Amount == 13.99m);
-		var user = new UserData { Recurring = [Analysis.ToDefinition(youTube)] };
+		var user = Accepting(Define(youTube));
 
 		var analysis = Analyse(txns, user);
 
@@ -244,13 +245,15 @@ public sealed class AnalysisTests
 		];
 		var suggestion = Analyse(txns).Suggestions.Single();
 		suggestion.SeriesKeys.Should().HaveCount(2, "Both shops are one suggestion (same amount, shared word ÉCOLE).");
-		var removed = Analysis.ToDefinition(suggestion);
-		var ordinal = Analysis.Signature(removed.SeriesKeys);
+		var removed = Define(suggestion);
+		var ordinal = PayeeMatch.SignatureOf(removed.SeriesKeys);
 		var cultureOrder = string.Join('|', removed.SeriesKeys.Order(StringComparer.Create(CultureInfo.GetCultureInfo("fr-BE"), ignoreCase: false)));
 		cultureOrder.Should().NotBe(ordinal, "The keys must sort differently, or this test proves nothing.");
 
-		var fromRemoval = new UserData { DismissedSuggestions = new HashSet<string>(StringComparer.Ordinal) { ordinal } };
-		var legacy = new UserData { DismissedSuggestions = new HashSet<string>(StringComparer.Ordinal) { cultureOrder } };
+		var fromRemoval = Accepting(removed);
+		fromRemoval.RemoveFixedPayment(removed.Id).IsSuccess.Should().BeTrue();
+		var legacy = UserData.Empty();
+		legacy.DismissSuggestion(cultureOrder);
 
 		Analyse(txns, fromRemoval).Suggestions.Should().BeEmpty();
 		Analyse(txns, legacy).Suggestions.Should().BeEmpty();
@@ -268,16 +271,16 @@ public sealed class AnalysisTests
 		var first = BankJson.Card("2026-10-02", 20m, "SHOP ONE BE1000 Bruxelles");
 		var second = BankJson.Card("2026-10-09", 30m, "SHOP ONE BE1000 Bruxelles");
 		var key = Analyse([first, second]).Items[0].SeriesKey;
-		var user = new UserData();
-		user.Payees[key] = new PayeeAssignment { CategoryId = "groceries", Confirmed = true };
-		user.TxnCategories[second.Id] = "car";
+		var user = UserData.Empty();
+		user.AssignPayeeCategory(key, new CategoryId("groceries"));
+		user.AssignTransactionCategory(second.Id, new CategoryId("car"));
 
 		var items = Analyse([first, second], user).Items;
 
-		var firstItem = items.Single(i => string.Equals(i.T.Id, first.Id, StringComparison.Ordinal));
-		var secondItem = items.Single(i => string.Equals(i.T.Id, second.Id, StringComparison.Ordinal));
-		firstItem.Category.Id.Should().Be("groceries");
-		secondItem.Category.Id.Should().Be("car");
+		var firstItem = items.Single(i => i.T.Id.Equals(first.Id));
+		var secondItem = items.Single(i => i.T.Id.Equals(second.Id));
+		firstItem.Category.Id.Value.Should().Be("groceries");
+		secondItem.Category.Id.Value.Should().Be("car");
 		firstItem.CategoryConfirmed.Should().BeTrue();
 		secondItem.CategoryConfirmed.Should().BeTrue();
 	}
@@ -289,13 +292,14 @@ public sealed class AnalysisTests
 	public void Category_AcceptedFixedPayment_ItsCategoryBeatsKeyword()
 	{
 		var txns = ThreeMonthsOfFixedPayments();
-		var rent = Analysis.ToDefinition(Analyse(txns).Suggestions.Single(s => s.Amount == 940m));
-		rent.CategoryId = "bills";
+		var rent = Define(Analyse(txns).Suggestions.Single(s => s.Amount == 940m));
+		var user = Accepting(rent);
+		user.UpdateFixedPayment(rent.Id, name: null, new CategoryId("bills"), amount: null, cadenceDays: null).IsSuccess.Should().BeTrue();
 
-		var items = Analyse(txns, new UserData { Recurring = [rent] }).Items.Where(i => i.T.Amount == -940m).ToList();
+		var items = Analyse(txns, user).Items.Where(i => i.T.Amount == -940m).ToList();
 
 		items.Should().HaveCount(3);
-		items.TrueForAll(i => string.Equals(i.Category.Id, "bills", StringComparison.Ordinal) && i.CategoryConfirmed && i.Recurring == rent).Should().BeTrue();
+		items.TrueForAll(i => string.Equals(i.Category.Id.Value, "bills", StringComparison.Ordinal) && i.CategoryConfirmed && i.Recurring == rent).Should().BeTrue();
 	}
 	#endregion
 
@@ -308,8 +312,8 @@ public sealed class AnalysisTests
 	public void StatusIn_MonthlyNotPaidYet_DueThenLateAndNotStartedBefore()
 	{
 		var txns = ThreeMonthsOfFixedPayments();
-		var youTube = Analysis.ToDefinition(Analyse(txns).Suggestions.Single(s => s.Amount == 13.99m));
-		var row = Analyse(txns, new UserData { Recurring = [youTube] }).Fixed.Single();
+		var youTube = Define(Analyse(txns).Suggestions.Single(s => s.Amount == 13.99m));
+		var row = Analyse(txns, Accepting(youTube)).Fixed.Single();
 
 		var due = row.StatusIn("2026-11", new DateOnly(2026, 11, 9));
 		var late = row.StatusIn("2026-11", new DateOnly(2026, 11, 20));
@@ -331,9 +335,9 @@ public sealed class AnalysisTests
 	{
 		var txns = ThreeMonthsOfFixedPayments();
 		txns.Add(BankJson.TransferIn("2026-10-30", 2500m, "ACME PAYROLL", "Salary October"));
-		var youTube = Analysis.ToDefinition(Analyse(txns).Suggestions.Single(s => s.Amount == 13.99m));
+		var youTube = Define(Analyse(txns).Suggestions.Single(s => s.Amount == 13.99m));
 
-		var october = Analyse(txns, new UserData { Recurring = [youTube] }).MonthData("2026-10");
+		var october = Analyse(txns, Accepting(youTube)).MonthData("2026-10");
 
 		october.Income.Should().Be(2500m);
 		october.Fixed.Should().Be(13.99m);
@@ -370,13 +374,37 @@ public sealed class AnalysisTests
 		review[0].Total.Should().Be(-2820m);
 		review[1].Count.Should().Be(3, "The three YouTube labels are one payee.");
 
-		var user = new UserData();
-		user.Payees[review[0].SeriesKey] = new PayeeAssignment { CategoryId = review[0].Category.Id, Confirmed = true };
+		var user = UserData.Empty();
+		user.AssignPayeeCategory(review[0].SeriesKey, review[0].Category.Id);
 		Analyse(txns, user).Review.Should().HaveCount(1);
 	}
 	#endregion
 
 	#region Private Helpers
+	/// <summary>
+	/// Turns a suggestion into a fixed payment, as accepting it in the UI does.
+	/// </summary>
+	private static RecurringPayment Define(Suggestion suggestion)
+	{
+		var definition = Analysis.ToDefinition(suggestion, new RecurringPaymentId("fixed-" + suggestion.Amount.ToString(CultureInfo.InvariantCulture)), new DateTimeOffset(2026, 11, 9, 0, 0, 0, TimeSpan.Zero));
+		definition.IsSuccess.Should().BeTrue();
+		return definition.Value;
+	}
+
+	/// <summary>
+	/// Creates the decisions of a user who accepted the given fixed payments.
+	/// </summary>
+	private static UserData Accepting(params RecurringPayment[] payments)
+	{
+		var user = UserData.Empty();
+		foreach (var payment in payments)
+		{
+			user.AcceptFixedPayment(payment);
+		}
+
+		return user;
+	}
+
 	/// <summary>
 	/// Asserts that exactly one suggestion has the given amount, kind and cadence.
 	/// </summary>

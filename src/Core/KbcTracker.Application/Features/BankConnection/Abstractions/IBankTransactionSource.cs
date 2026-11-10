@@ -18,8 +18,8 @@ public interface IBankTransactionSource
 	/// <param name="accountUid">The account to read.</param>
 	/// <param name="from">The first booking date asked for; only a hint when <paramref name="longest"/> is set.</param>
 	/// <param name="longest"><see langword="true"/> to ask for the longest history the bank allows.</param>
-	/// <returns>The account's transactions.</returns>
+	/// <returns>The account's transactions that could be read, and how many could not.</returns>
 	/// <exception cref="InvalidOperationException">The bank refused the request, for example the requested period.</exception>
-	Task<IReadOnlyList<Txn>> GetTransactionsAsync(string accountUid, DateOnly? from, bool longest);
+	Task<BankDownload> GetTransactionsAsync(string accountUid, DateOnly? from, bool longest);
 	#endregion
 }

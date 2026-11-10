@@ -72,7 +72,7 @@ public sealed partial class Analysis
 	{
 		_today = today ?? DateOnly.FromDateTime(DateTime.Today);
 		CategoryList = [.. categories];
-		_categories = CategoryList.ToDictionary(c => c.Id, StringComparer.Ordinal);
+		_categories = CategoryList.ToDictionary(c => c.Id.Value, StringComparer.Ordinal);
 
 		var parsed = txns.Select(t => (Txn: t, Fields: BankFields.From(t))).ToList();
 		HolderName = parsed.Where(p => p.Txn.Amount < 0).Select(p => p.Fields.DebtorName).OfType<string>()
@@ -85,7 +85,7 @@ public sealed partial class Analysis
 
 		Fixed = active.Select(r => new FixedRow(
 				r,
-				Cat(r.CategoryId ?? Items.FirstOrDefault(i => i.Recurring == r)?.Category.Id),
+				Cat(r.CategoryId?.Value ?? Items.FirstOrDefault(i => i.Recurring == r)?.Category.Id.Value),
 				Items.Where(i => i.Recurring == r).OrderBy(i => i.T.Date).ToList()))
 			.OrderBy(f => f.UsualDay).ToList();
 		Suggestions = Suggest(user);
@@ -161,24 +161,29 @@ public sealed partial class Analysis
 	/// <param name="id">The category id.</param>
 	/// <returns>The category, or the <c>other</c> category when the id is unknown.</returns>
 	/// <exception cref="KeyNotFoundException">The id is unknown and there is no <c>other</c> category.</exception>
-	public Category CategoryById(string id) => _categories.GetValueOrDefault(id) ?? _categories["other"];
+	public Category CategoryById(string id) => _categories.GetValueOrDefault(id) ?? _categories[CategoryId.Other.Value];
 
 	/// <summary>
 	/// Turns a suggestion, or a payee the user marked as fixed, into a fixed payment definition. The tolerance for
 	/// matching by shop words depends on the kind: wide for bills and fees, narrow for card payments.
 	/// </summary>
 	/// <param name="suggestion">The suggestion.</param>
-	/// <returns>A new, active fixed payment.</returns>
-	public static RecurringPayment ToDefinition(Suggestion suggestion) => new()
+	/// <param name="id">The new fixed payment's identifier.</param>
+	/// <param name="createdAt">When the user accepted it.</param>
+	/// <returns>A new, active fixed payment, or the error that prevents creating it.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="suggestion"/> is <see langword="null"/>.</exception>
+	public static Result<RecurringPayment> ToDefinition(Suggestion suggestion, RecurringPaymentId id, DateTimeOffset createdAt)
 	{
-		Name = suggestion.Name,
-		CategoryId = suggestion.CategoryId,
-		SeriesKeys = [.. suggestion.SeriesKeys],
-		Tokens = [.. suggestion.Tokens],
-		Amount = suggestion.Amount,
-		CadenceDays = suggestion.CadenceDays,
-		TolerancePct = suggestion.Kind switch { Kind.DirectDebit or Kind.BankFee => 60, Kind.Card => 10, _ => 15 },
-	};
+		ArgumentNullException.ThrowIfNull(suggestion);
+		var tolerancePct = suggestion.Kind switch { Kind.DirectDebit or Kind.BankFee => 60, Kind.Card => 10, _ => 15 };
+		return RecurringPayment.Create(
+			id,
+			suggestion.Name,
+			new CategoryId(suggestion.CategoryId),
+			new PayeeMatch(suggestion.SeriesKeys, suggestion.Tokens),
+			new RecurrenceRule(suggestion.Amount, tolerancePct, suggestion.CadenceDays),
+			createdAt);
+	}
 
 	/// <summary>
 	/// Builds a suggestion-like group from one payee's money out, for "mark as fixed" on a transaction. Uses the
@@ -192,19 +197,10 @@ public sealed partial class Analysis
 		var items = Items.Where(i => string.Equals(i.SeriesKey, seriesKey, StringComparison.Ordinal) && i.T.Amount < 0)
 			.OrderBy(i => i.T.Date).ToList();
 		var latest = items[^1];
-		return Evaluate(items, [seriesKey], seriesKey) ?? new Suggestion(seriesKey, latest.Name, latest.Category.Id,
+		return Evaluate(items, [seriesKey], seriesKey) ?? new Suggestion(seriesKey, latest.Name, latest.Category.Id.Value,
 			items.Select(i => -i.T.Amount).Order().ElementAt(items.Count / 2), 30, false, "marked by you",
 			items, [seriesKey], latest.Kind is Kind.Card ? [.. latest.Tokens] : [], latest.Kind);
 	}
-
-	/// <summary>
-	/// Builds the signature that identifies a suggestion and is stored when the user dismisses it: the distinct
-	/// series keys in ordinal order, joined with <c>|</c>. Every place that stores or compares a signature uses this.
-	/// </summary>
-	/// <param name="seriesKeys">The series keys of the suggestion or fixed payment.</param>
-	/// <returns>The signature.</returns>
-	public static string Signature(IEnumerable<string> seriesKeys) =>
-		string.Join('|', seriesKeys.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
 
 	/// <summary>
 	/// Names a cadence.
@@ -242,15 +238,15 @@ public sealed partial class Analysis
 		bool confirmed;
 		if (user.TxnCategories.TryGetValue(txn.Id, out var own))
 		{
-			(categoryId, confirmed) = (own, true);
+			(categoryId, confirmed) = (own.Value, true);
 		}
 		else if (user.Payees.TryGetValue(key, out var payee) && payee.CategoryId is not null)
 		{
-			(categoryId, confirmed) = (payee.CategoryId, payee.Confirmed);
+			(categoryId, confirmed) = (payee.CategoryId.Value, payee.Confirmed);
 		}
 		else if (recurring?.CategoryId is not null)
 		{
-			(categoryId, confirmed) = (recurring.CategoryId, true);
+			(categoryId, confirmed) = (recurring.CategoryId.Value, true);
 		}
 		else
 		{
@@ -404,7 +400,7 @@ public sealed partial class Analysis
 	{
 		var padded = " " + text.ToUpperInvariant() + " ";
 		return CategoryList.Where(c => only is null || c.Type == only)
-			.SelectMany(c => c.Keywords.Select(keyword => (CategoryId: c.Id, Word: keyword.ToUpperInvariant())))
+			.SelectMany(c => c.Keywords.Select(keyword => (CategoryId: c.Id.Value, Word: keyword.ToUpperInvariant())))
 			.Where(x => x.Word.Trim().Length > 0 && StartsAtWord(padded, x.Word))
 			.OrderByDescending(x => x.Word.Trim().Length)
 			.Select(x => x.CategoryId).FirstOrDefault();
@@ -437,7 +433,8 @@ public sealed partial class Analysis
 	/// </summary>
 	private Category Cat(string? id) =>
 		id is not null && _categories.TryGetValue(id, out var category) ? category
-		: _categories.GetValueOrDefault("other") ?? new Category { Id = "other", Name = "Other" };
+		: _categories.GetValueOrDefault(CategoryId.Other.Value)
+			?? Category.Rehydrate(CategoryId.Other, "Other", CategoryType.Expense, Category.DefaultColor, [], builtIn: true);
 	#endregion
 
 	#region Suggestions
@@ -461,7 +458,7 @@ public sealed partial class Analysis
 		foreach (var cluster in clusters)
 		{
 			var keys = cluster.Select(c => c.SeriesKey).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
-			var signature = Signature(keys);
+			var signature = PayeeMatch.SignatureOf(keys);
 			if (IsDismissed(user, keys, signature))
 			{
 				continue;
@@ -594,7 +591,7 @@ public sealed partial class Analysis
 		var tokens = kind is Kind.Card or Kind.Refund
 			? payments.Select(x => (IEnumerable<string>)x.Tokens).Aggregate((a, b) => a.Intersect(b, StringComparer.Ordinal)).ToList()
 			: [];
-		var category = payments.GroupBy(x => x.Category.Id, StringComparer.Ordinal).OrderByDescending(g => g.Count()).First().Key;
+		var category = payments.GroupBy(x => x.Category.Id.Value, StringComparer.Ordinal).OrderByDescending(g => g.Count()).First().Key;
 		return new Suggestion(signature, name, category, median, cadence.Value, high, reason, payments, keys, tokens, kind);
 	}
 
@@ -645,7 +642,7 @@ public sealed partial class Analysis
 			spend.Where(i => i.Recurring is not null).Sum(i => -i.T.Amount),
 			spend.Where(i => i.Recurring is null).Sum(i => -i.T.Amount),
 			inMonth.Where(i => i.IsSaving).Sum(i => -i.T.Amount),
-			spend.GroupBy(i => i.Category.Id, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Sum(i => -i.T.Amount), StringComparer.Ordinal));
+			spend.GroupBy(i => i.Category.Id.Value, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Sum(i => -i.T.Amount), StringComparer.Ordinal));
 	}
 	#endregion
 

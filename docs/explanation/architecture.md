@@ -28,13 +28,32 @@ Dependencies point inward:
 
 The planned Android app is a second container over the same layers.
 
+## Domain model
+
+The domain is built on Pivot.Framework's building blocks:
+
+- **Aggregates.** A transaction (`Txn`), a category, the bank connection (`SessionInfo`) and your decisions
+  (`UserData`) are aggregate roots. Each has a strongly typed id (`TxnId`, `CategoryId`…) whose value is the
+  string the bank or the app already uses, so stored data keeps its ids.
+- **Creation.** New objects come from `Create` factories that return a `Result` with an `Error` when a value is
+  invalid, for example a malformed currency. Stored objects are rebuilt with `Rehydrate`, which keeps them as
+  they were saved.
+- **Changes.** Your decisions change only through named behaviours of `UserData`, such as
+  `AcceptFixedPayment`, `AssignPayeeCategory` or `ForgetCategory`. Accepted fixed payments are entities owned by
+  `UserData`.
+
+The web host stores the aggregates as JSON documents with the same shape as before, so existing data folders load
+unchanged.
+
 ## Data flow
 
 1. **Consent.** You log in at KBC through Enable Banking. The app receives a session that gives read-only access
    to your linked accounts for 180 days.
 1. **Sync.** `SyncService` asks `IBankTransactionSource` for the transactions of every account. The Enable Banking
    implementation signs each request with the application's private key. The first sync asks for the longest
-   history; later syncs ask for the last 30 days.
+   history; later syncs ask for the last 30 days. A transaction that cannot be read is left out and counted, and
+   the pages show how many until a sync of the whole history (**Sync all again**) finds none; the rest of the sync
+   is saved.
 1. **Storage.** The store merges the transactions by id and never deletes any, because KBC only returns about
    90 days. Your decisions are stored apart, so a sync never overwrites them.
 1. **Analysis.** `Analysis` classifies every transaction, applies your decisions, and computes the fixed payments,

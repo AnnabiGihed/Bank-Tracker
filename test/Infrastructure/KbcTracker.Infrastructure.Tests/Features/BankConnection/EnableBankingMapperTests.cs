@@ -51,7 +51,7 @@ public sealed class EnableBankingMapperTests
 		var second = EnableBankingMapper.Map("acc-1", JsonNode.Parse(json)!);
 
 		second.Id.Should().Be(first.Id);
-		first.Id.Length.Should().Be(40, "The fallback id is a SHA-1 hex string.");
+		first.Id.Value.Length.Should().Be(40, "The fallback id is a SHA-1 hex string.");
 	}
 
 	/// <summary>
@@ -67,6 +67,75 @@ public sealed class EnableBankingMapperTests
 
 		txn.Description.Should().Be("Line one Line two");
 		txn.Counterparty.Should().Be("Line one Line two");
+	}
+
+	/// <summary>
+	/// Verifies that a blank entry reference counts as missing: the id falls back to the content hash instead of
+	/// being blank, which would merge unrelated transactions.
+	/// </summary>
+	[Fact]
+	public void Map_BlankEntryReference_ContentId()
+	{
+		var json = """{"entry_reference":"","transaction_id":" ","transaction_amount":{"currency":"EUR","amount":"5.00"},"credit_debit_indicator":"DBIT","booking_date":"2026-10-02","remittance_information":"Coffee"}""";
+
+		var txn = EnableBankingMapper.Map("acc-1", JsonNode.Parse(json)!);
+
+		txn.Id.Value.Should().HaveLength(40, "The fallback id is a SHA-1 hex string.");
+	}
+
+	/// <summary>
+	/// Verifies that a blank entry reference falls back to the bank's transaction id when there is one.
+	/// </summary>
+	[Fact]
+	public void Map_BlankEntryReferenceWithTransactionId_TransactionId()
+	{
+		var json = """{"entry_reference":" ","transaction_id":"tid-7","transaction_amount":{"currency":"EUR","amount":"5.00"},"credit_debit_indicator":"DBIT","booking_date":"2026-10-02","remittance_information":"Coffee"}""";
+
+		var txn = EnableBankingMapper.Map("acc-1", JsonNode.Parse(json)!);
+
+		txn.Id.Value.Should().Be("tid-7");
+	}
+
+	/// <summary>
+	/// Verifies that a blank creditor name and IBAN count as missing: the description names the payee and no IBAN
+	/// is kept.
+	/// </summary>
+	[Fact]
+	public void Map_BlankCreditorNameAndIban_DescriptionAndNoIban()
+	{
+		var json = """{"entry_reference":"x4","transaction_amount":{"currency":"EUR","amount":"5.00"},"credit_debit_indicator":"DBIT","booking_date":"2026-10-02","creditor":{"name":"  "},"creditor_account":{"iban":" "},"remittance_information":"Bakery"}""";
+
+		var txn = EnableBankingMapper.Map("acc-1", JsonNode.Parse(json)!);
+
+		txn.Counterparty.Should().Be("Bakery");
+		txn.CounterpartyIban.Should().BeNull();
+	}
+
+	/// <summary>
+	/// Verifies that a transaction without any name, description, bank code or IBAN still gets a counterparty.
+	/// </summary>
+	[Fact]
+	public void Map_NothingToNameIt_UnknownCounterparty()
+	{
+		var json = """{"entry_reference":"x3","transaction_amount":{"currency":"EUR","amount":"5.00"},"credit_debit_indicator":"DBIT","booking_date":"2026-10-02","bank_transaction_code":{"description":""}}""";
+
+		var txn = EnableBankingMapper.Map("acc-1", JsonNode.Parse(json)!);
+
+		txn.Counterparty.Should().Be("(unknown)");
+	}
+
+	/// <summary>
+	/// Verifies that JSON the domain rejects (here a malformed currency) is reported as invalid data, which the
+	/// transaction source skips, instead of being stored.
+	/// </summary>
+	[Fact]
+	public void Map_InvalidCurrency_ThrowsInvalidDataException()
+	{
+		var json = """{"entry_reference":"x2","transaction_amount":{"currency":"euro","amount":"1.00"},"credit_debit_indicator":"DBIT","booking_date":"2026-10-03","remittance_information":"Coffee"}""";
+
+		var map = () => EnableBankingMapper.Map("acc-1", JsonNode.Parse(json)!);
+
+		map.Should().Throw<InvalidDataException>().WithMessage("*Txn.Currency.Invalid*");
 	}
 	#endregion
 }

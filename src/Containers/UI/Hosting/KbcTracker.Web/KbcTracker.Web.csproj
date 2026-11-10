@@ -27,6 +27,7 @@
     <Using Include="KbcTracker.Application.Features.Shared.Abstractions" />
     <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.Errors" />
     <Using Include="KbcTracker.Domain.Features.Categories.Services" />
     <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />
@@ -46,6 +47,7 @@
     <Using Include="KbcTracker.Web.Features.Settings" />
     <Using Include="KbcTracker.Web.Features.Shared.Api" />
     <Using Include="KbcTracker.Web.Features.Shared.Storage" />
+    <Using Include="KbcTracker.Web.Features.Shared.Storage.Documents" />
     <Using Include="KbcTracker.Web.Features.Transactions" />
   </ItemGroup>
 

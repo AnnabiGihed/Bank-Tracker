@@ -14,8 +14,8 @@ namespace KbcTracker.Web.Features.Shared.Storage;
 ///              Transactions are only ever added or updated, never removed, so the history keeps growing past KBC's
 ///              90-day window; a daily copy is kept in <c>backups</c> (the last 30). Files are written to a temporary
 ///              file first and then swapped in, so a crash never leaves a half-written file. Writes are serialised
-///              with a lock because a page and the auto-sync can save at the same time. Replaced by the SQLite store
-///              in step 2 of ADR-0001.
+///              with a lock because a page and the auto-sync can save at the same time. The domain is mapped to
+///              storage documents that keep the files' shape. Replaced by the SQLite store in step 3 of ADR-0003.
 /// </summary>
 public sealed partial class Store : IStore
 {
@@ -123,19 +123,19 @@ public sealed partial class Store : IStore
 
 	#region IStore Implementation
 	/// <inheritdoc />
-	public SessionInfo? LoadSession() => Read<SessionInfo>(SessionFile);
+	public SessionInfo? LoadSession() => Read<SessionDocument>(SessionFile)?.ToDomain();
 
 	/// <inheritdoc />
 	public void SaveSession(SessionInfo session)
 	{
 		lock (_lock)
 		{
-			Write(SessionFile, session);
+			Write(SessionFile, SessionDocument.From(session));
 		}
 	}
 
 	/// <inheritdoc />
-	public IReadOnlyList<Txn> LoadTransactions() => Read<List<Txn>>(TxnFile) ?? [];
+	public IReadOnlyList<Txn> LoadTransactions() => [.. (Read<List<TxnDocument>>(TxnFile) ?? []).OfType<TxnDocument>().Select(d => d.ToDomain())];
 
 	/// <inheritdoc />
 	/// <remarks>Copies the current file to the daily backup before writing, and stores the transactions newest first.</remarks>
@@ -143,7 +143,7 @@ public sealed partial class Store : IStore
 	{
 		lock (_lock)
 		{
-			var byId = LoadTransactions().ToDictionary(t => t.Id, StringComparer.Ordinal);
+			var byId = LoadTransactions().ToDictionary(t => t.Id);
 			var before = byId.Count;
 			foreach (var txn in incoming)
 			{
@@ -155,20 +155,20 @@ public sealed partial class Store : IStore
 				Backup();
 			}
 
-			Write(TxnFile, byId.Values.OrderByDescending(t => t.Date).ToList());
+			Write(TxnFile, byId.Values.OrderByDescending(t => t.Date).Select(TxnDocument.From).ToList());
 			return byId.Count - before;
 		}
 	}
 
 	/// <inheritdoc />
-	public UserData LoadUserData() => Read<UserData>(UserFile) ?? new();
+	public UserData LoadUserData() => Read<UserDataDocument>(UserFile)?.ToDomain() ?? UserData.Empty();
 
 	/// <inheritdoc />
 	public void SaveUserData(UserData data)
 	{
 		lock (_lock)
 		{
-			Write(UserFile, data);
+			Write(UserFile, UserDataDocument.From(data));
 		}
 	}
 
@@ -176,14 +176,14 @@ public sealed partial class Store : IStore
 	/// <remarks>On first use, the default categories are created from the seed and saved.</remarks>
 	public IList<Category> LoadCategories(IReadOnlyDictionary<string, string[]> seedKeywords)
 	{
-		var categories = Read<List<Category>>(CategoriesFile);
+		var categories = Read<List<CategoryDocument>>(CategoriesFile);
 		if (categories is { Count: > 0 })
 		{
-			return categories;
+			return [.. categories.Where(d => d is { HasId: true }).Select(d => d.ToDomain())];
 		}
 
 		var created = CategoryDefaults.Create(seedKeywords);
-		Write(CategoriesFile, created);
+		Write(CategoriesFile, created.Select(CategoryDocument.From).ToList());
 		return created;
 	}
 
@@ -192,7 +192,7 @@ public sealed partial class Store : IStore
 	{
 		lock (_lock)
 		{
-			Write(CategoriesFile, categories.ToList());
+			Write(CategoriesFile, categories.Select(CategoryDocument.From).ToList());
 		}
 	}
 	#endregion

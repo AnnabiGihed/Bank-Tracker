@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KbcTracker.Infrastructure.Tests.Features.BankConnection;
 
@@ -93,33 +94,39 @@ public sealed class EnableBankingClientTests : IDisposable
 	[Fact]
 	public async Task TransactionSource_Download_MapsToAccountTransactions()
 	{
-		var source = new EnableBankingTransactionSource(Client(_ => Json("""
+		var source = Source(_ => Json("""
 			{"transactions":[{"entry_reference":"x1","transaction_amount":{"currency":"EUR","amount":"10.00"},
 			"credit_debit_indicator":"DBIT","booking_date":"2026-11-02","remittance_information":"Test"}]}
-			""")));
+			"""));
 
 		var transactions = await source.GetTransactionsAsync("acc-1", from: null, longest: false);
 
-		var txn = transactions.Single();
+		var txn = transactions.Transactions.Single();
 		txn.AccountUid.Should().Be("acc-1");
 		txn.Amount.Should().Be(-10m);
 	}
 
 	/// <summary>
-	/// Verifies that a transaction the mapper cannot read is reported as <see cref="InvalidDataException"/>, not as
-	/// the <see cref="InvalidOperationException"/> that means "the bank refused" and would make the sync retry.
+	/// Verifies that transactions the mapper cannot read (a malformed amount or date, a currency the domain rejects)
+	/// are skipped and counted, and the readable ones around them still come through, so one bad record never
+	/// blocks the sync.
 	/// </summary>
 	/// <returns>A task that completes when the test has run.</returns>
 	[Fact]
-	public async Task TransactionSource_UnreadableTransaction_InvalidDataException()
+	public async Task TransactionSource_UnreadableTransactions_SkippedOthersKept()
 	{
-		var source = new EnableBankingTransactionSource(Client(_ => Json("""
-			{"transactions":[{"entry_reference":"x1","transaction_amount":"not an object","booking_date":"2026-11-02"}]}
-			""")));
+		var source = Source(_ => Json("""
+			{"transactions":[
+			{"entry_reference":"bad-amount","transaction_amount":"not an object","booking_date":"2026-11-02"},
+			{"entry_reference":"bad-currency","transaction_amount":{"currency":"eur","amount":"1.00"},"credit_debit_indicator":"DBIT","booking_date":"2026-11-02","remittance_information":"Coffee"},
+			{"entry_reference":"bad-date","transaction_amount":{"currency":"EUR","amount":"1.00"},"credit_debit_indicator":"DBIT","booking_date":"not a date","remittance_information":"Coffee"},
+			{"entry_reference":"good","transaction_amount":{"currency":"EUR","amount":"10.00"},"credit_debit_indicator":"DBIT","booking_date":"2026-11-02","remittance_information":"Test"}]}
+			"""));
 
-		var act = () => source.GetTransactionsAsync("acc-1", from: null, longest: false);
+		var transactions = await source.GetTransactionsAsync("acc-1", from: null, longest: false);
 
-		await act.Should().ThrowAsync<InvalidDataException>();
+		transactions.Transactions.Select(t => t.Id.Value).Should().Equal("good");
+		transactions.Skipped.Should().Be(3);
 	}
 	#endregion
 
@@ -137,6 +144,12 @@ public sealed class EnableBankingClientTests : IDisposable
 		var options = new EnableBankingOptions { ApplicationId = "test-app", PrivateKeyPath = _keyFile };
 		return new EnableBankingClient(new HttpClient(new FakeApi(request => { _requests.Add(request); return respond(request); })), options);
 	}
+
+	/// <summary>
+	/// Creates a transaction source over a client whose API answers with <paramref name="respond"/>.
+	/// </summary>
+	private EnableBankingTransactionSource Source(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
+		new(Client(respond), NullLogger<EnableBankingTransactionSource>.Instance);
 
 	/// <summary>
 	/// A JSON response with the given status.

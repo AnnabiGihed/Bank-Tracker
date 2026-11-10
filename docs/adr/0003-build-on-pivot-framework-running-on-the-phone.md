@@ -77,7 +77,7 @@ These canonical elements are not met yet and are reached during the steps below:
 
 | Canonical element | Interim state | Reached in |
 | --- | --- | --- |
-| Domain aggregates and repositories (`Features/<F>/Aggregates` as `AggregateRoot<TId>`, `Repositories/I…Repository`) | Plain classes and records in `Aggregates/` and `ValueObjects/`; `UserData` and `CategoryDefaults` placed provisionally | Step 2 (types), step 3 (repositories) |
+| Domain aggregates and repositories (`Features/<F>/Aggregates` as `AggregateRoot<TId>`, `Repositories/I…Repository`) | Since step 2, `Txn`, `Category`, `SessionInfo` and `UserData` are `LightweightAggregateRoot<TId>` with string-valued strongly typed ids, `Result`-returning factories and named behaviours; `RecurringPayment` is an `Entity` owned by `UserData`. No repositories yet, and no parameterless constructors for EF Core | Step 3 (repositories, EF Core constructors) |
 | Persistence in `src/Infrastructure/KbcTracker.Persistence.EntityFrameworkCore` | The JSON `Store` (`IStore`) lives in the web host, `Features/Shared/Storage` | Step 3 |
 | Application slices `Commands/`, `Queries/`, `EventHandlers/` with the mediator | `Features/<F>/Services` (`SyncService`) and `Features/<F>/Abstractions` (`IStore`, `IBankTransactionSource`) | Step 4 (`IStore` is replaced by repositories in step 3) |
 | UI host in the canonical form: Blazor with `Features/<Feature>/Pages/`, and `UI/Core/KbcTracker.ViewModels` | The legacy web host renders server-side HTML strings, one page class per feature folder | Step 5: the MAUI app (Blazor Hybrid) follows the UI slices; the web host is retired |
@@ -85,7 +85,9 @@ These canonical elements are not met yet and are reached during the steps below:
 The delivery is split into steps, each on its own branch and keeping the app working and `RealDataTests` green:
 
 1. Canonical layout, feature folders, xUnit test tree, tabs (structure only, no behaviour change).
-1. Domain on Pivot types (`Entity`, `AggregateRoot`, `Result`/`Error`), keeping string transaction ids.
+1. Domain on Pivot types (`Entity`, `AggregateRoot`, `Result`/`Error`), keeping string transaction ids. The
+   aggregates use `LightweightAggregateRoot`: bank transactions and the user's choices need neither audit fields
+   nor soft delete, and nothing is ever deleted from the history.
 1. EF Core SQLite persistence with Pivot's unit of work, and a one-time import of the JSON files.
 1. Use cases as mediator commands and queries; the web host sends them.
 1. The MAUI Android app over the same Application layer; the web host is retired.
