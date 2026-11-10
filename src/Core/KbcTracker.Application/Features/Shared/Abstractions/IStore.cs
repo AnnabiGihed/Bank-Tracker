@@ -32,7 +32,7 @@ public interface IStore
 	IReadOnlyList<Txn> LoadTransactions();
 
 	/// <summary>
-	/// Adds new transactions and updates known ones, matched by <see cref="Txn.Id"/>. Never deletes.
+	/// Adds new transactions and updates known ones, matched by their <see cref="TxnId"/>. Never deletes.
 	/// </summary>
 	/// <param name="incoming">The transactions downloaded from the bank.</param>
 	/// <returns>The number of transactions that were not stored before.</returns>

@@ -14,6 +14,7 @@
     <Using Include="KbcTracker.Domain.Features.Categories.Services" />
     <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.ValueObjects" />
   </ItemGroup>
 
 </Project>

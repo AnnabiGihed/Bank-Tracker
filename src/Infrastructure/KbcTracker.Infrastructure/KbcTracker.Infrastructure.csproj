@@ -15,6 +15,8 @@
   <ItemGroup Label="Feature namespaces used across the project">
     <Using Include="KbcTracker.Application.Features.BankConnection.Abstractions" />
     <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.ValueObjects" />
+    <Using Include="Pivot.Framework.Domain.Shared" />
   </ItemGroup>
 
 </Project>

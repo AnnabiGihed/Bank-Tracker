@@ -103,9 +103,14 @@ internal static class BankJson
 		};
 		var debit = string.Equals(indicator, "DBIT", StringComparison.Ordinal);
 		var counterparty = (debit ? creditor : debtor) ?? remittance[..Math.Min(remittance.Length, 45)];
-		return new Txn(json["entry_reference"]!.GetValue<string>(), AccountUid, DateOnly.Parse(date, CultureInfo.InvariantCulture),
-			debit ? -amount : amount, "EUR", counterparty, remittance, debit ? creditorIban?.Replace(" ", "", StringComparison.Ordinal) : null,
-			"PMNT", json.ToJsonString());
+		return Txn.Rehydrate(
+			new TxnId(json["entry_reference"]!.GetValue<string>()),
+			AccountUid,
+			DateOnly.Parse(date, CultureInfo.InvariantCulture),
+			Money.Rehydrate(debit ? -amount : amount, "EUR"),
+			Counterparty.Rehydrate(counterparty, debit ? creditorIban?.Replace(" ", "", StringComparison.Ordinal) : null),
+			remittance,
+			new BankRecord("PMNT", json.ToJsonString()));
 	}
 	#endregion
 }

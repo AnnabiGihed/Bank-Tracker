@@ -14,6 +14,13 @@ namespace KbcTracker.Application.Features.BankConnection.Services;
 /// </summary>
 public sealed partial class SyncService
 {
+	#region Constants
+	/// <summary>
+	/// The answer when there is no bank connection to sync.
+	/// </summary>
+	private const string NotConnected = "Not connected to the bank yet.";
+	#endregion
+
 	#region Static Instances
 	/// <summary>
 	/// Lets one sync run at a time in this process.
@@ -26,6 +33,7 @@ public sealed partial class SyncService
 	private readonly IStore _store;
 	private readonly SyncSettings _settings;
 	private readonly ILogger<SyncService> _log;
+	private readonly TimeProvider _clock;
 	#endregion
 
 	#region Constructors
@@ -36,19 +44,22 @@ public sealed partial class SyncService
 	/// <param name="store">Where the session and the transaction history are kept.</param>
 	/// <param name="settings">Sync settings; <see cref="SyncSettings.HistoryMonths"/> bounds a full sync.</param>
 	/// <param name="log">Logger for sync progress and failures.</param>
-	public SyncService(IBankTransactionSource bank, IStore store, SyncSettings settings, ILogger<SyncService> log)
+	/// <param name="clock">The clock that dates the sync and the history window.</param>
+	/// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
+	public SyncService(IBankTransactionSource bank, IStore store, SyncSettings settings, ILogger<SyncService> log, TimeProvider clock)
 	{
-		_bank = bank;
-		_store = store;
-		_settings = settings;
-		_log = log;
+		_bank = bank ?? throw new ArgumentNullException(nameof(bank));
+		_store = store ?? throw new ArgumentNullException(nameof(store));
+		_settings = settings ?? throw new ArgumentNullException(nameof(settings));
+		_log = log ?? throw new ArgumentNullException(nameof(log));
+		_clock = clock ?? throw new ArgumentNullException(nameof(clock));
 	}
 	#endregion
 
 	#region Public Methods
 	/// <summary>
 	/// Downloads the transactions of every connected account and merges them into the store. Records the time of
-	/// the sync, or its error, in the session.
+	/// the sync and how many transactions could not be read, or its error, in the session.
 	/// </summary>
 	/// <param name="full"><see langword="true"/> to ask for the longest history the bank allows; otherwise the last
 	/// 30 days, since everything older is already stored. The first sync is always full.</param>
@@ -56,40 +67,24 @@ public sealed partial class SyncService
 	/// characters) when the user is not connected or the bank call failed. Exceptions are not rethrown.</returns>
 	public async Task<(int Added, string? Error)> SyncAsync(bool full = false)
 	{
-		var session = _store.LoadSession();
-		if (session is null)
+		if (_store.LoadSession() is null)
 		{
-			return (0, "Not connected to the bank yet.");
+			return (0, NotConnected);
 		}
 
 		await Gate.WaitAsync().ConfigureAwait(false);
 		try
 		{
-			full = full || _store.LoadTransactions().Count == 0;
-			var from = full
-				? DateOnly.FromDateTime(DateTime.Today.AddMonths(-_settings.HistoryMonths))
-				: DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-
-			var added = 0;
-			foreach (var uid in session.AccountUids)
-			{
-				var transactions = await DownloadAsync(uid, from, full).ConfigureAwait(false);
-				added += _store.Merge(transactions);
-			}
-
-			session.LastSync = DateTimeOffset.UtcNow;
-			session.LastError = null;
-			_store.SaveSession(session);
-			LogSyncDone(added);
-			return (added, null);
+			// Read again once the gate is held: a sync that ran meanwhile may have changed the session, and working on
+			// the older copy would undo it, for example bring back a left-out count a full sync just cleared.
+			var session = _store.LoadSession();
+			return session is null ? (0, NotConnected) : await SyncSessionAsync(session, full).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			// Reported to the user through the session instead of thrown: background syncs have no caller to catch it.
+			// Reading or saving the session failed: reported instead of thrown, as background syncs have no caller.
 			LogSyncFailed(ex);
-			session.LastError = ex.Message.Length > 300 ? ex.Message[..300] : ex.Message;
-			_store.SaveSession(session);
-			return (0, session.LastError);
+			return (0, ex.Message);
 		}
 		finally
 		{
@@ -100,10 +95,70 @@ public sealed partial class SyncService
 
 	#region Private Helpers
 	/// <summary>
+	/// Downloads and merges every account of the session, then records the outcome in it.
+	/// </summary>
+	private async Task<(int Added, string? Error)> SyncSessionAsync(SessionInfo session, bool full)
+	{
+		try
+		{
+			full = full || _store.LoadTransactions().Count == 0;
+			var today = DateOnly.FromDateTime(_clock.GetLocalNow().Date);
+			var from = full ? today.AddMonths(-_settings.HistoryMonths) : today.AddDays(-30);
+
+			var added = 0;
+			var skipped = 0;
+			foreach (var uid in session.AccountUids)
+			{
+				var download = await DownloadAsync(uid, from, full).ConfigureAwait(false);
+				added += _store.Merge(download.Transactions);
+				skipped += download.Skipped;
+			}
+
+			if (full)
+			{
+				session.RecordFullSync(_clock.GetUtcNow(), skipped);
+			}
+			else
+			{
+				session.RecordIncrementalSync(_clock.GetUtcNow(), skipped);
+			}
+
+			SaveIfStillCurrent(session);
+			LogSyncDone(added);
+			return (added, null);
+		}
+		catch (Exception ex) when (ex is not IOException and not UnauthorizedAccessException)
+		{
+			// Reported to the user through the session instead of thrown: background syncs have no caller to catch it.
+			LogSyncFailed(ex);
+			session.RecordFailure(ex.Message);
+			SaveIfStillCurrent(session);
+			return (0, session.LastError);
+		}
+	}
+
+	/// <summary>
+	/// Saves the outcome of a sync, unless the user reconnected while it ran: the new connection then replaced the
+	/// session, and the outcome of a sync of the old one must not overwrite it.
+	/// </summary>
+	private void SaveIfStillCurrent(SessionInfo session)
+	{
+		var stored = _store.LoadSession();
+		if (stored is not null && stored.Id == session.Id)
+		{
+			_store.SaveSession(session);
+		}
+		else
+		{
+			LogSessionReplaced();
+		}
+	}
+
+	/// <summary>
 	/// Downloads one account's transactions. When the bank refuses an incremental request, retries with
 	/// <c>strategy=longest</c>, which it always accepts.
 	/// </summary>
-	private async Task<IReadOnlyList<Txn>> DownloadAsync(string accountUid, DateOnly from, bool full)
+	private async Task<BankDownload> DownloadAsync(string accountUid, DateOnly from, bool full)
 	{
 		try
 		{
@@ -121,6 +176,12 @@ public sealed partial class SyncService
 	/// </summary>
 	[LoggerMessage(Level = LogLevel.Information, Message = "Sync done, {Added} new transactions")]
 	private partial void LogSyncDone(int added);
+
+	/// <summary>
+	/// Logs that the outcome of a sync was not saved because the user reconnected while it ran.
+	/// </summary>
+	[LoggerMessage(Level = LogLevel.Information, Message = "Sync outcome not saved: the bank connection was replaced while it ran")]
+	private partial void LogSessionReplaced();
 
 	/// <summary>
 	/// Logs a failed sync with its exception.

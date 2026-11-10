@@ -24,13 +24,24 @@ public sealed class SyncServiceTests
 	/// Creates the sync service over the bank double and the given store.
 	/// </summary>
 	private SyncService Sync(InMemoryStore store) =>
-		new(_bank, store, new SyncSettings(HistoryMonths: 13), NullLogger<SyncService>.Instance);
+		new(_bank, store, new SyncSettings(HistoryMonths: 13), NullLogger<SyncService>.Instance, TimeProvider.System);
 
 	/// <summary>
 	/// A booked debit of 10 € in the given account.
 	/// </summary>
 	private static Txn Debit(string id, string accountUid) =>
-		new(id, accountUid, new DateOnly(2026, 11, 2), -10m, "EUR", "Shop", "Test");
+		Txn.Rehydrate(new TxnId(id), accountUid, new DateOnly(2026, 11, 2), Money.Rehydrate(-10m, "EUR"), Counterparty.Rehydrate("Shop", null), "Test", BankRecord.None);
+
+	/// <summary>
+	/// A download in which every transaction could be read.
+	/// </summary>
+	private static BankDownload Download(params Txn[] transactions) => new(transactions, Skipped: 0);
+
+	/// <summary>
+	/// A bank connection to the given accounts that has never synced.
+	/// </summary>
+	private static SessionInfo Connected(params string[] accountUids) =>
+		SessionInfo.Rehydrate(new BankSessionId("s"), accountUids, new DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2027, 5, 1, 0, 0, 0, TimeSpan.Zero), lastSync: null, lastError: null, skippedTransactions: 0);
 	#endregion
 
 	#region Sync Tests
@@ -55,9 +66,9 @@ public sealed class SyncServiceTests
 	[Fact]
 	public async Task SyncAsync_TwoAccounts_MergesBothAndRecordsLastSync()
 	{
-		var store = new InMemoryStore { Session = new SessionInfo { SessionId = "s", AccountUids = ["current", "savings"] } };
-		_bank.GetTransactionsAsync("current", Arg.Any<DateOnly?>(), Arg.Any<bool>()).Returns([Debit("tx-current", "current")]);
-		_bank.GetTransactionsAsync("savings", Arg.Any<DateOnly?>(), Arg.Any<bool>()).Returns([Debit("tx-savings", "savings")]);
+		var store = new InMemoryStore { Session = Connected("current", "savings") };
+		_bank.GetTransactionsAsync("current", Arg.Any<DateOnly?>(), Arg.Any<bool>()).Returns(Download(Debit("tx-current", "current")));
+		_bank.GetTransactionsAsync("savings", Arg.Any<DateOnly?>(), Arg.Any<bool>()).Returns(Download(Debit("tx-savings", "savings")));
 
 		var (added, error) = await Sync(store).SyncAsync();
 
@@ -74,8 +85,8 @@ public sealed class SyncServiceTests
 	[Fact]
 	public async Task SyncAsync_EmptyHistory_AsksForLongestHistory()
 	{
-		var store = new InMemoryStore { Session = new SessionInfo { AccountUids = ["current"] } };
-		_bank.GetTransactionsAsync(default!, default, default).ReturnsForAnyArgs([Debit("tx-1", "current")]);
+		var store = new InMemoryStore { Session = Connected("current") };
+		_bank.GetTransactionsAsync(default!, default, default).ReturnsForAnyArgs(Download(Debit("tx-1", "current")));
 
 		await Sync(store).SyncAsync();
 
@@ -90,17 +101,143 @@ public sealed class SyncServiceTests
 	[Fact]
 	public async Task SyncAsync_IncrementalRefused_RetriesWithLongest()
 	{
-		var store = new InMemoryStore { Session = new SessionInfo { AccountUids = ["current"] } };
+		var store = new InMemoryStore { Session = Connected("current") };
 		store.Merge([Debit("tx-old", "current")]);
 		_bank.GetTransactionsAsync("current", Arg.Is<DateOnly?>(d => d != null), false)
-			.Returns<IReadOnlyList<Txn>>(_ => throw new InvalidOperationException("WRONG_TRANSACTIONS_PERIOD"));
-		_bank.GetTransactionsAsync("current", null, true).Returns([Debit("tx-new", "current")]);
+			.Returns<BankDownload>(_ => throw new InvalidOperationException("WRONG_TRANSACTIONS_PERIOD"));
+		_bank.GetTransactionsAsync("current", null, true).Returns(Download(Debit("tx-new", "current")));
 
 		var (added, error) = await Sync(store).SyncAsync();
 
 		error.Should().BeNull();
 		added.Should().Be(1);
 		await _bank.Received(1).GetTransactionsAsync("current", null, true);
+	}
+
+	/// <summary>
+	/// Verifies that transactions the bank sent but that could not be read are counted in the session, so the user
+	/// is told, while the readable ones are saved and the sync counts as successful.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task SyncAsync_SomeUnreadable_SavedAndSkippedCountRecorded()
+	{
+		var store = new InMemoryStore { Session = Connected("current", "savings") };
+		_bank.GetTransactionsAsync("current", Arg.Any<DateOnly?>(), Arg.Any<bool>()).Returns(new BankDownload([Debit("tx-1", "current")], Skipped: 2));
+		_bank.GetTransactionsAsync("savings", Arg.Any<DateOnly?>(), Arg.Any<bool>()).Returns(new BankDownload([], Skipped: 1));
+
+		var (added, error) = await Sync(store).SyncAsync();
+
+		error.Should().BeNull();
+		added.Should().Be(1);
+		store.Session.SkippedTransactions.Should().Be(3);
+		store.Session.LastError.Should().BeNull();
+	}
+
+	/// <summary>
+	/// Verifies that an incremental sync keeps the count of transactions a full sync left out: it only asks for the
+	/// last 30 days, so it cannot tell whether those are still missing.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task SyncAsync_IncrementalAfterSkipped_CountKept()
+	{
+		var store = new InMemoryStore { Session = Connected("current") };
+		store.Merge([Debit("tx-old", "current")]);
+		store.Session.RecordFullSync(DateTimeOffset.UnixEpoch, skippedTransactions: 2);
+		_bank.GetTransactionsAsync("current", Arg.Any<DateOnly?>(), false).Returns(Download(Debit("tx-new", "current")));
+
+		await Sync(store).SyncAsync();
+
+		store.Session.SkippedTransactions.Should().Be(2);
+	}
+
+	/// <summary>
+	/// Verifies that a sync waiting behind a full sync works on the session the full sync saved, so it does not bring
+	/// back the left-out count the full sync just cleared.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task SyncAsync_QueuedBehindFullSync_KeepsItsReset()
+	{
+		var store = new InMemoryStore { Session = Connected("current") };
+		store.Merge([Debit("tx-old", "current")]);
+		store.Session.RecordFullSync(DateTimeOffset.UnixEpoch, skippedTransactions: 3);
+		var fullDownload = new TaskCompletionSource<BankDownload>();
+		_bank.GetTransactionsAsync("current", Arg.Any<DateOnly?>(), true).Returns(fullDownload.Task);
+		_bank.GetTransactionsAsync("current", Arg.Any<DateOnly?>(), false).Returns(Download());
+
+		var full = Sync(store).SyncAsync(full: true);
+		var queued = Sync(store).SyncAsync();
+		fullDownload.SetResult(Download());
+		await Task.WhenAll(full, queued);
+
+		store.Session.SkippedTransactions.Should().Be(0);
+	}
+
+	/// <summary>
+	/// Verifies that when reading the session fails once the gate is held, the failure is reported and the gate is
+	/// released, so the next sync still runs.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task SyncAsync_SessionReadFailsAfterGate_ReportedAndGateReleased()
+	{
+		var store = new InMemoryStore { Session = Connected("current"), FailingLoad = 2 };
+		_bank.GetTransactionsAsync(default!, default, default).ReturnsForAnyArgs(Download(Debit("tx-1", "current")));
+
+		var (_, error) = await Sync(store).SyncAsync();
+		var next = Sync(store).SyncAsync();
+		var finished = await Task.WhenAny(next, Task.Delay(TimeSpan.FromSeconds(5)));
+
+		error.Should().Contain("locked");
+		finished.Should().BeSameAs(next, "The gate must have been released.");
+		(await next).Error.Should().BeNull();
+	}
+
+	/// <summary>
+	/// Verifies that a sync waiting behind another finds the connection gone and says so, instead of failing.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task SyncAsync_SessionGoneWhileQueued_NotConnected()
+	{
+		var store = new InMemoryStore { Session = Connected("current") };
+		store.Merge([Debit("tx-old", "current")]);
+		var running = new TaskCompletionSource<BankDownload>();
+		_bank.GetTransactionsAsync("current", Arg.Any<DateOnly?>(), true).Returns(running.Task);
+
+		var first = Sync(store).SyncAsync(full: true);
+		var queued = Sync(store).SyncAsync();
+		store.Session = null;
+		running.SetResult(Download());
+		await first;
+
+		(await queued).Error.Should().Be("Not connected to the bank yet.");
+	}
+
+	/// <summary>
+	/// Verifies that a reconnect saved while a sync runs is kept: the sync of the old connection does not save its
+	/// outcome over the new one.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task SyncAsync_ReconnectedWhileRunning_NewSessionKept()
+	{
+		var store = new InMemoryStore { Session = Connected("current") };
+		store.Merge([Debit("tx-old", "current")]);
+		var running = new TaskCompletionSource<BankDownload>();
+		_bank.GetTransactionsAsync("current", Arg.Any<DateOnly?>(), true).Returns(running.Task);
+		var reconnected = SessionInfo.Rehydrate(new BankSessionId("new"), ["current"], DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(180), lastSync: null, lastError: null, skippedTransactions: 0);
+
+		var sync = Sync(store).SyncAsync(full: true);
+		store.Session = reconnected;
+		running.SetResult(Download(Debit("tx-new", "current")));
+		var (added, _) = await sync;
+
+		added.Should().Be(1, "The downloaded transactions are still saved.");
+		store.Session.Id.Value.Should().Be("new");
+		store.Session.LastSync.Should().BeNull("The old sync's outcome must not overwrite the new connection.");
 	}
 
 	/// <summary>
@@ -111,10 +248,10 @@ public sealed class SyncServiceTests
 	[Fact]
 	public async Task SyncAsync_BankFails_ErrorStoredInSession()
 	{
-		var store = new InMemoryStore { Session = new SessionInfo { AccountUids = ["current"] } };
+		var store = new InMemoryStore { Session = Connected("current") };
 		store.Merge([Debit("tx-old", "current")]);
 		_bank.GetTransactionsAsync(default!, default, default)
-			.ReturnsForAnyArgs<IReadOnlyList<Txn>>(_ => throw new InvalidOperationException("Enable Banking GET failed (401): EXPIRED_SESSION"));
+			.ReturnsForAnyArgs<BankDownload>(_ => throw new InvalidOperationException("Enable Banking GET failed (401): EXPIRED_SESSION"));
 
 		var (added, error) = await Sync(store).SyncAsync(full: true);
 
@@ -134,6 +271,13 @@ public sealed class SyncServiceTests
 	/// </summary>
 	private sealed class InMemoryStore : IStore
 	{
+		#region Fields
+		/// <summary>
+		/// The number of <see cref="LoadSession"/> calls so far.
+		/// </summary>
+		private int _loads;
+		#endregion
+
 		#region Properties
 		/// <summary>
 		/// Gets or sets the bank session; <see langword="null"/> means not connected.
@@ -144,11 +288,28 @@ public sealed class SyncServiceTests
 		/// Gets the stored transactions.
 		/// </summary>
 		public List<Txn> Transactions { get; } = [];
+
+		/// <summary>
+		/// Gets or sets the number of the <see cref="LoadSession"/> call that fails; 0 for none.
+		/// </summary>
+		public int FailingLoad { get; set; }
 		#endregion
 
 		#region IStore Implementation
 		/// <inheritdoc />
-		public SessionInfo? LoadSession() => Session;
+		/// <remarks>Returns a copy, as a real store reads a new object from storage on every call, and throws an
+		/// <see cref="IOException"/> on the call numbered <see cref="FailingLoad"/>, as a locked file would.</remarks>
+		public SessionInfo? LoadSession()
+		{
+			if (++_loads == FailingLoad)
+			{
+				throw new IOException("session.json is locked");
+			}
+
+			return Session is null
+				? null
+				: SessionInfo.Rehydrate(Session.Id, Session.AccountUids, Session.ConnectedAt, Session.ValidUntil, Session.LastSync, Session.LastError, Session.SkippedTransactions);
+		}
 
 		/// <inheritdoc />
 		public void SaveSession(SessionInfo session) => Session = session;
@@ -162,7 +323,7 @@ public sealed class SyncServiceTests
 			var added = 0;
 			foreach (var txn in incoming)
 			{
-				var index = Transactions.FindIndex(t => string.Equals(t.Id, txn.Id, StringComparison.Ordinal));
+				var index = Transactions.FindIndex(t => t.Id.Equals(txn.Id));
 				if (index >= 0)
 				{
 					Transactions[index] = txn;
@@ -178,7 +339,7 @@ public sealed class SyncServiceTests
 		}
 
 		/// <inheritdoc />
-		public UserData LoadUserData() => new();
+		public UserData LoadUserData() => UserData.Empty();
 
 		/// <inheritdoc />
 		public void SaveUserData(UserData data)

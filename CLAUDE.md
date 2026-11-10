@@ -3,7 +3,8 @@
 Personal expense tracker for a KBC Brussels current account. ASP.NET Core minimal API (.NET 10), server-rendered HTML
 (no Razor/Blazor), Chart.js from CDN. Runs locally at https://localhost:5001. Single user, personal use only.
 Built on **Pivot.Framework**, running entirely on the phone (MAUI + SQLite, no server, no login): see
-`docs/adr/0003-…`, which supersedes ADR-0001. Step 1 (canonical layout, xUnit, tabs) is on branch `chore/shared-core`.
+`docs/adr/0003-…`, which supersedes ADR-0001. Step 1 (canonical layout, xUnit, tabs) is on `main`; step 2 (domain
+on Pivot types) is on branch `chore/pivot-domain`.
 
 ## How data gets in
 - Bank access via **Enable Banking** (PSD2 aggregator), free "restricted mode": only accounts linked in their
@@ -19,21 +20,29 @@ Solution `KbcTracker.slnx` in the Pivot canonical layout: `src/Core`, `src/Infra
 project organised as `Features/<Feature>/…` (`Features/Shared/` for cross-feature pieces); `test/` mirrors `src/`.
 Namespaces follow folders; each project file lists its feature namespaces as global usings. Tabs, one type per file.
 
-- `src/Core/KbcTracker.Domain` — `Features/Transactions` (`Txn`, `Kind`, `TxnInfo`, internal `BankFields` reading
-  the ISO code from `Txn.Raw`), `Categories` (`Category`, `CategoryType`, `PayeeAssignment`, `CategoryDefaults`),
-  `FixedPayments` (`RecurringPayment`, `Suggestion`, `FixedRow`, `FixedStatus`), `BankConnection` (`SessionInfo`),
-  `Overview` (`MonthSummary`), `Review` (`ReviewItem`), `Shared` (`UserData` = all user decisions; `Analysis`, the
-  brain: classification by ISO code, series keys, merchant cleaning, categories, suggestions, matching, month
-  summaries, review queue; optional `today` for tests; `Signature` builds dismissal keys).
+- `src/Core/KbcTracker.Domain` (Pivot.Framework.Domain: `LightweightAggregateRoot`, `Entity`, `Result`/`Error`;
+  string-valued ids derive from `Shared/ValueObjects/StronglyTypedStringId`; aggregates have `Create` (validated,
+  returns `Result`) and `Rehydrate` (stored data, as is); errors in `Features/<F>/Errors`) — `Features/Transactions`
+  (`Txn` + `TxnId`, value objects `Money`, `Counterparty`, `BankRecord`, `Kind`, `TxnInfo`, internal `BankFields`
+  reading the ISO code from `Txn.Raw`), `Categories` (`Category` + `CategoryId` (`Other`), `CategoryType`,
+  `PayeeAssignment`, `CategoryDefaults`), `FixedPayments` (`RecurringPayment` entity owned by `UserData` +
+  `RecurringPaymentId`, `PayeeMatch` (`SignatureOf` builds dismissal keys), `RecurrenceRule`, `Suggestion`,
+  `FixedRow`, `FixedStatus`), `BankConnection` (`SessionInfo` + `BankSessionId`,
+  `RecordFullSync`/`RecordIncrementalSync`/`RecordFailure`; an incremental sync keeps the larger left-out count),
+  `Overview` (`MonthSummary`), `Review` (`ReviewItem`), `Shared` (`UserData` = all user decisions, changed only
+  through its behaviours; `Analysis`, the brain: classification by ISO code, series keys, merchant cleaning,
+  categories, suggestions, matching, month summaries, review queue; optional `today` for tests).
 - `src/Core/KbcTracker.Application` — `Features/Shared/Abstractions/IStore` (never deletes transactions),
-  `Features/BankConnection` (`IBankTransactionSource` port, `SyncSettings`, `SyncService`).
+  `Features/BankConnection` (`IBankTransactionSource` port returning `BankDownload` = readable transactions +
+  skipped count, `SyncSettings`, `SyncService`).
 - `src/Infrastructure/KbcTracker.Infrastructure` — `Features/BankConnection`: `EnableBankingClient` (REST + JWT),
   `EnableBankingOptions`, `EnableBankingMapper` (JSON → Txn, raw kept), `EnableBankingTransactionSource`.
 - `src/Containers/UI/Hosting/KbcTracker.Web` — `Program.cs` (routes, `POST /api` switch, `--sync` mode),
   `appsettings.json`; `Features/<Tab>/<Tab>Page.cs` render each tab (`Render`), `Features/Shared/Pages/PageKit`
   (CSS, layout, formatting helpers), `Features/Shared/Storage/Store` (JSON `IStore` in the data folder, merged by
-  id, daily backups, atomic writes), `Features/Shared/Api/ApiRequest`, `Features/BankConnection/AutoSync`,
-  `Features/Categories/CategorySeed`.
+  id, daily backups, atomic writes; `Storage/Documents` map the domain to the unchanged file shapes),
+  `Features/Shared/Api/ApiRequest`, `Features/BankConnection/AutoSync`, `Features/BankConnection/SyncReport` (the
+  `--sync` line), `Features/Categories/CategorySeed`.
 - `scripts/install-daily-sync.ps1` — Windows scheduled task running `KbcTracker.Web.dll --sync`.
 
 Tests (xUnit + AwesomeAssertions + NSubstitute): `test/Core/…Domain.Tests` (analysis, categories, `RealDataTests`
@@ -79,6 +88,6 @@ Decisions: `docs/adr/`. User docs: `docs/index.md`.
 ## Open ideas / known gaps
 - Fixed payments and categories set in the version before `34987bb` (`user-rules.json`) are not migrated.
 - Chart.js is loaded from a CDN (fails offline) — could be bundled into `wwwroot`.
-- Next: steps 2–6 of ADR-0003 (domain on Pivot types, EF Core SQLite persistence, mediator commands/queries, MAUI
+- Next: steps 3–6 of ADR-0003 (EF Core SQLite persistence, mediator commands/queries, MAUI
   app, then savings account, salary/quarterly/yearly detection, Loan and Salary tabs, notifications).
   Later ideas: budgets per category.

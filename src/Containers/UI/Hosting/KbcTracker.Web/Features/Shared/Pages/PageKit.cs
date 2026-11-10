@@ -127,8 +127,7 @@ internal static class PageKit
 		foreach (var (id, label, badge) in tabs)
 			sb.Append($"<a class='{(id == tab ? "on" : "")}' href='/{id}?m={month}'>{label}{(badge > 0 ? $"<b>{badge}</b>" : "")}</a>");
 		sb.Append("</nav></header><main>");
-		if (s?.LastError is not null)
-			sb.Append($"<div class='notice err'><span><b>Last sync failed:</b> {Html(s.LastError)}</span><a class='btn sm' href=/banks>Reconnect</a></div>");
+		AppendSyncNotices(sb, s);
 		sb.Append(body).Append("</main><div id=toast></div>");
 		sb.Append("""
 			<script>
@@ -163,7 +162,7 @@ internal static class PageKit
 		foreach (var g in a.CategoryList.GroupBy(c => c.Type).OrderBy(g => g.Key))
 		{
 			sb.Append($"<optgroup label='{g.Key}'>");
-			foreach (var c in g.OrderBy(c => c.Name)) sb.Append($"<option value='{Html(c.Id)}'{(c.Id == current.Id ? " selected" : "")}>{Html(c.Name)}</option>");
+			foreach (var c in g.OrderBy(c => c.Name)) sb.Append($"<option value='{Html(c.Id.Value)}'{(c.Id == current.Id ? " selected" : "")}>{Html(c.Name)}</option>");
 			sb.Append("</optgroup>");
 		}
 		return sb.Append("</select>").ToString();
@@ -181,6 +180,22 @@ internal static class PageKit
 		FixedStatus.NotThisMonth => "<span class='pill nil'>not this month</span>",
 		_ => "<span class='pill nil'>—</span>"
 	};
+
+	/// <summary>
+	/// Adds the banner of a failed sync, or, after a successful one, the number of transactions the bank sent that
+	/// could not be read, with a link to sync the whole history again once that is fixed.
+	/// </summary>
+	private static void AppendSyncNotices(StringBuilder sb, SessionInfo? s)
+	{
+		if (s?.LastError is not null)
+		{
+			sb.Append(CultureInfo.InvariantCulture, $"<div class='notice err'><span><b>Last sync failed:</b> {Html(s.LastError)}</span><a class='btn sm' href=/banks>Reconnect</a></div>");
+		}
+		else if (s is { SkippedTransactions: > 0 })
+		{
+			sb.Append(CultureInfo.InvariantCulture, $"<div class='notice err'><span><b>Sync:</b> {s.SkippedTransactions} transaction(s) from the bank could not be read and were left out.</span><a class='btn sm' href='/sync?full=true&back=/settings'>Sync all again</a></div>");
+		}
+	}
 	#endregion
 
 	#region Formatting

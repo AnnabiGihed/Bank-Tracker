@@ -20,4 +20,4 @@ namespace KbcTracker.Web.Features.Shared.Api;
 /// <param name="Cadence">A fixed payment's new cadence in days.</param>
 /// <param name="Restore">The payee's previous assignment, to undo it when the user picks "only this one".</param>
 internal sealed record ApiRequest(string Action, string? Key = null, string? Id = null, string[]? Keys = null, string? Name = null, string? CategoryId = null,
-	string? Type = null, string? Color = null, string? Keywords = null, decimal? Amount = null, int? Cadence = null, PayeeAssignment? Restore = null);
+	string? Type = null, string? Color = null, string? Keywords = null, decimal? Amount = null, int? Cadence = null, PayeeAssignmentDocument? Restore = null);

@@ -77,7 +77,7 @@ public static class OverviewPage
 		{
 			l = months.Select(m => MonthName(m.Month)[..3] + " " + m.Month[2..4]),
 			f = months.Select(m => m.Fixed), v = months.Select(m => m.Variable), s = months.Select(m => m.Saved), i = months.Select(m => m.Income),
-			cl = cats.Select(c => c.c.Name), ci = cats.Select(c => c.c.Id), cc = cats.Select(c => c.c.Color), cv = cats.Select(c => c.v)
+			cl = cats.Select(c => c.c.Name), ci = cats.Select(c => c.c.Id.Value), cc = cats.Select(c => c.c.Color), cv = cats.Select(c => c.v)
 		});
 		var script = """
 			const d=__D__;

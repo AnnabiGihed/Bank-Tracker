@@ -61,12 +61,12 @@ public static class FixedPaymentsPage
 		sb.Append("<div class=card><div class=scroll><table><tr><th class=num>Day</th><th>Payment</th><th>Category</th><th class=num>Amount</th><th>This month</th><th></th></tr>");
 		foreach (var (f, st) in rows.OrderBy(x => x.f.UsualDay))
 		{
-			var edit = new { f.Def.Id, f.Def.Name, f.Def.Amount, Cadence = f.Def.CadenceDays, CategoryId = f.Category.Id };
+			var edit = new { Id = f.Def.Id.Value, f.Def.Name, f.Def.Amount, Cadence = f.Def.CadenceDays, CategoryId = f.Category.Id.Value };
 			sb.Append($"""
 				<tr><td class=num>{f.UsualDay}</td>
 				<td><b>{Html(f.Def.Name)}</b><div class=muted>{Analysis.CadenceName(f.Def.CadenceDays)} · {f.Payments.Count} payment(s) · last {f.LastPaid:dd/MM/yy}</div></td>
 				<td><span class=tag style='margin:0'>{Dot(f.Category)}{Html(f.Category.Name)}</span></td><td class=num>{Money(f.Def.Amount)}</td><td>{StatusPill(st, f)}</td>
-				<td class=num><button class=icon title='Edit' onclick="editFixed({JsonAttribute(edit)})">✎</button><button class=icon title='Stop tracking' onclick="if(confirm('Stop tracking this fixed payment?'))api({JsonAttribute(new { action = "removeFixed", id = f.Def.Id })})">✕</button></td></tr>
+				<td class=num><button class=icon title='Edit' onclick="editFixed({JsonAttribute(edit)})">✎</button><button class=icon title='Stop tracking' onclick="if(confirm('Stop tracking this fixed payment?'))api({JsonAttribute(new { action = "removeFixed", id = f.Def.Id.Value })})">✕</button></td></tr>
 				""");
 		}
 		if (rows.Count == 0) sb.Append("<tr><td colspan=6 class=empty>No confirmed fixed payments yet. Accept the suggestions above, or click ☆ next to a payment in Transactions.</td></tr>");

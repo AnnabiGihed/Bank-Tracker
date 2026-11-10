@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The web app moved to `src/Containers/UI/Hosting/KbcTracker.Web`, in the `KbcTracker.slnx` solution. Start it
   with `dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web`; its settings are now in that folder's
   `appsettings.json`. Re-run `scripts/install-daily-sync.ps1` so the daily sync runs the new `KbcTracker.Web.dll`.
+- The domain is built on Pivot.Framework's entities, aggregates and `Result`/`Error` types (ADR-0003 step 2). The
+  data files keep their format, and records older versions could save with a blank id still load. A category name
+  without letters or digits, a blank payee name, a change to a fixed payment that no longer exists and a request
+  missing a field are now refused with a message instead of being saved or failing.
+- A transaction the bank sends that cannot be read (for example with a malformed currency) is now left out, and
+  every page says how many were left out, until a sync of the whole history finds none; the other transactions
+  are still saved, and the daily `--sync` run prints the count. A blank bank reference no longer becomes an id, and
+  a transaction an older version stored with a blank id keeps its place on the next sync instead of being added
+  twice.
 - The build now runs the shared analyzers with warnings as errors, and restores packages from nuget.org and, for
   Pivot.Framework packages only, from its private feed ([ADR-0002](docs/adr/0002-adopt-the-shared-analyzer-set.md)).
 

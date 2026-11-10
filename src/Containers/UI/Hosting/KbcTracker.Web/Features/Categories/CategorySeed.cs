@@ -4,7 +4,7 @@ namespace KbcTracker.Web.Features.Categories;
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Holds the category keyword lists from <c>appsettings.json</c>, used only to create
-///              <c>categories.json</c> the first time. In step 2 of ADR-0001 the seed moves into the database and this
+///              <c>categories.json</c> the first time. In step 3 of ADR-0003 the seed moves into the database and this
 ///              class goes away.
 /// </summary>
 public static class CategorySeed

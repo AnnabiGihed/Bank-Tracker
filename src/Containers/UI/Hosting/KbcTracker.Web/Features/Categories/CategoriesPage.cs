@@ -45,8 +45,8 @@ public static class CategoriesPage
 					: v > avg * 1.15m ? $"<span class='pill bad'>+{WholeMoney(v - avg.Value)}</span>"
 					: v < avg * 0.85m ? $"<span class='pill ok'>−{WholeMoney(avg.Value - v)}</span>"
 					: "<span class='pill nil'>similar</span>";
-				var edit = new { c.Id, c.Name, Type = c.Type.ToString(), c.Color, Keywords = string.Join(", ", c.Keywords), c.BuiltIn };
-				sb.Append($"<tr><td style='cursor:pointer' onclick=\"location.href='/transactions?m={month}&cat={Uri.EscapeDataString(c.Id)}'\"><b style='display:flex;align-items:center;gap:8px'>{Dot(c)}{Html(c.Name)}</b><div class=muted>{n} payment(s) in total</div></td>");
+				var edit = new { Id = c.Id.Value, c.Name, Type = c.Type.ToString(), c.Color, Keywords = string.Join(", ", c.Keywords), c.BuiltIn };
+				sb.Append($"<tr><td style='cursor:pointer' onclick=\"location.href='/transactions?m={month}&cat={Uri.EscapeDataString(c.Id.Value)}'\"><b style='display:flex;align-items:center;gap:8px'>{Dot(c)}{Html(c.Name)}</b><div class=muted>{n} payment(s) in total</div></td>");
 				sb.Append($"<td><div class=bar><i style='width:{(max <= 0 || v <= 0 ? 0 : v / max * 100):0}%;background:{Html(c.Color)}'></i></div></td>");
 				sb.Append($"<td class=num>{(v == 0 ? "<span class=muted>—</span>" : Money(v))}</td><td class=num>{diff}</td>");
 				sb.Append($"<td class='muted ell' style='max-width:220px'>{Html(string.Join(", ", c.Keywords))}</td>");

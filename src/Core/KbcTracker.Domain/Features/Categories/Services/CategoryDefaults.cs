@@ -24,51 +24,53 @@ public static class CategoryDefaults
 	#region Factory Methods
 	/// <summary>
 	/// Creates the built-in categories and adds one category per seed entry. A seed entry whose name or slug
-	/// matches a built-in category adds its keywords to that category instead.
+	/// matches a built-in category adds its keywords to that category instead; one whose name has no letter or digit
+	/// is skipped.
 	/// </summary>
 	/// <param name="seed">Category names with the keywords looked for in payee and shop names.</param>
 	/// <returns>The new category list; the built-in <c>other</c> category is always included.</returns>
 	public static IList<Category> Create(IReadOnlyDictionary<string, string[]> seed)
 	{
-		var list = new List<Category>
+		var drafts = new List<Draft>
 		{
-			new() { Id = "income", Name = "Income", Type = CategoryType.Income, Color = "#27ae60", BuiltIn = true },
-			new() { Id = "refunds", Name = "Refunds", Type = CategoryType.Income, Color = "#6fcf97", BuiltIn = true },
-			new() { Id = "savings", Name = Analysis.SavingsName, Type = CategoryType.Savings, Color = "#9b51e0", BuiltIn = true },
-			new() { Id = "own-transfers", Name = Analysis.OwnTransfersName, Type = CategoryType.Transfer, Color = "#bdbdbd", BuiltIn = true },
-			new() { Id = "loan", Name = "Loan", Type = CategoryType.Expense, Color = "#c0392b", BuiltIn = true },
-			new() { Id = "bills", Name = "Bills & direct debits", Type = CategoryType.Expense, Color = "#2d9cdb", BuiltIn = true },
-			new() { Id = "bank-fees", Name = "Bank & fees", Type = CategoryType.Expense, Color = "#828282", BuiltIn = true },
-			new() { Id = "cash", Name = "Cash", Type = CategoryType.Expense, Color = "#f2c94c", BuiltIn = true },
-			new() { Id = "transfers", Name = "Transfers to others", Type = CategoryType.Expense, Color = "#56ccf2", BuiltIn = true },
-			new() { Id = "other", Name = "Other", Type = CategoryType.Expense, Color = "#a0a7b4", BuiltIn = true },
+			new("income", "Income", CategoryType.Income, "#27ae60", BuiltIn: true),
+			new("refunds", "Refunds", CategoryType.Income, "#6fcf97", BuiltIn: true),
+			new("savings", Analysis.SavingsName, CategoryType.Savings, "#9b51e0", BuiltIn: true),
+			new("own-transfers", Analysis.OwnTransfersName, CategoryType.Transfer, "#bdbdbd", BuiltIn: true),
+			new("loan", "Loan", CategoryType.Expense, "#c0392b", BuiltIn: true),
+			new("bills", "Bills & direct debits", CategoryType.Expense, "#2d9cdb", BuiltIn: true),
+			new("bank-fees", "Bank & fees", CategoryType.Expense, "#828282", BuiltIn: true),
+			new("cash", "Cash", CategoryType.Expense, "#f2c94c", BuiltIn: true),
+			new("transfers", "Transfers to others", CategoryType.Expense, "#56ccf2", BuiltIn: true),
+			new(CategoryId.Other.Value, "Other", CategoryType.Expense, "#a0a7b4", BuiltIn: true),
 		};
 		var colourIndex = 0;
 		foreach (var (name, words) in seed)
 		{
 			var id = Slug(name);
-			var existing = list.Find(c => string.Equals(c.Id, id, StringComparison.Ordinal) || c.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+			var existing = drafts.Find(c => string.Equals(c.Id, id, StringComparison.Ordinal) || c.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 			if (existing is not null)
 			{
-				foreach (var word in words)
-				{
-					existing.Keywords.Add(word);
-				}
-
+				existing.Keywords.AddRange(words);
 				continue;
 			}
 
-			list.Add(new Category
+			if (id.Length == 0)
 			{
-				Id = id,
-				Name = name,
-				Keywords = [.. words],
-				Color = Palette[colourIndex++ % Palette.Length],
-				Type = name.Equals(Analysis.OwnTransfersName, StringComparison.OrdinalIgnoreCase) ? CategoryType.Transfer : CategoryType.Expense
-			});
+				continue;
+			}
+
+			var type = name.Equals(Analysis.OwnTransfersName, StringComparison.OrdinalIgnoreCase) ? CategoryType.Transfer : CategoryType.Expense;
+			var draft = new Draft(id, name, type, Palette[colourIndex++ % Palette.Length], BuiltIn: false);
+			draft.Keywords.AddRange(words);
+			drafts.Add(draft);
 		}
 
-		return list;
+		return drafts
+			.Select(d => Category.Create(new CategoryId(d.Id), d.Name, d.Type, d.Color, d.Keywords, d.BuiltIn))
+			.Where(r => r.IsSuccess)
+			.Select(r => r.Value)
+			.ToList();
 	}
 	#endregion
 
@@ -96,6 +98,28 @@ public static class CategoryDefaults
 		}
 
 		return slug.ToString().Trim('-');
+	}
+	#endregion
+
+	#region Nested Types
+	/// <summary>
+	/// Author      : Gihed Annabi
+	/// Date        : 11-2026
+	/// Purpose     : A category being assembled from the built-in list and the seed, before it is validated.
+	/// </summary>
+	/// <param name="Id">The category id.</param>
+	/// <param name="Name">The name.</param>
+	/// <param name="Type">How its payments count in the totals.</param>
+	/// <param name="Color">The colour, as <c>#rrggbb</c>.</param>
+	/// <param name="BuiltIn">Whether the analysis relies on it.</param>
+	private sealed record Draft(string Id, string Name, CategoryType Type, string Color, bool BuiltIn)
+	{
+		#region Properties
+		/// <summary>
+		/// Gets the keywords gathered so far.
+		/// </summary>
+		public List<string> Keywords { get; } = [];
+		#endregion
 	}
 	#endregion
 }
