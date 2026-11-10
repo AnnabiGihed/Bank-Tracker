@@ -63,28 +63,27 @@ public sealed partial class SyncService
 	/// </summary>
 	/// <param name="full"><see langword="true"/> to ask for the longest history the bank allows; otherwise the last
 	/// 30 days, since everything older is already stored. The first sync is always full.</param>
-	/// <returns>The number of new transactions and <see langword="null"/>, or 0 and the error message (at most 300
-	/// characters) when the user is not connected or the bank call failed. Exceptions are not rethrown.</returns>
+	/// <returns>The number of new transactions and <see langword="null"/> when the sync succeeded. Otherwise an error
+	/// message of at most <see cref="SessionInfo.MaxErrorLength"/> characters, when the user is not connected or a bank,
+	/// file or storage error stopped the sync. Transactions merged before a failure are kept; the count returned with
+	/// an error is that number only when saving the outcome was the one thing that failed, and 0 otherwise.
+	/// Exceptions are not rethrown.</returns>
 	public async Task<(int Added, string? Error)> SyncAsync(bool full = false)
 	{
-		if (_store.LoadSession() is null)
-		{
-			return (0, NotConnected);
-		}
-
 		await Gate.WaitAsync().ConfigureAwait(false);
 		try
 		{
-			// Read again once the gate is held: a sync that ran meanwhile may have changed the session, and working on
-			// the older copy would undo it, for example bring back a left-out count a full sync just cleared.
+			// Read only once the gate is held: a sync that ran meanwhile may have changed the session, and working on
+			// an older copy would undo it, for example bring back a left-out count a full sync just cleared.
 			var session = _store.LoadSession();
 			return session is null ? (0, NotConnected) : await SyncSessionAsync(session, full).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			// Reading or saving the session failed: reported instead of thrown, as background syncs have no caller.
+			// Reading or saving the session failed, so the failure cannot be recorded in it: returned instead of
+			// thrown, as background syncs have no caller to catch it.
 			LogSyncFailed(ex);
-			return (0, ex.Message);
+			return (0, SessionInfo.ShortenError(ex.Message));
 		}
 		finally
 		{
@@ -99,52 +98,76 @@ public sealed partial class SyncService
 	/// </summary>
 	private async Task<(int Added, string? Error)> SyncSessionAsync(SessionInfo session, bool full)
 	{
+		var fullSync = full || _store.LoadTransactions().Count == 0;
+		(int Added, int Skipped) result;
 		try
 		{
-			full = full || _store.LoadTransactions().Count == 0;
-			var today = DateOnly.FromDateTime(_clock.GetLocalNow().Date);
-			var from = full ? today.AddMonths(-_settings.HistoryMonths) : today.AddDays(-30);
-
-			var added = 0;
-			var skipped = 0;
-			foreach (var uid in session.AccountUids)
-			{
-				var download = await DownloadAsync(uid, from, full).ConfigureAwait(false);
-				added += _store.Merge(download.Transactions);
-				skipped += download.Skipped;
-			}
-
-			if (full)
-			{
-				session.RecordFullSync(_clock.GetUtcNow(), skipped);
-			}
-			else
-			{
-				session.RecordIncrementalSync(_clock.GetUtcNow(), skipped);
-			}
-
-			SaveIfStillCurrent(session);
-			LogSyncDone(added);
-			return (added, null);
+			result = await DownloadAllAsync(session, fullSync).ConfigureAwait(false);
 		}
-		catch (Exception ex) when (ex is not IOException and not UnauthorizedAccessException)
+		catch (Exception ex)
 		{
-			// Reported to the user through the session instead of thrown: background syncs have no caller to catch it.
+			// Every failure of the download, file errors included (a missing private key is one), is recorded in the
+			// session so the pages show it. If saving it fails too, the caller reports that error instead.
 			LogSyncFailed(ex);
 			session.RecordFailure(ex.Message);
 			SaveIfStillCurrent(session);
 			return (0, session.LastError);
 		}
+
+		if (fullSync)
+		{
+			session.RecordFullSync(_clock.GetUtcNow(), result.Skipped);
+		}
+		else
+		{
+			session.RecordIncrementalSync(_clock.GetUtcNow(), result.Skipped);
+		}
+
+		try
+		{
+			SaveIfStillCurrent(session);
+		}
+		catch (Exception ex)
+		{
+			// The transactions are merged; only the sync time and left-out count could not be saved. Reported with the
+			// number added, and the stored session keeps its previous state: the next sync records the time again,
+			// but a full sync's reset of the left-out count needs another full sync ("Sync all again").
+			LogSyncFailed(ex);
+			return (result.Added, SessionInfo.ShortenError(ex.Message));
+		}
+
+		LogSyncDone(result.Added);
+		return (result.Added, null);
+	}
+
+	/// <summary>
+	/// Downloads and merges the transactions of every account of the session.
+	/// </summary>
+	private async Task<(int Added, int Skipped)> DownloadAllAsync(SessionInfo session, bool fullSync)
+	{
+		var today = DateOnly.FromDateTime(_clock.GetLocalNow().Date);
+		var from = fullSync ? today.AddMonths(-_settings.HistoryMonths) : today.AddDays(-30);
+		var added = 0;
+		var skipped = 0;
+		foreach (var uid in session.AccountUids)
+		{
+			var download = await DownloadAsync(uid, from, fullSync).ConfigureAwait(false);
+			added += _store.Merge(download.Transactions);
+			skipped += download.Skipped;
+		}
+
+		return (added, skipped);
 	}
 
 	/// <summary>
 	/// Saves the outcome of a sync, unless the user reconnected while it ran: the new connection then replaced the
-	/// session, and the outcome of a sync of the old one must not overwrite it.
+	/// session (another id, or the same id connected again), and the outcome of a sync of the old one must not
+	/// overwrite it.
 	/// </summary>
 	private void SaveIfStillCurrent(SessionInfo session)
 	{
 		var stored = _store.LoadSession();
-		if (stored is not null && stored.Id == session.Id)
+		if (stored is not null && stored.Id == session.Id && stored.ConnectedAt == session.ConnectedAt)
 		{
 			_store.SaveSession(session);
 		}

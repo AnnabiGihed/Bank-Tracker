@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A sync that was running while you reconnected no longer overwrites the new connection, and a sync error caused
+  by a file (for example a missing private key) is shown on the pages like any other. When the transactions were
+  stored but the sync result could not be saved, the daily `--sync` run now says how many were stored.
 - Automatic categories: a keyword now matches only at the start of a word. "AD " (AD Delhaize) no longer puts
   shops such as Azad or Rad Huy in Groceries. A keyword glued to the end of a longer word (for example
   "APOTHEEK" in "STADSAPOTHEEK") no longer matches either; add the longer word as a keyword if you need it.

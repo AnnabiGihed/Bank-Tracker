@@ -32,8 +32,9 @@ dotnet .\KbcTracker.Web.dll --sync
 Pop-Location
 ```
 
-It prints the number of new transactions, or the error. When transactions from the bank could not be read, it
-also prints how many are left out; the app shows the same count until **Sync all again** finds none.
+It prints the number of new transactions, or the error, or both when the transactions were stored but the sync
+result could not be saved. When transactions from the bank could not be read, it also prints how many are left
+out; the app shows the same count until **Sync all again** finds none.
 
 ## Remove it
 

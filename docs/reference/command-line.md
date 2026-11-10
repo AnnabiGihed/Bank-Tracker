@@ -16,8 +16,9 @@ With `--sync`, the app syncs every connected account once and exits:
 
 | Outcome | Output | Exit code |
 | --- | --- | --- |
-| Success | `OK, <n> new transactions` | 0 |
+| Success | `OK, <n> new transactions`, followed by `, <k> could not be read and were left out` when some were | 0 |
 | Failure | The error message | 1 |
+| Transactions stored, but the sync result could not be saved | `<n> new transactions stored, but: <error>` | 1 |
 
 The daily scheduled task runs the published app this way: `dotnet KbcTracker.Web.dll --sync`, from
 `%LOCALAPPDATA%\KbcTracker\app`.

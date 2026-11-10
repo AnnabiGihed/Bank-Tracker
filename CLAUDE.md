@@ -3,8 +3,8 @@
 Personal expense tracker for a KBC Brussels current account. ASP.NET Core minimal API (.NET 10), server-rendered HTML
 (no Razor/Blazor), Chart.js from CDN. Runs locally at https://localhost:5001. Single user, personal use only.
 Built on **Pivot.Framework**, running entirely on the phone (MAUI + SQLite, no server, no login): see
-`docs/adr/0003-…`, which supersedes ADR-0001. Step 1 (canonical layout, xUnit, tabs) is on `main`; step 2 (domain
-on Pivot types) is on branch `chore/pivot-domain`.
+`docs/adr/0003-…`, which supersedes ADR-0001. Steps 1 (canonical layout, xUnit, tabs) and 2 (domain on Pivot
+types) are on `main`.
 
 ## How data gets in
 - Bank access via **Enable Banking** (PSD2 aggregator), free "restricted mode": only accounts linked in their

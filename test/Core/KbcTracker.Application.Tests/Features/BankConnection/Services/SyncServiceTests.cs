@@ -176,23 +176,145 @@ public sealed class SyncServiceTests
 	}
 
 	/// <summary>
-	/// Verifies that when reading the session fails once the gate is held, the failure is reported and the gate is
-	/// released, so the next sync still runs.
+	/// Verifies that when reading the session fails, the failure is returned (cut to the length the session keeps)
+	/// instead of thrown, and the gate is released, so the next sync still runs.
 	/// </summary>
 	/// <returns>A task that completes when the test has run.</returns>
 	[Fact]
-	public async Task SyncAsync_SessionReadFailsAfterGate_ReportedAndGateReleased()
+	public async Task SyncAsync_SessionReadFails_ReportedAndGateReleased()
 	{
-		var store = new InMemoryStore { Session = Connected("current"), FailingLoad = 2 };
+		var store = new InMemoryStore { Session = Connected("current"), FailingLoad = 1, LockMessage = new string('x', 400) };
 		_bank.GetTransactionsAsync(default!, default, default).ReturnsForAnyArgs(Download(Debit("tx-1", "current")));
 
 		var (_, error) = await Sync(store).SyncAsync();
 		var next = Sync(store).SyncAsync();
 		var finished = await Task.WhenAny(next, Task.Delay(TimeSpan.FromSeconds(5)));
 
-		error.Should().Contain("locked");
-		finished.Should().BeSameAs(next, "The gate must have been released.");
+		error.Should().HaveLength(SessionInfo.MaxErrorLength);
+		finished.Should().BeSameAs(next, "the gate must have been released");
 		(await next).Error.Should().BeNull();
+	}
+
+	/// <summary>
+	/// Verifies that when saving the outcome of a successful sync fails, the merged transactions are kept and counted,
+	/// the error is returned, the stored session keeps its previous state, and the gate is released.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task SyncAsync_OutcomeSaveFails_AddedCountedAndSessionUnchanged()
+	{
+		var store = new InMemoryStore { Session = Connected("current"), FailingSave = 1 };
+		_bank.GetTransactionsAsync(default!, default, default).ReturnsForAnyArgs(Download(Debit("tx-1", "current")));
+
+		var (added, error) = await Sync(store).SyncAsync();
+		var storedAfterFailure = store.Session;
+		var (_, nextError) = await Sync(store).SyncAsync();
+
+		added.Should().Be(1, "the transactions were merged before the save failed");
+		error.Should().Contain("locked");
+		storedAfterFailure.LastSync.Should().BeNull("the failed save must not leave a half-recorded sync");
+		storedAfterFailure.LastError.Should().BeNull();
+		nextError.Should().BeNull("the gate must have been released");
+	}
+
+	/// <summary>
+	/// Verifies that when the check before saving the outcome (reading the stored session) fails, the merged
+	/// transactions are still counted and the error is returned.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task SyncAsync_OutcomeSaveCheckFails_AddedCountedAndReported()
+	{
+		var store = new InMemoryStore { Session = Connected("current"), FailingLoad = 2 };
+		_bank.GetTransactionsAsync(default!, default, default).ReturnsForAnyArgs(Download(Debit("tx-1", "current")));
+
+		var (added, error) = await Sync(store).SyncAsync();
+		var (_, nextError) = await Sync(store).SyncAsync();
+
+		added.Should().Be(1);
+		error.Should().Contain("locked");
+		nextError.Should().BeNull("the gate must have been released");
+	}
+
+	/// <summary>
+	/// Verifies that after an incremental sync whose outcome could not be saved, the next sync records the time, and
+	/// that a long file error comes back cut to the length the session keeps.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task SyncAsync_IncrementalSaveFailsThenSucceeds_ErrorCutThenSyncRecorded()
+	{
+		var store = new InMemoryStore { Session = Connected("current"), FailingSave = 1, LockMessage = new string('x', 400) };
+		store.Merge([Debit("tx-old", "current")]);
+		_bank.GetTransactionsAsync("current", Arg.Any<DateOnly?>(), false).Returns(Download(Debit("tx-new", "current")));
+
+		var (_, error) = await Sync(store).SyncAsync();
+		var (_, nextError) = await Sync(store).SyncAsync();
+
+		error.Should().HaveLength(SessionInfo.MaxErrorLength);
+		nextError.Should().BeNull();
+		store.Session.LastSync.Should().NotBeNull("the next sync records what the failed save could not");
+	}
+
+	/// <summary>
+	/// Verifies that when the bank call fails and recording that failure cannot be saved either, the save error is
+	/// returned and the gate is released.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task SyncAsync_BankAndFailureSaveFail_SaveErrorReturnedAndGateReleased()
+	{
+		var store = new InMemoryStore { Session = Connected("current"), FailingSave = 1 };
+		_bank.GetTransactionsAsync(default!, default, default)
+			.ReturnsForAnyArgs<BankDownload>(_ => throw new InvalidOperationException("Enable Banking GET failed (500)"));
+
+		var (added, error) = await Sync(store).SyncAsync();
+		var (_, nextError) = await Sync(store).SyncAsync();
+
+		added.Should().Be(0);
+		error.Should().Contain("locked");
+		nextError.Should().Contain("500", "the second sync runs and records the bank failure");
+	}
+
+	/// <summary>
+	/// Verifies that a file error from the bank call, such as a missing private key, is recorded in the session, so
+	/// the pages show that the sync failed.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task SyncAsync_PrivateKeyMissing_ErrorStoredInSession()
+	{
+		var store = new InMemoryStore { Session = Connected("current") };
+		_bank.GetTransactionsAsync(default!, default, default)
+			.ReturnsForAnyArgs<BankDownload>(_ => throw new FileNotFoundException("Could not find file 'kbc.pem'."));
+
+		var (_, error) = await Sync(store).SyncAsync();
+
+		error.Should().Contain("kbc.pem");
+		store.Session.LastError.Should().Be(error);
+	}
+
+	/// <summary>
+	/// Verifies that a reconnect with the same session id is still kept: the connection date tells them apart.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task SyncAsync_ReconnectedWithSameIdWhileRunning_NewSessionKept()
+	{
+		var store = new InMemoryStore { Session = Connected("current") };
+		store.Merge([Debit("tx-old", "current")]);
+		var running = new TaskCompletionSource<BankDownload>();
+		_bank.GetTransactionsAsync("current", Arg.Any<DateOnly?>(), true).Returns(running.Task);
+		var reconnectedAt = new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero);
+		var reconnected = SessionInfo.Rehydrate(new BankSessionId("s"), ["current"], reconnectedAt, reconnectedAt.AddDays(180), lastSync: null, lastError: null, skippedTransactions: 0);
+
+		var sync = Sync(store).SyncAsync(full: true);
+		store.Session = reconnected;
+		running.SetResult(Download());
+		await sync;
+
+		store.Session.ConnectedAt.Should().Be(reconnectedAt);
+		store.Session.LastSync.Should().BeNull("the old sync's outcome must not overwrite the new connection");
 	}
 
 	/// <summary>
@@ -235,9 +357,9 @@ public sealed class SyncServiceTests
 		running.SetResult(Download(Debit("tx-new", "current")));
 		var (added, _) = await sync;
 
-		added.Should().Be(1, "The downloaded transactions are still saved.");
+		added.Should().Be(1, "the downloaded transactions are still saved");
 		store.Session.Id.Value.Should().Be("new");
-		store.Session.LastSync.Should().BeNull("The old sync's outcome must not overwrite the new connection.");
+		store.Session.LastSync.Should().BeNull("the old sync's outcome must not overwrite the new connection");
 	}
 
 	/// <summary>
@@ -276,6 +398,11 @@ public sealed class SyncServiceTests
 		/// The number of <see cref="LoadSession"/> calls so far.
 		/// </summary>
 		private int _loads;
+
+		/// <summary>
+		/// The number of <see cref="SaveSession"/> calls so far.
+		/// </summary>
+		private int _saves;
 		#endregion
 
 		#region Properties
@@ -293,6 +420,16 @@ public sealed class SyncServiceTests
 		/// Gets or sets the number of the <see cref="LoadSession"/> call that fails; 0 for none.
 		/// </summary>
 		public int FailingLoad { get; set; }
+
+		/// <summary>
+		/// Gets or sets the number of the <see cref="SaveSession"/> call that fails; 0 for none.
+		/// </summary>
+		public int FailingSave { get; set; }
+
+		/// <summary>
+		/// Gets or sets the message of the simulated file error.
+		/// </summary>
+		public string LockMessage { get; set; } = "session.json is locked";
 		#endregion
 
 		#region IStore Implementation
@@ -303,7 +440,7 @@ public sealed class SyncServiceTests
 		{
 			if (++_loads == FailingLoad)
 			{
-				throw new IOException("session.json is locked");
+				throw new IOException(LockMessage);
 			}
 
 			return Session is null
@@ -312,7 +449,17 @@ public sealed class SyncServiceTests
 		}
 
 		/// <inheritdoc />
-		public void SaveSession(SessionInfo session) => Session = session;
+		/// <remarks>Throws an <see cref="IOException"/> on the call numbered <see cref="FailingSave"/>, as a locked
+		/// file would.</remarks>
+		public void SaveSession(SessionInfo session)
+		{
+			if (++_saves == FailingSave)
+			{
+				throw new IOException(LockMessage);
+			}
+
+			Session = session;
+		}
 
 		/// <inheritdoc />
 		public IReadOnlyList<Txn> LoadTransactions() => [.. Transactions];
