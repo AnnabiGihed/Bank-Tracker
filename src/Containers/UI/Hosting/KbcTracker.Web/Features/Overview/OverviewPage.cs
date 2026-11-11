@@ -22,13 +22,14 @@ public static class OverviewPage
 	/// <param name="a">The analysis of all stored data.</param>
 	/// <param name="month">The selected month, as <c>yyyy-MM</c>.</param>
 	/// <param name="s">The bank session shown in the header, or <see langword="null"/> when not connected.</param>
+	/// <param name="notice">A one-time failure message to show above the page, or <see langword="null"/> for none.</param>
 	/// <returns>The complete HTML page.</returns>
-	public static string Render(Analysis a, string month, SessionInfo? s)
+	public static string Render(Analysis a, string month, SessionInfo? s, string? notice)
 	{
 		if (a.Items.Count == 0)
 			return Layout("overview", month, a, s, Empty(s is null
 				? "Connect your bank to get started: click <b>Connect bank</b> and log in with itsme."
-				: "No transactions yet — click <b>↻ Sync</b>."));
+				: "No transactions yet — click <b>↻ Sync</b>."), notice: notice);
 
 		var cur = a.MonthData(month);
 		var today = DateOnly.FromDateTime(DateTime.Today);
@@ -91,7 +92,7 @@ public static class OverviewPage
 			  options:{maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>`${c.label}: ${eur(c.raw)}`}}},
 			  onClick:(e,el)=>{if(el.length)location.href='/transactions?m=__M__&cat='+encodeURIComponent(d.ci[el[0].index])}}});
 			""".Replace("__D__", data).Replace("__M__", month);
-		return Layout("overview", month, a, s, sb.ToString(), script);
+		return Layout("overview", month, a, s, sb.ToString(), script, notice);
 	}
 	#endregion
 

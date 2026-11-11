@@ -22,8 +22,9 @@ public static class FixedPaymentsPage
 	/// <param name="a">The analysis of all stored data.</param>
 	/// <param name="month">The selected month, as <c>yyyy-MM</c>.</param>
 	/// <param name="s">The bank session shown in the header, or <see langword="null"/> when not connected.</param>
+	/// <param name="notice">A one-time failure message to show above the page, or <see langword="null"/> for none.</param>
 	/// <returns>The complete HTML page.</returns>
-	public static string Render(Analysis a, string month, SessionInfo? s)
+	public static string Render(Analysis a, string month, SessionInfo? s, string? notice)
 	{
 		var today = DateOnly.FromDateTime(DateTime.Today);
 		var sb = new StringBuilder();
@@ -87,7 +88,7 @@ public static class FixedPaymentsPage
 			function editFixed(f){fxId=f.Id;fxName.value=f.Name;fxCat.value=f.CategoryId;fxAmount.value=f.Amount;fxCad.value=f.Cadence>200?365:f.Cadence>40?91:30;fx.showModal()}
 			function saveFixed(){api({action:'updateFixed',id:fxId,name:fxName.value,categoryId:fxCat.value,amount:parseFloat(fxAmount.value),cadence:parseInt(fxCad.value)})}
 			""";
-		return Layout("fixed", month, a, s, sb.ToString(), script);
+		return Layout("fixed", month, a, s, sb.ToString(), script, notice);
 	}
 	#endregion
 }

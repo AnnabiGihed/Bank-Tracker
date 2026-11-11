@@ -110,7 +110,30 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 		using var response = await client.GetAsync(new Uri("/overview", UriKind.Relative));
 
 		response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+		response.Content.Headers.ContentType?.MediaType.Should().Be("text/html");
 		(await response.Content.ReadAsStringAsync()).Should().Contain("Backend unavailable").And.NotContain("private transport details");
+	}
+
+	/// <summary>
+	/// Verifies that a backend refusal while rendering a page is shown as what it is, not as an unavailable backend:
+	/// 403 as a refused access and 409 as a backend that is not ready.
+	/// </summary>
+	/// <param name="status">The backend's answer to the workspace request.</param>
+	/// <param name="expected">The heading the page must show.</param>
+	/// <returns>A task that completes when verified.</returns>
+	[Theory]
+	[InlineData(HttpStatusCode.Forbidden, "Backend refused access")]
+	[InlineData(HttpStatusCode.Conflict, "Backend not ready")]
+	public async Task Get_BackendRefuses_ReadablePageWithSameStatus(HttpStatusCode status, string expected)
+	{
+		using var refusing = WithRefusingBackend("api/v1/workspace", status, "private backend detail");
+		using var client = refusing.CreateClient();
+
+		using var response = await client.GetAsync(new Uri("/overview", UriKind.Relative));
+
+		response.StatusCode.Should().Be(status);
+		response.Content.Headers.ContentType?.MediaType.Should().Be("text/html");
+		(await response.Content.ReadAsStringAsync()).Should().Contain(expected).And.NotContain("Backend unavailable");
 	}
 
 	/// <summary>
@@ -374,6 +397,86 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 		response.StatusCode.Should().Be(HttpStatusCode.Redirect);
 		response.Headers.Location!.OriginalString.Should().Be(expected);
 	}
+
+	/// <summary>
+	/// Verifies that a refused sync returns the browser to the page it came from with the backend's message, shown
+	/// once, instead of a raw problem document.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task PostSync_BackendRefuses_ReturnsToPageWithOneTimeNotice()
+	{
+		using var refusing = WithRefusingBackend("api/v1/sync", HttpStatusCode.Conflict, "Another sync is running.");
+		using var client = refusing.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+
+		using var response = await client.PostAsync(new Uri("/sync?back=" + Uri.EscapeDataString("/fixed?m=2026-11"), UriKind.Relative), content: null);
+		var page = await response.Content.ReadAsStringAsync();
+		var again = await client.GetStringAsync(new Uri("/fixed?m=2026-11", UriKind.Relative));
+
+		response.StatusCode.Should().Be(HttpStatusCode.OK);
+		response.RequestMessage!.RequestUri!.PathAndQuery.Should().Be("/fixed?m=2026-11");
+		page.Should().Contain("Sync failed: Another sync is running.");
+		again.Should().NotContain("Sync failed");
+	}
+
+	/// <summary>
+	/// Verifies that a bank callback the backend rejects returns to Settings with a notice instead of a raw problem
+	/// document; an unknown state is rejected without contacting the bank.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task GetCallback_UnknownState_SettingsWithNotice()
+	{
+		using var client = Factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+
+		using var response = await client.GetAsync(new Uri("/callback?code=unused&state=unknown-state", UriKind.Relative));
+
+		response.StatusCode.Should().Be(HttpStatusCode.OK);
+		response.RequestMessage!.RequestUri!.AbsolutePath.Should().Be("/settings");
+		(await response.Content.ReadAsStringAsync()).Should().Contain("Bank connection failed:");
+	}
+
+	/// <summary>
+	/// Verifies that a refused bank connection returns to the bank picker and leaves the message for it.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task PostConnect_BackendRefuses_BankPickerWithNotice()
+	{
+		using var refusing = WithRefusingBackend("api/v1/consent", HttpStatusCode.Conflict, "The backend has no data yet.");
+		using var client = refusing.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
+
+		using var response = await client.PostAsync(new Uri("/connect?name=KBC&country=BE", UriKind.Relative), content: null);
+
+		response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+		response.Headers.Location!.OriginalString.Should().Be("/banks");
+		response.Headers.GetValues("Set-Cookie").Should().ContainSingle(cookie => cookie.StartsWith("kbc-notice=", StringComparison.Ordinal)
+			&& cookie.Contains("httponly", StringComparison.OrdinalIgnoreCase) && cookie.Contains("secure", StringComparison.OrdinalIgnoreCase));
+	}
+
+	/// <summary>
+	/// Verifies that the bank picker shows a refused connection's message once, encoded, so markup in the backend's
+	/// answer can never run in the page.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task PostConnect_BackendRefusesWithMarkup_BankPickerShowsEncodedNoticeOnce()
+	{
+		using var refusing = Factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services => services.AddHttpClient<BackendClient>()
+			.ConfigurePrimaryHttpMessageHandler(() => new RefusingBackendHandler("api/v1/consent", HttpStatusCode.Conflict, "<script>alert(1)</script>")
+			{
+				InnerHandler = new OneBankBackendHandler { InnerHandler = Api.Server.CreateHandler() },
+			})));
+		using var client = refusing.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+
+		using var response = await client.PostAsync(new Uri("/connect?name=KBC&country=BE", UriKind.Relative), content: null);
+		var page = await response.Content.ReadAsStringAsync();
+		var again = await client.GetStringAsync(new Uri("/banks", UriKind.Relative));
+
+		response.RequestMessage!.RequestUri!.AbsolutePath.Should().Be("/banks");
+		page.Should().Contain("Could not connect to the bank: &lt;script&gt;alert(1)&lt;/script&gt;").And.NotContain("<script>alert(1)");
+		again.Should().NotContain("Could not connect to the bank");
+	}
 	#endregion
 
 	#region Access And Export Tests
@@ -431,6 +534,11 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	#endregion
 
 	#region Private Helpers
+	/// <summary>Starts a web host whose backend answers one route with a problem and forwards the rest to the real API.</summary>
+	private WebApplicationFactory<Program> WithRefusingBackend(string route, HttpStatusCode status, string detail) =>
+		Factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services => services.AddHttpClient<BackendClient>()
+			.ConfigurePrimaryHttpMessageHandler(() => new RefusingBackendHandler(route, status, detail) { InnerHandler = Api.Server.CreateHandler() })));
+
 	/// <summary>Sends a request carrying a Tailscale identity, as Tailscale Serve would.</summary>
 	private static async Task<HttpResponseMessage> SendWithIdentityAsync(HttpClient client, HttpMethod method, Uri path, string identity,
 		Action<HttpRequestMessage>? configure = null)
@@ -553,6 +661,60 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 		/// <inheritdoc />
 		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
 			Task.FromException<HttpResponseMessage>(new HttpRequestException("private transport details"));
+		#endregion
+	}
+
+	/// <summary>
+	/// Author      : Gihed Annabi
+	/// Date        : 11-2026
+	/// Purpose     : Answers one backend route with a problem document, as the API does when it refuses a request, and
+	///              passes every other request to the real API so the pages around it still render.
+	/// </summary>
+	/// <param name="route">The path of the refused route, relative to the backend's base address.</param>
+	/// <param name="status">The refusal's status.</param>
+	/// <param name="detail">The problem's detail.</param>
+	private sealed class RefusingBackendHandler(string route, HttpStatusCode status, string detail) : DelegatingHandler
+	{
+		#region Overrides
+		/// <inheritdoc />
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		{
+			if (!string.Equals(request.RequestUri?.AbsolutePath.TrimStart('/'), route, StringComparison.Ordinal))
+			{
+				return base.SendAsync(request, cancellationToken);
+			}
+
+			var problem = System.Text.Json.JsonSerializer.Serialize(new { title = "Refused.", status = (int)status, detail });
+			return Task.FromResult(new HttpResponseMessage(status)
+			{
+				Content = new StringContent(problem, System.Text.Encoding.UTF8, "application/problem+json"),
+			});
+		}
+		#endregion
+	}
+
+	/// <summary>
+	/// Author      : Gihed Annabi
+	/// Date        : 11-2026
+	/// Purpose     : Answers the bank list with one bank, which the API cannot do in tests without an Enable Banking
+	///              application, and passes every other request on.
+	/// </summary>
+	private sealed class OneBankBackendHandler : DelegatingHandler
+	{
+		#region Overrides
+		/// <inheritdoc />
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		{
+			if (!string.Equals(request.RequestUri?.AbsolutePath, "/api/v1/banks", StringComparison.Ordinal))
+			{
+				return base.SendAsync(request, cancellationToken);
+			}
+
+			return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+			{
+				Content = new StringContent("""[{"name":"KBC","country":"BE"}]""", System.Text.Encoding.UTF8, "application/json"),
+			});
+		}
 		#endregion
 	}
 

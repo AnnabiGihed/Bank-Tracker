@@ -21,8 +21,8 @@ public static class WebEndpoints
 		app.MapGet("/", () => Results.Redirect("/overview"));
 		MapPages(app);
 		app.MapPost("/api", DecideAsync);
-		app.MapGet("/banks", async (BackendClient backend, CancellationToken ct) =>
-			Html(BankPickerPage.Render((await backend.GetBanksAsync(ct).ConfigureAwait(false)).Select(b => (b.Name, b.Country)).ToList())));
+		app.MapGet("/banks", async (HttpContext context, BackendClient backend, CancellationToken ct) =>
+			Html(BankPickerPage.Render((await backend.GetBanksAsync(ct).ConfigureAwait(false)).Select(b => (b.Name, b.Country)).ToList(), PageNotice.Take(context))));
 		app.MapPost("/connect", BeginConsentAsync);
 		app.MapGet("/connect", () => Results.Redirect("/banks"));
 		app.MapGet("/callback", CompleteConsentAsync);
@@ -37,25 +37,26 @@ public static class WebEndpoints
 	/// <summary>Maps each tab to the central workspace while retaining its query filters.</summary>
 	private static void MapPages(WebApplication app)
 	{
-		app.MapGet("/overview", (string? m, BackendClient backend, CancellationToken ct) => PageAsync(OverviewPage.Render, m, backend, ct));
-		app.MapGet("/fixed", (string? m, BackendClient backend, CancellationToken ct) => PageAsync(FixedPaymentsPage.Render, m, backend, ct));
-		app.MapGet("/review", (string? m, BackendClient backend, CancellationToken ct) => PageAsync(ReviewPage.Render, m, backend, ct));
-		app.MapGet("/categories", (string? m, BackendClient backend, CancellationToken ct) => PageAsync(CategoriesPage.Render, m, backend, ct));
-		app.MapGet("/settings", (string? m, BackendClient backend, CancellationToken ct) => PageAsync(SettingsPage.Render, m, backend, ct));
-		app.MapGet("/transactions", async (string? m, string? cat, string? q, BackendClient backend, CancellationToken ct) =>
+		app.MapGet("/overview", (string? m, HttpContext context, BackendClient backend, CancellationToken ct) => PageAsync(OverviewPage.Render, m, context, backend, ct));
+		app.MapGet("/fixed", (string? m, HttpContext context, BackendClient backend, CancellationToken ct) => PageAsync(FixedPaymentsPage.Render, m, context, backend, ct));
+		app.MapGet("/review", (string? m, HttpContext context, BackendClient backend, CancellationToken ct) => PageAsync(ReviewPage.Render, m, context, backend, ct));
+		app.MapGet("/categories", (string? m, HttpContext context, BackendClient backend, CancellationToken ct) => PageAsync(CategoriesPage.Render, m, context, backend, ct));
+		app.MapGet("/settings", (string? m, HttpContext context, BackendClient backend, CancellationToken ct) => PageAsync(SettingsPage.Render, m, context, backend, ct));
+		app.MapGet("/transactions", async (string? m, string? cat, string? q, HttpContext context, BackendClient backend, CancellationToken ct) =>
 		{
 			var workspace = await backend.GetWorkspaceAsync(ct).ConfigureAwait(false);
 			var analysis = workspace.ToAnalysis();
-			return Html(TransactionsPage.Render(analysis, Month(m, analysis), workspace.ToDisplaySession(), cat, q));
+			return Html(TransactionsPage.Render(analysis, Month(m, analysis), workspace.ToDisplaySession(), cat, q, PageNotice.Take(context)));
 		});
 	}
 
-	/// <summary>Renders one tab from a single backend response.</summary>
-	private static async Task<IResult> PageAsync(Func<Analysis, string, SessionInfo?, string> render, string? month, BackendClient backend, CancellationToken ct)
+	/// <summary>Renders one tab from a single backend response, with the notice of an action that just failed.</summary>
+	private static async Task<IResult> PageAsync(Func<Analysis, string, SessionInfo?, string?, string> render, string? month, HttpContext context,
+		BackendClient backend, CancellationToken ct)
 	{
 		var workspace = await backend.GetWorkspaceAsync(ct).ConfigureAwait(false);
 		var analysis = workspace.ToAnalysis();
-		return Html(render(analysis, Month(month, analysis), workspace.ToDisplaySession()));
+		return Html(render(analysis, Month(month, analysis), workspace.ToDisplaySession(), PageNotice.Take(context)));
 	}
 
 	/// <summary>Preserves the browser's existing action response shapes while the API owns all writes.</summary>
@@ -75,30 +76,39 @@ public static class WebEndpoints
 		};
 	}
 
-	/// <summary>Starts consent on the backend and redirects only to the provider address it returns.</summary>
-	private static async Task<IResult> BeginConsentAsync(string name, string country, BackendClient backend, CancellationToken ct)
+	/// <summary>Starts consent on the backend and redirects only to the provider address it returns; a refusal returns to
+	/// the bank picker with a notice.</summary>
+	private static async Task<IResult> BeginConsentAsync(string name, string country, HttpContext context, BackendClient backend, CancellationToken ct)
 	{
 		var reply = await backend.BeginConsentAsync(new BeginConsentRequest(name, country), ct).ConfigureAwait(false);
-		return reply.IsSuccess && reply.Value is not null ? Results.Redirect(reply.Value.AuthorizationUrl.ToString()) : Failure(reply);
+		return reply.IsSuccess && reply.Value is not null
+			? Results.Redirect(reply.Value.AuthorizationUrl.ToString())
+			: ReturnWithNotice(context, "/banks", "Could not connect to the bank", reply);
 	}
 
-	/// <summary>Forwards a callback for state validation and redirects after durable consent persistence.</summary>
-	private static async Task<IResult> CompleteConsentAsync(string? code, string? state, string? error, BackendClient backend, CancellationToken ct)
+	/// <summary>Forwards a callback for state validation and returns to Settings, with a notice when the connection
+	/// failed.</summary>
+	private static async Task<IResult> CompleteConsentAsync(string? code, string? state, string? error, HttpContext context, BackendClient backend,
+		CancellationToken ct)
 	{
 		var reply = await backend.CompleteConsentAsync(code, state, error, ct).ConfigureAwait(false);
-		return reply.IsSuccess ? Results.Redirect("/settings") : Failure(reply);
+		return reply.IsSuccess ? Results.Redirect("/settings") : ReturnWithNotice(context, "/settings", "Bank connection failed", reply);
 	}
 
-	/// <summary>Runs manual sync through the API and preserves only local return paths.</summary>
-	private static async Task<IResult> SyncAsync(bool? full, string? back, BackendClient backend, CancellationToken ct)
+	/// <summary>Runs manual sync through the API and returns only to a local page, with a notice when the sync failed.</summary>
+	private static async Task<IResult> SyncAsync(bool? full, string? back, HttpContext context, BackendClient backend, CancellationToken ct)
 	{
 		var reply = await backend.SyncAsync(full is true, ct).ConfigureAwait(false);
-		if (!reply.IsSuccess)
-		{
-			return Failure(reply);
-		}
+		var page = IsLocalPath(back) ? back : "/settings";
+		return reply.IsSuccess ? Results.LocalRedirect(page) : ReturnWithNotice(context, page, "Sync failed", reply);
+	}
 
-		return Results.LocalRedirect(IsLocalPath(back) ? back : "/settings");
+	/// <summary>Returns a browser form to a local page with the backend's safe message, instead of a problem document the
+	/// browser would show raw.</summary>
+	private static IResult ReturnWithNotice<T>(HttpContext context, string page, string action, BackendReply<T> reply)
+	{
+		PageNotice.Set(context.Response, $"{action}: {reply.Error}");
+		return Results.LocalRedirect(page);
 	}
 
 	/// <summary>Accepts only a path on this site: browsers read <c>//host</c> and <c>/\host</c> as another site and drop

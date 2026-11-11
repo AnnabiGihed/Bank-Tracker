@@ -20,8 +20,9 @@ public static class SettingsPage
 	/// <param name="a">The analysis of all stored data.</param>
 	/// <param name="month">The selected month, as <c>yyyy-MM</c>.</param>
 	/// <param name="s">The bank session, or <see langword="null"/> when not connected.</param>
+	/// <param name="notice">A one-time failure message to show above the page, or <see langword="null"/> for none.</param>
 	/// <returns>The complete HTML page.</returns>
-	public static string Render(Analysis a, string month, SessionInfo? s)
+	public static string Render(Analysis a, string month, SessionInfo? s, string? notice)
 	{
 		var sb = new StringBuilder("<div class='grid c2e'>");
 		sb.Append("<div class=card><h2>Bank connection</h2>");
@@ -53,7 +54,7 @@ public static class SettingsPage
 			<a class='btn ghost' href=/export.csv>Export CSV</a>
 			""");
 		sb.Append("</div></div>");
-		return Layout("settings", month, a, s, sb.ToString());
+		return Layout("settings", month, a, s, sb.ToString(), notice: notice);
 	}
 	#endregion
 }

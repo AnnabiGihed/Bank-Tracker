@@ -75,6 +75,19 @@ public sealed class BackendClientTests
 		reply.Value.Should().BeNull();
 	}
 
+	/// <summary>Verifies a problem without a detail, such as the backend's access refusal, is reported by its title
+	/// rather than by the generic message.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task SyncAsync_ProblemWithoutDetail_TitleKept()
+	{
+		using var handler = new StubHandler(HttpStatusCode.Forbidden, """{"title":"Backend access denied.","status":403}""", "application/problem+json");
+		var reply = await Client(handler).SyncAsync(full: false, CancellationToken.None);
+
+		reply.StatusCode.Should().Be(403);
+		reply.Error.Should().Be("Backend access denied.");
+	}
+
 	/// <summary>Verifies a failure that is not a problem document never surfaces its body, which may hold transport
 	/// details, and gets a generic message instead.</summary>
 	/// <returns>A task that completes when verified.</returns>
