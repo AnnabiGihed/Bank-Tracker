@@ -87,9 +87,18 @@ internal static class PageKit
 
 	#region Page Layout
 	/// <summary>
-	/// Wraps a tab's body in the page shell: header, month selector, tabs, attention banner, toast and scripts.
+	/// Wraps a tab's body in the page shell: header, month selector, tabs, the one-time notice of a failed action,
+	/// attention banner, toast and scripts.
 	/// </summary>
-	internal static string Layout(string tab, string month, Analysis a, SessionInfo? s, string body, string? script = null)
+	/// <param name="tab">The id of the active tab, also used in its address.</param>
+	/// <param name="month">The selected month, as <c>yyyy-MM</c>.</param>
+	/// <param name="a">The analysis that fills the month selector and the tab badges.</param>
+	/// <param name="s">The bank session shown in the header, or <see langword="null"/> when not connected.</param>
+	/// <param name="body">The tab's own HTML.</param>
+	/// <param name="script">The tab's own script, or <see langword="null"/> for none.</param>
+	/// <param name="notice">A one-time failure message to show above the tab, or <see langword="null"/> for none.</param>
+	/// <returns>The complete HTML page.</returns>
+	internal static string Layout(string tab, string month, Analysis a, SessionInfo? s, string body, string? script = null, string? notice = null)
 	{
 		var sb = new StringBuilder();
 		sb.Append($"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>My expenses</title><style>{Css}</style>");
@@ -127,13 +136,14 @@ internal static class PageKit
 		foreach (var (id, label, badge) in tabs)
 			sb.Append($"<a class='{(id == tab ? "on" : "")}' href='/{id}?m={month}'>{label}{(badge > 0 ? $"<b>{badge}</b>" : "")}</a>");
 		sb.Append("</nav></header><main>");
+		sb.Append(FailureNotice(notice));
 		AppendSyncNotices(sb, s);
 		sb.Append(body).Append("</main><div id=toast></div>");
 		sb.Append("""
 			<script>
 			async function api(body,reload=true){
 			  const r=await fetch('/api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-			  if(!r.ok){alert(await r.text()||'Something went wrong');return null}
+			  if(!r.ok){let m='Something went wrong';try{m=(await r.json()).detail||m}catch{}alert(m);return null}
 			  const t=await r.text();const j=t?JSON.parse(t):null;
 			  if(reload)location.reload();return j;
 			}
@@ -147,6 +157,24 @@ internal static class PageKit
 		sb.Append("</body></html>");
 		return sb.ToString();
 	}
+
+	/// <summary>
+	/// Renders the notice of an action that failed, or nothing when there is none; the text is encoded because it
+	/// comes from the backend.
+	/// </summary>
+	/// <param name="notice">The message, or <see langword="null"/> when nothing failed.</param>
+	/// <returns>The notice's HTML, or an empty string.</returns>
+	internal static string FailureNotice(string? notice) => notice is null ? "" : $"<div class='notice err'><span>{Html(notice)}</span></div>";
+
+	/// <summary>
+	/// Renders a page of its own for a failure that leaves no tab to show, such as a backend that refuses or cannot
+	/// be reached.
+	/// </summary>
+	/// <param name="title">The heading, also used as the browser title.</param>
+	/// <param name="detail">What went wrong and what to do; it is encoded.</param>
+	/// <returns>The complete HTML page, with a link back to the Overview.</returns>
+	internal static string MessagePage(string title, string detail) =>
+		$"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>{Html(title)}</title><style>{Css}</style></head><body><main style='max-width:640px'><h1>{Html(title)}</h1><div class='notice err'><span>{Html(detail)}</span></div><p><a href=/overview>Try again</a></p></main></body></html>";
 
 	/// <summary>
 	/// Renders an empty-state card with a message.

@@ -45,7 +45,8 @@ Then fill the empty database once, with one of these:
   ```
 
 Both refuse a database that already holds data. Until one of them has run, the backend refuses decisions and new
-bank connections with `409 Conflict`, because anything saved first would make the import impossible. See
+bank connections with `409 Conflict`, because anything saved first would make the import impossible. The web app
+shows this as "Backend not ready", or as a notice on the page you were on. See
 [Command line](../reference/command-line.md) for the exit codes.
 
 ## Start the backend and the web app

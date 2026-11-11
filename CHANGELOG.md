@@ -69,6 +69,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- When a sync, a bank connection or the bank's callback fails, the web app now returns you to the page you came
+  from and shows the backend's message there once, instead of a raw error document. A failed change on a tab now
+  shows the backend's message instead of its raw answer.
+- When the backend refuses the web app (`403`) or is not ready (`409`, for example before `--import-json` or
+  `--initialize`), the web app now says so and tells you what to check, instead of showing "Backend unavailable".
 - A sync that was running while you reconnected no longer overwrites the new connection, and a sync error caused
   by a file (for example a missing private key) is shown on the pages like any other.
 - Automatic categories: a keyword now matches only at the start of a word. "AD " (AD Delhaize) no longer puts

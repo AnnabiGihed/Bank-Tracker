@@ -20,12 +20,13 @@ public static class ReviewPage
 	/// <param name="a">The analysis of all stored data.</param>
 	/// <param name="month">The selected month, as <c>yyyy-MM</c>.</param>
 	/// <param name="s">The bank session shown in the header, or <see langword="null"/> when not connected.</param>
+	/// <param name="notice">A one-time failure message to show above the page, or <see langword="null"/> for none.</param>
 	/// <returns>The complete HTML page.</returns>
-	public static string Render(Analysis a, string month, SessionInfo? s)
+	public static string Render(Analysis a, string month, SessionInfo? s, string? notice)
 	{
 		var sb = new StringBuilder();
 		if (a.Review.Count == 0)
-			return Layout("review", month, a, s, Empty("All categories are confirmed. 🎉 New payees will show up here after a sync."));
+			return Layout("review", month, a, s, Empty("All categories are confirmed. 🎉 New payees will show up here after a sync."), notice: notice);
 
 		sb.Append($"<div class=filters><span class=muted style='margin-right:auto'>These payees got a category automatically. Confirm it (✓) or pick another — it then applies to all their payments, past and future.</span>");
 		sb.Append("<select id=dir><option value=all>All</option><option value=out>Money out</option><option value=in>Money in</option></select>");
@@ -49,7 +50,7 @@ public static class ReviewPage
 			  if(confirm(`Confirm the category of ${keys.length} payees?`))api({action:'confirm',keys});
 			}
 			""";
-		return Layout("review", month, a, s, sb.ToString(), script);
+		return Layout("review", month, a, s, sb.ToString(), script, notice);
 	}
 	#endregion
 }

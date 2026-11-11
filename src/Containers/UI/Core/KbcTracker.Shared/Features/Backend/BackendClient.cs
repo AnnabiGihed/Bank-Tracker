@@ -99,13 +99,18 @@ public sealed class BackendClient(HttpClient http)
 		if (response.Content.Headers.ContentType?.MediaType is "application/problem+json")
 		{
 			using var problem = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken).ConfigureAwait(false);
-			if (problem is not null && problem.RootElement.TryGetProperty("detail", out var detail) && detail.ValueKind is JsonValueKind.String)
-			{
-				error = detail.GetString() ?? error;
-			}
+			error = FindText(problem, "detail") ?? FindText(problem, "title") ?? error;
 		}
 
 		return new((int)response.StatusCode, default, error);
 	}
+
+	/// <summary>Finds a non-empty text member of a problem document; the title stands in when a problem, such as the
+	/// backend's access refusal, carries no detail.</summary>
+	private static string? FindText(JsonDocument? problem, string name) =>
+		problem is not null && problem.RootElement.ValueKind is JsonValueKind.Object && problem.RootElement.TryGetProperty(name, out var value)
+			&& value.ValueKind is JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString())
+			? value.GetString()
+			: null;
 	#endregion
 }

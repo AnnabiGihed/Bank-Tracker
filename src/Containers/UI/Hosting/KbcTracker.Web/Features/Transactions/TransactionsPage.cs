@@ -23,8 +23,9 @@ public static class TransactionsPage
 	/// <param name="s">The bank session shown in the header, or <see langword="null"/> when not connected.</param>
 	/// <param name="cat">A category id to filter on, or <see langword="null"/> for all categories.</param>
 	/// <param name="q">Text to search for, or <see langword="null"/> for no search.</param>
+	/// <param name="notice">A one-time failure message to show above the page, or <see langword="null"/> for none.</param>
 	/// <returns>The complete HTML page.</returns>
-	public static string Render(Analysis a, string month, SessionInfo? s, string? cat, string? q)
+	public static string Render(Analysis a, string month, SessionInfo? s, string? cat, string? q, string? notice)
 	{
 		var items = a.Items.Where(i => i.Month == month).ToList();
 		var sb = new StringBuilder("<div class=filters>");
@@ -80,7 +81,7 @@ public static class TransactionsPage
 			}
 			async function onlyThis(){const u=window._undo;await api({action:'txnOnly',key:u.x.key,id:u.x.id,categoryId:u.cat,restore:u.prev})}
 			""";
-		return Layout("transactions", month, a, s, sb.ToString(), script);
+		return Layout("transactions", month, a, s, sb.ToString(), script, notice);
 	}
 	#endregion
 }
