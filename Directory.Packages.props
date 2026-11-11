@@ -18,6 +18,10 @@
     <PackageVersion Include="Pivot.Framework.Infrastructure.Persistence.PostgreSQL" Version="2.1.0" />
     <!-- Design-time only (migrations); pinned to the EF Core version the Pivot packages resolve (ADR-0004). -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13" />
+    <!-- Security pin: Pivot's messaging package brings 2.3.12 through Microsoft.AspNetCore.Http 2.3.13, which
+         CVE-2026-118750 (GHSA-6527-9fp8-r4x6, denial of service) affects up to 2.3.13. Remove once Pivot resolves
+         2.3.14 or later itself. -->
+    <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="2.3.14" />
   </ItemGroup>
   <ItemGroup Label="Aspire (ADR-0005)">
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.5" />
