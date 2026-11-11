@@ -20,5 +20,8 @@ public static class BankConsentErrors
 	public static readonly Error Denied = new("BankConsent.Denied", "Bank authorisation did not complete. Start again.");
 	/// <summary>A running bank operation excludes consent replacement.</summary>
 	public static readonly Error Busy = new("BankConsent.Busy", "A bank operation is running. Start consent again when it finishes.");
+	/// <summary>The backend lacks the provider's application id or private key; names the settings, never their values.</summary>
+	public static readonly Error NotConfigured = new("BankConsent.NotConfigured",
+		"Bank access is not set up on the backend. Set EnableBanking:ApplicationId and EnableBanking:PrivateKeyPath in its user secrets, then restart it.");
 	#endregion
 }

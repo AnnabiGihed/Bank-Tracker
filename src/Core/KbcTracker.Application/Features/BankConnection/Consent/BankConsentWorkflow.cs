@@ -1,5 +1,6 @@
 using KbcTracker.Application.Features.BankConnection.Queries;
 using KbcTracker.Application.Features.Shared;
+using Microsoft.Extensions.Logging;
 using Pivot.Framework.Domain.Shared;
 
 namespace KbcTracker.Application.Features.BankConnection.Consent;
@@ -13,8 +14,10 @@ namespace KbcTracker.Application.Features.BankConnection.Consent;
 /// <param name="states">The expiring one-use consent requests.</param>
 /// <param name="persistence">The central consent store.</param>
 /// <param name="syncPersistence">The database-wide bank workflow lease.</param>
-public sealed class BankConsentWorkflow(IBankConsentSource source, IConsentStateStore states,
-	IBankConsentPersistence persistence, IBankSyncPersistence syncPersistence)
+/// <param name="logger">Records why a provider step failed, by exception type only: provider messages may echo request
+/// data.</param>
+public sealed partial class BankConsentWorkflow(IBankConsentSource source, IConsentStateStore states,
+	IBankConsentPersistence persistence, IBankSyncPersistence syncPersistence, ILogger<BankConsentWorkflow> logger)
 {
 	#region Public Methods
 	/// <summary>Lists banks without returning provider errors.</summary>
@@ -28,7 +31,7 @@ public sealed class BankConsentWorkflow(IBankConsentSource source, IConsentState
 		}
 		catch (Exception exception) when (exception is not OperationCanceledException)
 		{
-			return Result.Failure<IReadOnlyList<BankDefinition>>(BankConsentErrors.Unavailable, ResultExceptionType.Conflict);
+			return ProviderFailure<IReadOnlyList<BankDefinition>>(exception, "list banks");
 		}
 	}
 
@@ -71,7 +74,7 @@ public sealed class BankConsentWorkflow(IBankConsentSource source, IConsentState
 		catch (Exception exception) when (exception is not OperationCanceledException)
 		{
 			states.Remove(state);
-			return Result.Failure<ConsentStarted>(BankConsentErrors.Unavailable, ResultExceptionType.Conflict);
+			return ProviderFailure<ConsentStarted>(exception, "start consent");
 		}
 	}
 
@@ -118,8 +121,23 @@ public sealed class BankConsentWorkflow(IBankConsentSource source, IConsentState
 		}
 		catch (Exception exception) when (exception is not OperationCanceledException)
 		{
-			return Result.Failure<ConnectionStatus>(BankConsentErrors.Unavailable, ResultExceptionType.Conflict);
+			return ProviderFailure<ConnectionStatus>(exception, "complete consent");
 		}
 	}
+	#endregion
+
+	#region Private Helpers
+	/// <summary>Logs a failed provider step and turns it into a safe result: missing bank settings say what to set up,
+	/// anything else stays the generic "start again later".</summary>
+	private Result<T> ProviderFailure<T>(Exception exception, string step)
+	{
+		LogProviderFailure(logger, step, exception.GetType().Name);
+		return Result.Failure<T>(exception is BankAccessNotConfiguredException ? BankConsentErrors.NotConfigured : BankConsentErrors.Unavailable,
+			ResultExceptionType.Conflict);
+	}
+
+	/// <summary>Records a failed provider step without its message, which may hold provider responses.</summary>
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Bank consent step '{Step}' failed ({ExceptionType})")]
+	private static partial void LogProviderFailure(ILogger logger, string step, string exceptionType);
 	#endregion
 }

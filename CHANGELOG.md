@@ -75,6 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- When the backend refuses a page's request (`409`), the web app now shows the backend's own reason instead of
+  always blaming an empty database. When bank access is not set up, connecting a bank says which settings the
+  backend needs (`EnableBanking:ApplicationId`, `EnableBanking:PrivateKeyPath`) instead of "Start again later", and
+  the backend logs which bank step failed.
 - When a sync, a bank connection or the bank's callback fails, the web app now returns you to the page you came
   from and shows the backend's message there once, instead of a raw error document. A failed change on a tab now
   shows the backend's message instead of its raw answer.

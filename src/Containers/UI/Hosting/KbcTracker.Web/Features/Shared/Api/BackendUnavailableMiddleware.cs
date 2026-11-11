@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using KbcTracker.Shared.Features.Backend;
 using KbcTracker.Web.Features.Shared.Pages;
 
 namespace KbcTracker.Web.Features.Shared.Api;
@@ -27,7 +28,7 @@ public sealed class BackendUnavailableMiddleware(RequestDelegate next)
 		catch (Exception exception) when (!context.Response.HasStarted && !context.RequestAborted.IsCancellationRequested
 			&& exception is HttpRequestException or JsonException or TaskCanceledException)
 		{
-			var (status, title, detail) = Describe((exception as HttpRequestException)?.StatusCode);
+			var (status, title, detail) = Describe(exception);
 			context.Response.StatusCode = status;
 			await Results.Content(PageKit.MessagePage(title, detail), "text/html").ExecuteAsync(context).ConfigureAwait(false);
 		}
@@ -35,14 +36,16 @@ public sealed class BackendUnavailableMiddleware(RequestDelegate next)
 	#endregion
 
 	#region Private Helpers
-	/// <summary>Chooses the page for the status the backend answered with, or for no answer at all.</summary>
-	private static (int Status, string Title, string Detail) Describe(HttpStatusCode? backendStatus) => backendStatus switch
+	/// <summary>Chooses the page for the backend's answer, or for no answer at all. A conflict shows the backend's own
+	/// detail, because conflicts have several causes (bank access not set up, an empty database, a running sync) and a
+	/// guess sent the owner to the wrong fix.</summary>
+	private static (int Status, string Title, string Detail) Describe(Exception exception) => (exception as HttpRequestException)?.StatusCode switch
 	{
 		HttpStatusCode.Forbidden => (StatusCodes.Status403Forbidden, "Backend refused access.",
 			"The backend did not accept this web app. Check that Backend:OwnerLogin matches the backend's owner, and that the web app runs on the same PC."),
-		HttpStatusCode.Conflict => (StatusCodes.Status409Conflict, "Backend not ready.",
-			"The backend refused this request in its current state. If its database is new, run it once with --import-json or --initialize."),
-		_ => (StatusCodes.Status503ServiceUnavailable, "Backend unavailable.", "Start the PostgreSQL backend and check its connection settings."),
+		HttpStatusCode.Conflict => (StatusCodes.Status409Conflict, "The backend refused this request.",
+			exception is BackendRefusedException { Message: { Length: > 0 } reason } ? reason : "The backend gave no reason. Check its log in the Aspire dashboard."),
+		_ => (StatusCodes.Status503ServiceUnavailable, "Backend unavailable.", "Start the backend and check its connection settings."),
 	};
 	#endregion
 }

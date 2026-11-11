@@ -116,17 +116,18 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 
 	/// <summary>
 	/// Verifies that a backend refusal while rendering a page is shown as what it is, not as an unavailable backend:
-	/// 403 as a refused access and 409 as a backend that is not ready.
+	/// 403 as a refused access with what to check, and 409 with the backend's own reason, since a conflict has several
+	/// causes.
 	/// </summary>
 	/// <param name="status">The backend's answer to the workspace request.</param>
-	/// <param name="expected">The heading the page must show.</param>
+	/// <param name="expected">Text the page must show.</param>
 	/// <returns>A task that completes when verified.</returns>
 	[Theory]
 	[InlineData(HttpStatusCode.Forbidden, "Backend refused access")]
-	[InlineData(HttpStatusCode.Conflict, "Backend not ready")]
+	[InlineData(HttpStatusCode.Conflict, "Bank access is not set up on the backend.")]
 	public async Task Get_BackendRefuses_ReadablePageWithSameStatus(HttpStatusCode status, string expected)
 	{
-		using var refusing = WithRefusingBackend("api/v1/workspace", status, "private backend detail");
+		using var refusing = WithRefusingBackend("api/v1/workspace", status, "Bank access is not set up on the backend.");
 		using var client = refusing.CreateClient();
 
 		using var response = await client.GetAsync(new Uri("/overview", UriKind.Relative));

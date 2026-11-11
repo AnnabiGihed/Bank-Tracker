@@ -88,6 +88,42 @@ public sealed class BackendClientTests
 		reply.Error.Should().Be("Backend access denied.");
 	}
 
+	/// <summary>Verifies a refused read throws with the backend's status and its safe detail, so a page can say why.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task GetBanksAsync_Refused_ThrowsWithStatusAndDetail()
+	{
+		using var handler = new StubHandler(HttpStatusCode.Conflict,
+			"""{"title":"Conflict","status":409,"detail":"Bank access is not set up on the backend."}""", "application/problem+json");
+
+		var act = () => Client(handler).GetBanksAsync(CancellationToken.None);
+
+		var refused = (await act.Should().ThrowAsync<BackendRefusedException>()).Which;
+		refused.StatusCode.Should().Be(HttpStatusCode.Conflict);
+		refused.Message.Should().Be("Bank access is not set up on the backend.");
+	}
+
+	/// <summary>Verifies a refused workspace read keeps its status, so the page tells an access refusal (403) from a
+	/// conflict (409), and that a refusal without a problem document gets the generic message, never its body.</summary>
+	/// <param name="status">The backend's status.</param>
+	/// <param name="body">The backend's body.</param>
+	/// <param name="mediaType">The body's media type.</param>
+	/// <param name="expected">The message the exception must carry.</param>
+	/// <returns>A task that completes when verified.</returns>
+	[Theory]
+	[InlineData(HttpStatusCode.Forbidden, """{"title":"Backend access denied.","status":403}""", "application/problem+json", "Backend access denied.")]
+	[InlineData(HttpStatusCode.Conflict, "proxy at 10.0.0.1 refused", "text/plain", "The backend could not complete this request.")]
+	public async Task GetWorkspaceAsync_Refused_KeepsStatusAndSafeMessage(HttpStatusCode status, string body, string mediaType, string expected)
+	{
+		using var handler = new StubHandler(status, body, mediaType);
+
+		var act = () => Client(handler).GetWorkspaceAsync(CancellationToken.None);
+
+		var refused = (await act.Should().ThrowAsync<BackendRefusedException>()).Which;
+		refused.StatusCode.Should().Be(status);
+		refused.Message.Should().Be(expected);
+	}
+
 	/// <summary>Verifies a failure that is not a problem document never surfaces its body, which may hold transport
 	/// details, and gets a generic message instead.</summary>
 	/// <returns>A task that completes when verified.</returns>

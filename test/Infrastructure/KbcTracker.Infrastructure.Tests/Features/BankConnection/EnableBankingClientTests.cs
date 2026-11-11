@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using KbcTracker.Application.Features.BankConnection.Consent;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KbcTracker.Infrastructure.Tests.Features.BankConnection;
@@ -127,6 +128,29 @@ public sealed class EnableBankingClientTests : IDisposable
 
 		transactions.Transactions.Select(t => t.Id.Value).Should().Equal("good");
 		transactions.Skipped.Should().Be(3);
+	}
+
+	/// <summary>
+	/// Verifies the client refuses to call the API without an application id or a key file it can read, naming the
+	/// missing setting but never the key's path, so the backend can say what to set up.
+	/// </summary>
+	/// <param name="applicationId">The configured application id.</param>
+	/// <param name="keyFileExists">Whether the configured key path points to an existing file.</param>
+	/// <param name="setting">The setting the error must name.</param>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Theory]
+	[InlineData("", true, "EnableBanking:ApplicationId")]
+	[InlineData("test-app", false, "EnableBanking:PrivateKeyPath")]
+	public async Task GetBanks_MissingSetting_NotConfiguredWithoutCallingApi(string applicationId, bool keyFileExists, string setting)
+	{
+		var keyPath = keyFileExists ? _keyFile : Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+		var client = new EnableBankingClient(new HttpClient(new FakeApi(request => { _requests.Add(request); return Json("{}"); })),
+			new EnableBankingOptions { ApplicationId = applicationId, PrivateKeyPath = keyPath });
+
+		var act = () => client.GetBanksAsync();
+
+		(await act.Should().ThrowAsync<BankAccessNotConfiguredException>()).Which.Message.Should().Contain(setting).And.NotContain(keyPath);
+		_requests.Should().BeEmpty();
 	}
 	#endregion
 

@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using KbcTracker.Application.Features.BankConnection.Consent;
 
 namespace KbcTracker.Infrastructure.Features.BankConnection;
 
@@ -157,6 +158,7 @@ public sealed class EnableBankingClient
 	/// </summary>
 	private string CreateJwt()
 	{
+		EnsureConfigured();
 		var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 		var header = JsonSerializer.SerializeToUtf8Bytes(new { typ = "JWT", alg = "RS256", kid = _options.ApplicationId });
 		var payload = JsonSerializer.SerializeToUtf8Bytes(new { iss = "enablebanking.com", aud = "api.enablebanking.com", iat = now, exp = now + 3600 });
@@ -168,6 +170,25 @@ public sealed class EnableBankingClient
 		var signature = rsa.SignData(Encoding.ASCII.GetBytes(unsigned), HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
 #pragma warning restore S5542
 		return $"{unsigned}.{Base64Url(signature)}";
+	}
+
+	/// <summary>
+	/// Refuses to sign without an application id or a readable key file, naming the missing setting but never its value
+	/// or the key's path, so the owner learns what to set up rather than seeing a provider failure.
+	/// </summary>
+	/// <exception cref="BankAccessNotConfiguredException">The application id is blank, or the key file is not set or not
+	/// found.</exception>
+	private void EnsureConfigured()
+	{
+		if (string.IsNullOrWhiteSpace(_options.ApplicationId))
+		{
+			throw new BankAccessNotConfiguredException("EnableBanking:ApplicationId is not set.");
+		}
+
+		if (string.IsNullOrWhiteSpace(_options.PrivateKeyPath) || !File.Exists(_options.PrivateKeyPath))
+		{
+			throw new BankAccessNotConfiguredException("EnableBanking:PrivateKeyPath is not set or the key file is not found.");
+		}
 	}
 
 	/// <summary>
