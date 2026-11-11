@@ -26,8 +26,8 @@ application with its private key (see [Get started](docs/tutorials/get-started.m
    dotnet run --project src/Containers/Aspire/Hosting/KbcTracker.AppHost
    ```
 
-1. In the Aspire dashboard (<https://localhost:17180>), fill the new database once: start `import-json` to import
-   your existing JSON data folder, or `initialize` to start fresh.
+1. Wait in the Aspire dashboard (<https://localhost:17180>) until `api` and `web` run. On the first start, `seed`
+   gives the new database the default categories.
 
 Open <https://localhost:5001>. Run the tests with `dotnet test`; the database, API and end-to-end tests need
 Docker (see [Run the tests](docs/how-to/run-the-tests.md)).

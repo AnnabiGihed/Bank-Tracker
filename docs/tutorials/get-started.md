@@ -48,9 +48,9 @@ dotnet run --project src/Containers/Aspire/Hosting/KbcTracker.AppHost
 You run `dotnet dev-certs https --trust` only once; it trusts the local HTTPS certificate. The Aspire dashboard
 opens at <https://localhost:17180>. Wait until `api` and `web` show **Running**.
 
-The first time, fill the new database from the dashboard: start `initialize` to begin fresh, or `import-json` if
-you used an older version that kept its data in JSON files, so you keep your history and decisions. See
-[Run the backend](../how-to/run-the-backend.md) for details and for running the programs without Aspire.
+On the first start, `seed` gives the new database the default categories, which you can change later on the
+**Categories** tab. If you used an older version that kept its data in JSON files and want to keep that history,
+see [Run the backend](../how-to/run-the-backend.md), which also covers running the programs without Aspire.
 
 ## 4. Connect and download your transactions
 

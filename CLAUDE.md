@@ -18,8 +18,10 @@ built yet.
   holds them (user secrets in Development).
 - Flow: web `/banks` → `/connect` → API `POST /api/v1/consent` (Enable Banking POST /auth, owner-bound state) → KBC
   login (itsme) → web `/callback?code&state` → API `GET /api/v1/consent/callback` (POST /sessions, then a full sync).
-- Database setup order: `--migrate`, then `--import-json <old JSON folder>` or `--initialize` (both refuse a
-  non-empty database); until then decisions and consent are refused with 409 so the import stays possible.
+- Database setup order: `--migrate`, then `--import-json <old JSON folder>` (refuses a non-empty database) or
+  `--initialize` (seeds `CategoryDefaults.CreateDefaults()`, no-op exit 0 on a non-empty one); until then decisions
+  and consent are refused with 409 so the import stays possible. The AppHost runs `--initialize` on every start, so
+  an import into its volume only works before the first start.
 - `GET /accounts/{uid}/transactions` with `strategy=longest` for full syncs; incremental = last 30 days, but a
   sync is full when an account has no history (first sync, account added at a reconnect) or the last successful
   sync is missing or older than 30 days.
@@ -76,7 +78,7 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
 
 ## Build / run
 - Everything: `dotnet run --project src/Containers/Aspire/Hosting/KbcTracker.AppHost` (Docker required; dashboard
-  https://localhost:17180; `import-json`/`initialize` are dashboard-only resources). Without Aspire:
+  https://localhost:17180; `seed` (`--initialize`) fills an empty database on every start). Without Aspire:
 - Backend: `dotnet run --project src/Containers/API/KbcTracker.ApiService` (add `-- --migrate`, `-- --sync`…);
   then the web app: `dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web` (needs
   `dotnet dev-certs https --trust` once). See `docs/how-to/run-the-backend.md`. `dotnet build` / `dotnet test` at the

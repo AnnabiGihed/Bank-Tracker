@@ -6,7 +6,7 @@ dashboard.
 
 | Path | Responsibility |
 | --- | --- |
-| `Program.cs` | The resources and their start order: `postgres` and its `KbcTracker` database, `migrate`, `api`, `web`, and the dashboard-only `import-json` and `initialize`. |
+| `Program.cs` | The resources and their start order: `postgres` and its `KbcTracker` database, `migrate`, `seed` (fills an empty database), `api` and `web`. |
 | `Properties/launchSettings.json` | The `https` and `http` profiles with the fixed dashboard addresses. |
 
 Start it with `dotnet run --project src/Containers/Aspire/Hosting/KbcTracker.AppHost`, or make it the startup

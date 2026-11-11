@@ -19,7 +19,7 @@ Each command runs once and exits without starting the API. Give one command at a
 | --- | --- |
 | `--migrate` | Applies the database migrations. Normal startup never migrates. |
 | `--import-json <folder>` | Imports a JSON data folder of an older version: transactions, categories, your decisions and the bank connection. The folder is only read. Refused when the database already holds data. |
-| `--initialize` | Starts with no history: the default categories (from the `Categories` setting) and no decisions. Refused when the database already holds data. |
+| `--initialize` | Starts with no history: the default categories, defined in the code, and no decisions. A database that already holds data is left alone, and the command still succeeds. |
 | `--sync` | Syncs every connected account once. |
 
 Until you run `--import-json` or `--initialize`, the backend refuses decisions and new bank connections with

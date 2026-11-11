@@ -21,9 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - One start runs the whole app: the Aspire AppHost `KbcTracker.AppHost` starts PostgreSQL in Docker, applies the
   migrations, then starts the backend and the web app, with a dashboard at <https://localhost:17180> for their
-  state, logs and traces ([ADR-0005](docs/adr/0005-run-the-app-on-the-pc-with-aspire.md), proposed). The first
-  time, fill the new database from the dashboard with `import-json` or `initialize`. Your data stays in the Docker
-  volume `kbctracker-postgres`; a database you set up by hand before is not used by the AppHost
+  state, logs and traces ([ADR-0005](docs/adr/0005-run-the-app-on-the-pc-with-aspire.md), proposed). On the first
+  start it gives the new database the default categories by itself. Your data stays in the Docker volume
+  `kbctracker-postgres`; a database you set up by hand before is not used by the AppHost
   (see [Run the backend](docs/how-to/run-the-backend.md)).
 - A backend, `KbcTracker.ApiService`, that keeps your history and decisions in PostgreSQL and owns the bank key
   and the sync ([ADR-0004](docs/adr/0004-serve-both-apps-from-one-postgresql-backend-and-api.md), proposed). Its
@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Backend maintenance commands: `--migrate`, `--import-json <folder>` to bring over the JSON data folder of an
   older version (only read, never changed), `--initialize` to start fresh, and `--sync`. Until the database is
   imported or initialised, decisions and new bank connections are refused so that the import stays possible.
+  `--initialize` takes the default categories from the code, no longer from a `Categories` section in the backend's
+  `appsettings.json`, and leaves a database that already holds data alone, so it is safe to run on every start.
 - Documentation in `docs/`: a get-started tutorial, how-to guides, reference pages for the configuration, tabs and
   data folder, and explanations of the classification and the architecture. Each project has a `README.md`.
 - A `LICENSE` file: all rights reserved.

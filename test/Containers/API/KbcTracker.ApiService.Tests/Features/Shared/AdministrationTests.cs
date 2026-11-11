@@ -72,7 +72,8 @@ public sealed class AdministrationTests(ApiFixture fixture) : IClassFixture<ApiF
 	}
 
 	/// <summary>Verifies a database that was neither imported nor initialised refuses writes, so the one-time import
-	/// stays possible, and that <c>--initialize</c> seeds it once and unlocks them.</summary>
+	/// stays possible, and that <c>--initialize</c> seeds it once, unlocks them, and on a second run (every AppHost start)
+	/// succeeds without seeding again.</summary>
 	/// <returns>A task that completes after verification.</returns>
 	[Fact]
 	public async Task Initialize_UninitialisedThenInitialised_RefusesWritesUntilSeededOnce()
@@ -104,12 +105,21 @@ public sealed class AdministrationTests(ApiFixture fixture) : IClassFixture<ApiF
 
 		(await CountsAsync(factory)).Should().Be((0, 0, 0));
 		(await BackendAdministration.ExecuteAsync(["--initialize"], factory.Services, CancellationToken.None)).Should().Be(0);
-		(await BackendAdministration.ExecuteAsync(["--initialize"], factory.Services, CancellationToken.None)).Should().Be(1);
+		var seeded = await CountsAsync(factory);
 
 		using (var accepted = await client.PostAsJsonAsync(new Uri("/api/v1/decisions", UriKind.Relative), new DecisionRequest("dismiss", Key: "series")))
 		{
 			accepted.StatusCode.Should().Be(HttpStatusCode.OK);
 		}
+
+		using (var deleted = await client.PostAsJsonAsync(new Uri("/api/v1/decisions", UriKind.Relative), new DecisionRequest("deleteCategory", Id: "car")))
+		{
+			deleted.StatusCode.Should().Be(HttpStatusCode.OK);
+		}
+
+		(await BackendAdministration.ExecuteAsync(["--initialize"], factory.Services, CancellationToken.None)).Should().Be(0);
+		(await CountsAsync(factory)).Should().Be((seeded.Categories - 1, seeded.Users, seeded.Sessions),
+			"a database that holds data is left alone: a category the owner deleted is not seeded back");
 
 		var (categories, users, sessions) = await CountsAsync(factory);
 		categories.Should().BeGreaterThan(1, "the default categories are seeded");

@@ -23,7 +23,6 @@ The backend reads `src/Containers/API/KbcTracker.ApiService/appsettings.json`.
 | `EnableBanking:ConsentDays` | `180` | How long the consent asked from the bank lasts, in days, from 1 to 180. |
 | `EnableBanking:HistoryMonths` | `13` | How far back a full sync asks for. KBC returns about 90 days whatever you ask. |
 | `EnableBanking:BaseUrl` | `https://api.enablebanking.com` | The Enable Banking API address. |
-| `Categories` | built-in list | Category names with their keywords, used only by `--initialize` to create the first categories. |
 
 ## Web app
 
@@ -44,7 +43,6 @@ it starts, so leave those unset when you use it.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `KbcTracker:JsonArchive` | `%LOCALAPPDATA%\KbcTracker` | The old JSON data folder that the dashboard's `import-json` reads. |
 | `Parameters:postgres-password` | generated on the first run | The PostgreSQL password, kept in the AppHost's user secrets. The data volume is tied to it; never change or remove it. |
 
 ## Secrets
