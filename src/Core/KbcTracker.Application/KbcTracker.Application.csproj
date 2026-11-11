@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The use cases of KbcTracker (ADR-0003): syncing the bank, and the ports to storage and to the bank. Depends on the
-    domain only. Build settings come from Directory.Build.props.
+    The use cases of KbcTracker (ADR-0004) as mediator commands and queries: sync, bank consent, the workspace and the
+    user's decisions, with the ports to storage and to the bank. Depends on the domain and Pivot.Framework only.
+    Build settings come from Directory.Build.props.
   -->
   <PropertyGroup>
     <RootNamespace>KbcTracker.Application</RootNamespace>
@@ -11,6 +12,7 @@
   <ItemGroup>
     <!-- ILogger for SyncService; every host provides an implementation. -->
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Pivot.Framework.Application" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,7 +21,6 @@
 
   <ItemGroup Label="Feature namespaces used across the project">
     <Using Include="KbcTracker.Application.Features.BankConnection.Abstractions" />
-    <Using Include="KbcTracker.Application.Features.Shared.Abstractions" />
     <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />

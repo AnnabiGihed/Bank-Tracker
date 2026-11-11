@@ -8,7 +8,6 @@
   <ItemGroup Label="Feature namespaces used across the project">
     <Using Include="KbcTracker.Application.Features.BankConnection.Abstractions" />
     <Using Include="KbcTracker.Application.Features.BankConnection.Services" />
-    <Using Include="KbcTracker.Application.Features.Shared.Abstractions" />
     <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Categories.Services" />

@@ -100,6 +100,34 @@ public sealed partial class Analysis
 		AvailableMonths = months;
 		Months = AvailableMonths.Order(StringComparer.Ordinal).Select(BuildMonth).ToList();
 	}
+
+	/// <summary>Initialises a display analysis from an already classified backend state.</summary>
+	/// <param name="state">The backend's computed display state.</param>
+	private Analysis(AnalysisState state)
+	{
+		_today = state.Today;
+		Items = state.Items;
+		CategoryList = state.Categories;
+		_categories = state.Categories.ToDictionary(c => c.Id.Value, StringComparer.Ordinal);
+		Fixed = state.Fixed;
+		Suggestions = state.Suggestions;
+		Review = state.Review;
+		Months = state.Months;
+		AvailableMonths = state.AvailableMonths.ToList();
+		HolderName = state.HolderName;
+	}
+	#endregion
+
+	#region Factory Methods
+	/// <summary>Restores an already computed display analysis without reading private bank source records.</summary>
+	/// <param name="state">The computed state supplied by the central backend.</param>
+	/// <returns>The display analysis.</returns>
+	/// <exception cref="ArgumentNullException">The state is null.</exception>
+	public static Analysis Rehydrate(AnalysisState state)
+	{
+		ArgumentNullException.ThrowIfNull(state);
+		return new Analysis(state);
+	}
 	#endregion
 
 	#region Properties

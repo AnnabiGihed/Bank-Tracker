@@ -1,12 +1,15 @@
 # KbcTracker.Application
 
-The use cases of KbcTracker. It depends only on `KbcTracker.Domain`.
+The use cases of KbcTracker, as Pivot.Framework mediator commands and queries. It depends only on
+`KbcTracker.Domain` and Pivot.Framework.
 
 | Feature | Types |
 | --- | --- |
-| `Features/BankConnection` | `SyncService` (downloads every connected account), the `IBankTransactionSource` port, `SyncSettings` |
-| `Features/Shared` | The `IStore` port: session, transactions, user decisions and categories; transactions are never deleted |
+| `Features/BankConnection` | `SyncService` and `SyncBankCommand` (download every connected account), `GetConnectionStatusQuery`; the consent use cases (`ListBanksQuery`, `BeginBankConsentCommand`, `CompleteBankConsentCommand`, `BankConsentWorkflow`); the ports `IBankTransactionSource`, `IBankSyncPersistence`, `IBankConsentSource`, `IBankConsentPersistence` and `IConsentStateStore` |
+| `Features/Transactions` | `ListTransactionsQuery`, a page of the history |
+| `Features/Categories` | `ListCategoriesQuery` |
+| `Features/Workspace` | `GetWorkspaceQuery` (the analysis the pages show), `ApplyDecisionCommand` (every user decision), the `IWorkspacePersistence` port and the API contracts in `Contracts/` |
+| `Features/Shared` | `BackendErrors`, the errors several use cases share |
 
-The use cases move to Pivot.Framework's mediator commands and queries in step 4 of
-[ADR-0003](../../../docs/adr/0003-build-on-pivot-framework-running-on-the-phone.md).
-Tests: `test/Core/KbcTracker.Application.Tests`.
+Tests: `test/Core/KbcTracker.Application.Tests` for the sync; the other use cases are tested through the API in
+`test/Containers/API/KbcTracker.ApiService.Tests`.

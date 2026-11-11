@@ -77,6 +77,16 @@ public sealed class RecurringPayment : Entity<RecurringPaymentId>
 
 	#region Constructors
 	/// <summary>
+	/// Constructor used by EF Core to materialise a stored recurring payment; the persistence layer then sets its values. Domain
+	/// code creates instances only through the factory methods. It is <see langword="internal"/> rather than private
+	/// because the analyzers report an unused private constructor (S1144) without seeing EF Core's reflection.
+	/// </summary>
+	internal RecurringPayment()
+	{
+		Name = "";
+	}
+
+	/// <summary>
 	/// Initialises a new <see cref="RecurringPayment"/> from already valid values.
 	/// </summary>
 	private RecurringPayment(RecurringPaymentId id, string name, CategoryId? categoryId, PayeeMatch match, RecurrenceRule rule, bool active, DateTimeOffset createdAt)

@@ -61,6 +61,15 @@ public sealed class SessionInfo : LightweightAggregateRoot<BankSessionId>
 
 	#region Constructors
 	/// <summary>
+	/// Constructor used by EF Core to materialise a stored bank connection; the persistence layer then sets its values. Domain
+	/// code creates instances only through the factory methods. It is <see langword="internal"/> rather than private
+	/// because the analyzers report an unused private constructor (S1144) without seeing EF Core's reflection.
+	/// </summary>
+	internal SessionInfo()
+	{
+	}
+
+	/// <summary>
 	/// Initialises a new <see cref="SessionInfo"/> from already valid values.
 	/// </summary>
 	private SessionInfo(BankSessionId id, IEnumerable<string> accountUids, DateTimeOffset connectedAt, DateTimeOffset validUntil, DateTimeOffset? lastSync)

@@ -1,6 +1,6 @@
 # ADR-0003: Build KbcTracker on Pivot.Framework, running entirely on the phone
 
-- Status: Proposed
+- Status: Superseded by ADR-0004
 - Date: 2026-11-09
 - Deciders: Gihed Annabi
 - Supersedes: ADR-0001

@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    PostgreSQL persistence of KbcTracker (ADR-0004): the EF Core context on Pivot's base context, its mappings and
+    migrations, the unit of work and the one-time import of the JSON data folder. Build settings come from
+    Directory.Build.props.
+  -->
+  <PropertyGroup>
+    <RootNamespace>KbcTracker.Persistence.EntityFrameworkCore</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Pivot.Framework.Infrastructure.Persistence.EntityFrameworkCore" />
+    <PackageReference Include="Pivot.Framework.Infrastructure.Persistence.PostgreSQL" />
+    <!-- Only for AddEfCoreWritePersistence, which registers the unit of work and what it needs. -->
+    <PackageReference Include="Pivot.Framework.Infrastructure.Messaging.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\KbcTracker.Domain\KbcTracker.Domain.csproj" />
+    <ProjectReference Include="..\..\Core\KbcTracker.Application\KbcTracker.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="KbcTracker.Persistence.EntityFrameworkCore.Tests" />
+  </ItemGroup>
+
+  <ItemGroup Label="Feature namespaces used across the project">
+    <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Shared.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
+    <Using Include="KbcTracker.Persistence.EntityFrameworkCore.Features.Shared" />
+    <Using Include="KbcTracker.Persistence.EntityFrameworkCore.Features.Shared.Conversions" />
+    <Using Include="Microsoft.EntityFrameworkCore" />
+    <Using Include="Microsoft.EntityFrameworkCore.Metadata.Builders" />
+    <Using Include="Pivot.Framework.Domain.Shared" />
+  </ItemGroup>
+
+</Project>

@@ -11,7 +11,7 @@ public sealed class RealDataFactAttribute : FactAttribute
 {
 	#region Static Instances
 	/// <summary>
-	/// The web host's data folder when <c>DataDirectory</c> is not configured.
+	/// The JSON data folder of the versions before the backend, which the backend imports and never changes.
 	/// </summary>
 	public static readonly string DataDir =
 		Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KbcTracker");
