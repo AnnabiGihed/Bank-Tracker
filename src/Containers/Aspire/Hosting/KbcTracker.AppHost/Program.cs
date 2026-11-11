@@ -1,4 +1,4 @@
-// One start runs the whole app on this PC (ADR-0005): PostgreSQL, the migration, the API, then the web app.
+// One start runs the whole app on this PC (ADR-0005): PostgreSQL, the migration, the seed, the API, then the web app.
 var builder = DistributedApplication.CreateBuilder(args);
 
 // The password is generated once and kept in this project's user secrets: the data volume is initialised with it,
@@ -19,22 +19,17 @@ var database = postgres.AddDatabase("KbcTracker", "kbctracker");
 var migrate = AddMaintenanceCommand("migrate", "--migrate")
 	.WaitFor(database);
 
-// The one-time fill of a new database, started from the dashboard; both refuse a database that holds data.
-var archive = builder.Configuration["KbcTracker:JsonArchive"]
-	?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KbcTracker");
-AddMaintenanceCommand("import-json", "--import-json", archive)
-	.WaitForCompletion(migrate)
-	.WithExplicitStart();
-AddMaintenanceCommand("initialize", "--initialize")
-	.WaitForCompletion(migrate)
-	.WithExplicitStart();
+// A new database gets the default categories and empty decisions; one that holds data is left alone, so this runs on
+// every start and the API, which refuses writes until the database is filled, never waits for a manual step.
+var seed = AddMaintenanceCommand("seed", "--initialize")
+	.WaitForCompletion(migrate);
 
 // The API binds its IPv4 loopback listener itself (BackendPort) and ignores ASPNETCORE_URLS, so Aspire must not put
 // a proxy on the same port; the port comes from the launch profile so both always agree.
 var api = builder.AddProject<Projects.KbcTracker_ApiService>("api")
 	.WithEndpoint("http", endpoint => endpoint.IsProxied = false)
 	.WithReference(database)
-	.WaitForCompletion(migrate)
+	.WaitForCompletion(seed)
 	.WithHttpHealthCheck("/health");
 var backend = api.GetEndpoint("http");
 api.WithEnvironment("BackendPort", backend.Property(EndpointProperty.TargetPort));

@@ -14,9 +14,10 @@ namespace KbcTracker.ApiService.Features.Shared;
 /// Date        : 11-2026
 /// Purpose     : Runs explicit local maintenance commands without starting HTTP listeners or modifying the JSON archive.
 ///
-///              A new database must be initialised once before the API accepts writes: <c>--import-json</c> brings
-///              the existing history, <c>--initialize</c> starts fresh with the default categories and their seed
-///              keywords (configuration section <c>Categories</c>). Both refuse a database that already holds data.
+///              A new database must be filled once before the API accepts writes: <c>--import-json</c> brings the
+///              existing history and refuses a database that already holds data; <c>--initialize</c> seeds the default
+///              categories (<see cref="CategoryDefaults.CreateDefaults"/>) and empty decisions, and leaves a database
+///              that already holds data alone, so the Aspire AppHost can run it on every start.
 /// </summary>
 public static class BackendAdministration
 {
@@ -96,24 +97,27 @@ public static class BackendAdministration
 		return 0;
 	}
 
-	/// <summary>Starts a fresh database with no history: the default categories with their seed keywords and empty
-	/// decisions, through the same all-or-nothing import, so it is refused on a database that holds data.</summary>
+	/// <summary>Seeds an empty database with the default categories and empty decisions, through the same
+	/// all-or-nothing import as <c>--import-json</c>. A database that already holds data is left untouched and counts
+	/// as success, so running it on every start never changes the owner's categories.</summary>
 	private static async Task<int> InitializeAsync(IServiceProvider services, CancellationToken cancellationToken)
 	{
-		var seed = services.GetRequiredService<IConfiguration>().GetSection("Categories").Get<Dictionary<string, string[]>>()
-			?? new Dictionary<string, string[]>(StringComparer.Ordinal);
-		var categories = CategoryDefaults.Create(seed).ToList();
+		var categories = CategoryDefaults.CreateDefaults().ToList();
 		var result = await services.GetRequiredService<DataImporter>().ImportAsync(
 			new DataSnapshot([], categories, UserData.Empty(), null), cancellationToken).ConfigureAwait(false);
+		if (result.IsFailure && result.Error == ImportErrors.DatabaseNotEmpty)
+		{
+			Console.WriteLine("The database already holds data; nothing was seeded.");
+			return 0;
+		}
+
 		if (result.IsFailure)
 		{
-			await Console.Error.WriteLineAsync(result.Error == ImportErrors.DatabaseNotEmpty
-				? "Initialisation refused: the database already contains data."
-				: "Initialisation failed; nothing was committed. Check the database configuration.").ConfigureAwait(false);
+			await Console.Error.WriteLineAsync("Initialisation failed; nothing was committed. Check the database configuration.").ConfigureAwait(false);
 			return 1;
 		}
 
-		Console.WriteLine($"Initialised with {categories.Count} categories and no history.");
+		Console.WriteLine($"Seeded {categories.Count} categories and no history.");
 		return 0;
 	}
 	#endregion

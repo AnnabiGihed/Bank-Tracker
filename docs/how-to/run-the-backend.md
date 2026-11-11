@@ -33,9 +33,8 @@ The AppHost starts PostgreSQL in Docker, applies the migrations, then starts the
 1. The Aspire dashboard opens at <https://localhost:17180>. Wait until `migrate` shows **Finished** and `api` and
    `web` show **Running**. The first run downloads the PostgreSQL image. If `api` stays **Waiting**, open the
    console log of `migrate`: a failed migration keeps the backend from starting until it is fixed.
-1. The first time only, fill the new database from the dashboard: start `import-json` to import your old JSON data
-   folder (`%LOCALAPPDATA%\KbcTracker` unless you set `KbcTracker:JsonArchive`), or `initialize` to start fresh.
-   Use the start button on its row. Each refuses a database that already holds data.
+1. On the first run, `seed` gives the new database the default categories and empty decisions; on later runs it
+   leaves your data alone.
 1. Open <https://localhost:5001>.
 
 PostgreSQL keeps running in its container after you stop the AppHost, and your data stays in the Docker volume
@@ -89,8 +88,10 @@ Then fill the empty database once, with one of these:
   dotnet run --project src/Containers/API/KbcTracker.ApiService -- --initialize
   ```
 
-Both refuse a database that already holds data. Until one of them has run, the backend refuses decisions and new
-bank connections with `409 Conflict`, because anything saved first would make the import impossible. The web app
+The import refuses a database that already holds data; `--initialize` leaves such a database alone. The default
+categories it creates are defined in the code; change them afterwards on the **Categories** tab. The AppHost seeds
+its database on its first start, so an import into it only works before that first start or after removing the
+volume `kbctracker-postgres`. Until one of them has run, the backend refuses decisions and new bank connections with `409 Conflict`, because anything saved first would make the import impossible. The web app
 shows the backend's reason, on a page of its own or as a notice on the page you were on. See
 [Command line](../reference/command-line.md) for the exit codes.
 

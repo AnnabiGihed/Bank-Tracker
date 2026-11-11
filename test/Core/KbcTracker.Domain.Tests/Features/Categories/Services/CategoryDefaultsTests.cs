@@ -60,5 +60,21 @@ public sealed class CategoryDefaultsTests
 		categories.Should().NotContain(c => c.Name == "&&");
 		categories.Should().Contain(c => c.Id == CategoryId.Other);
 	}
+
+	/// <summary>
+	/// Verifies the default seed a new database starts with: the built-in categories plus the seeded ones, with their
+	/// stable ids, the seed's bank-fee words merged into the built-in category, and the deliberate trailing spaces kept.
+	/// </summary>
+	[Fact]
+	public void CreateDefaults_NewDatabase_BuiltInsAndSeededCategories()
+	{
+		var categories = CategoryDefaults.CreateDefaults();
+
+		categories.Select(c => c.Id.Value).Should().Contain(["other", "income", "savings", "groceries", "restaurants-cafes", "transport-fuel", "own-transfers"]);
+		categories.Should().OnlyHaveUniqueItems(c => c.Id);
+		categories.Single(c => c.Id == new CategoryId("bank-fees")).Keywords.Should().Contain(["KOSTEN", "FRAIS BANCAIRES"]);
+		categories.Single(c => c.Id == new CategoryId("groceries")).Keywords.Should().Contain("AD ");
+		categories.Single(c => c.Id == new CategoryId("own-transfers")).Type.Should().Be(CategoryType.Transfer);
+	}
 	#endregion
 }

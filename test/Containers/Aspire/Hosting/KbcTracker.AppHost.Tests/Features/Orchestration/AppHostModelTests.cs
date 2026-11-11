@@ -4,7 +4,7 @@ namespace KbcTracker.AppHost.Tests.Features.Orchestration;
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Verifies the AppHost's resource graph without starting it: the start order that keeps the API from
-///              running on an unmigrated database, the one-time fill commands that never run by themselves, and the
+///              running on an unmigrated or unseeded database, the seed that runs on every start, and the
 ///              endpoints that must not be proxied because the hosts bind their own ports.
 /// </summary>
 public sealed class AppHostModelTests
@@ -17,31 +17,33 @@ public sealed class AppHostModelTests
 	{
 		var resources = await ReadResourcesAsync();
 
-		resources.Select(r => r.Name).Should().Contain(["postgres-password", "postgres", "KbcTracker", "migrate", "import-json", "initialize", "api", "web"]);
+		resources.Select(r => r.Name).Should().Contain(["postgres-password", "postgres", "KbcTracker", "migrate", "seed", "api", "web"]);
+		resources.Select(r => r.Name).Should().NotContain(["import-json", "initialize"], "the database is seeded on start, not filled by hand");
 	}
 
-	/// <summary>Verifies the API waits for the migration to complete and the web app waits for a healthy API.</summary>
+	/// <summary>Verifies the seed runs after the migration, the API after the seed, and the web app after a healthy API,
+	/// so the API never serves an unmigrated or empty database.</summary>
 	/// <returns>A task that completes when verified.</returns>
 	[Fact]
-	public async Task Model_StartOrder_ApiAfterMigrationWebAfterApi()
+	public async Task Model_StartOrder_MigrateSeedApiWeb()
 	{
 		var resources = await ReadResourcesAsync();
 
-		Waits(resources, "api").Should().Contain(("migrate", WaitType.WaitForCompletion));
+		Waits(resources, "seed").Should().Contain(("migrate", WaitType.WaitForCompletion));
+		Waits(resources, "api").Should().Contain(("seed", WaitType.WaitForCompletion));
 		Waits(resources, "web").Should().Contain(("api", WaitType.WaitUntilHealthy));
 		Waits(resources, "migrate").Should().Contain(("KbcTracker", WaitType.WaitUntilHealthy));
 	}
 
-	/// <summary>Verifies the import and the fresh start run only when started from the dashboard, never on start.</summary>
+	/// <summary>Verifies the migration and the seed run on every start by themselves, with no dashboard step.</summary>
 	/// <returns>A task that completes when verified.</returns>
 	[Fact]
-	public async Task Model_OneTimeFill_StartedOnlyByHand()
+	public async Task Model_MigrateAndSeed_RunOnEveryStart()
 	{
 		var resources = await ReadResourcesAsync();
 
-		Resource(resources, "import-json").Annotations.OfType<ExplicitStartupAnnotation>().Should().ContainSingle();
-		Resource(resources, "initialize").Annotations.OfType<ExplicitStartupAnnotation>().Should().ContainSingle();
 		Resource(resources, "migrate").Annotations.OfType<ExplicitStartupAnnotation>().Should().BeEmpty();
+		Resource(resources, "seed").Annotations.OfType<ExplicitStartupAnnotation>().Should().BeEmpty();
 	}
 
 	/// <summary>Verifies the API and the web app keep their own ports with no Aspire proxy in front, and the maintenance
@@ -55,10 +57,11 @@ public sealed class AppHostModelTests
 		Endpoints(resources, "api").Should().ContainSingle(e => string.Equals(e.Name, "http", StringComparison.Ordinal) && !e.IsProxied && e.Port == 5080);
 		Endpoints(resources, "web").Should().ContainSingle(e => string.Equals(e.Name, "https", StringComparison.Ordinal) && !e.IsProxied && e.Port == 5001);
 		Endpoints(resources, "migrate").Should().BeEmpty();
+		Endpoints(resources, "seed").Should().BeEmpty();
 	}
 
-	/// <summary>Verifies each maintenance command passes exactly the one command the API accepts, the import with its
-	/// folder; anything else makes the API exit with code 2 and, for the migration, keeps the backend from starting.</summary>
+	/// <summary>Verifies each maintenance command passes exactly the one command the API accepts; anything else makes the
+	/// API exit with code 2 and keeps the backend from starting.</summary>
 	/// <returns>A task that completes when verified.</returns>
 	[Fact]
 	public async Task Model_MaintenanceCommands_ExactlyOneCommandEach()
@@ -66,10 +69,7 @@ public sealed class AppHostModelTests
 		var resources = await ReadResourcesAsync();
 
 		(await ArgumentsAsync(Resource(resources, "migrate"))).Should().Equal("--migrate");
-		(await ArgumentsAsync(Resource(resources, "initialize"))).Should().Equal("--initialize");
-		var import = await ArgumentsAsync(Resource(resources, "import-json"));
-		import.Should().HaveCount(2).And.StartWith("--import-json");
-		import[1].Should().NotBeNullOrWhiteSpace();
+		(await ArgumentsAsync(Resource(resources, "seed"))).Should().Equal("--initialize");
 	}
 
 	/// <summary>Verifies the history lives in a named volume of a container that outlives the AppHost.</summary>

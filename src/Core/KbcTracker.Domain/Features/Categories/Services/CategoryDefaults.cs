@@ -9,11 +9,34 @@ namespace KbcTracker.Domain.Features.Categories.Services;
 ///              user's own categories built from a name → keywords seed.
 ///
 ///              Shared by every store implementation so the web host and the Android app start with the same
-///              categories. The seed comes from appsettings.json today; it moves into the database in step 2.
+///              categories. The default seed lives here, in code, because it is written once into an empty database
+///              and then belongs to the user, who edits it on the Categories tab; it is not a setting.
 /// </summary>
 public static class CategoryDefaults
 {
 	#region Static Instances
+	/// <summary>
+	/// The first-run seed: category names with the keywords looked for in payee and shop names. The order sets the
+	/// colours and the trailing spaces in <c>"AD "</c> and <c>"CM "</c> are deliberate: they stop the keyword from
+	/// matching words that only start with it, such as ADIDAS or CMS.
+	/// </summary>
+	private static readonly Dictionary<string, string[]> DefaultSeed = new(StringComparer.Ordinal)
+	{
+		["Own transfers"] = ["REVOLUT", "WISE", "N26"],
+		["Car"] = ["AUTOMOBILE", "TOYOTA", "GARAGE", "CARWASH", "FITWASH", "D'IETEREN", "VROOM"],
+		["Groceries"] = ["DELHAIZE", "COLRUYT", "CARREFOUR", "ALDI", "LIDL", "AD ", "OKAY", "SPAR", "INTERMARCHE", "ALBERT HEIJN", "CORA", "MATCH", "PROXY"],
+		["Restaurants & cafes"] = ["RESTAURANT", "CAFE", "MCDONALD", "QUICK", "BURGER", "PIZZA", "DELIVEROO", "UBER EATS", "UBER *EATS", "TAKEAWAY", "FEDOREST", "EXKI", "PAUL"],
+		["Transport & fuel"] = ["STIB", "MIVB", "SNCB", "NMBS", "DE LIJN", "TEC", "EUROSTAR", "SNCF", "OUIGO", "RATP", "FLIXBUS", "TOTAL", "Q8", "SHELL", "ESSO", "LUKOIL", "UBER", "BOLT", "PARKING", "INDIGO", "INTERPARKING"],
+		["Shopping"] = ["AMAZON", "AMZN", "BOL.COM", "ZALANDO", "COOLBLUE", "MEDIA MARKT", "MEDIAMARKT", "IKEA", "ACTION", "HEMA", "PRIMARK", "DECATHLON", "FNAC", "KRUIDVAT"],
+		["Health"] = ["PHARMACIE", "APOTHEEK", "MUTUALITE", "MUTUALITEIT", "PARTENA", "HELAN", "SOLIDARIS", "CM ", "DOKTER", "DOCTEUR"],
+		["Utilities & telecom"] = ["ENGIE", "ELECTRABEL", "LUMINUS", "TOTALENERGIES", "VIVAQUA", "SIBELGA", "PROXIMUS", "ORANGE", "TELENET", "BASE", "VOO", "SCARLET", "MOBILE VIKINGS"],
+		["Subscriptions"] = ["NETFLIX", "SPOTIFY", "DISNEY", "APPLE.COM", "GOOGLE", "YOUTUBE", "MICROSOFT", "AMAZON PRIME", "GITHUB", "OVH"],
+		["Cash"] = ["GELDOPNAME", "RETRAIT", "CASH", "ATM", "BANCONTACT GELDAUTOMAAT"],
+		["Housing"] = ["RENT", "LOYER", "HUUR", "SYNDIC", "IMMO"],
+		["Insurance"] = ["VERZEKERING", "ASSURANCE", "INSURANCE", "AXA", "ETHIAS", "BALOISE", "P&V", "DKV"],
+		["Bank & fees"] = ["KOSTEN", "FRAIS BANCAIRES"],
+	};
+
 	/// <summary>
 	/// Colours given in turn to seeded categories that have no built-in colour.
 	/// </summary>
@@ -22,6 +45,12 @@ public static class CategoryDefaults
 	#endregion
 
 	#region Factory Methods
+	/// <summary>
+	/// Creates the categories a new database starts with: the built-in ones plus the default seed.
+	/// </summary>
+	/// <returns>The new category list; the built-in <c>other</c> category is always included.</returns>
+	public static IList<Category> CreateDefaults() => Create(DefaultSeed);
+
 	/// <summary>
 	/// Creates the built-in categories and adds one category per seed entry. A seed entry whose name or slug
 	/// matches a built-in category adds its keywords to that category instead; one whose name has no letter or digit

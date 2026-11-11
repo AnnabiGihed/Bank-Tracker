@@ -45,9 +45,11 @@ the PC, and `src/Containers/Aspire/Defaults/KbcTracker.ServiceDefaults`, which b
 - **Migrations run on every start.** A one-shot resource runs the API with `--migrate`; the API starts only after
   it completed successfully. This replaces, for this setup, ADR-0004's rule that migrations are an explicit step
   after a fresh backup. There are no backups yet, so a schema change applies without one.
-- **The one-time fill** is two resources started from the dashboard, never on their own: `import-json` (the folder
-  in `KbcTracker:JsonArchive`, by default `%LOCALAPPDATA%\KbcTracker`) and `initialize`. Both refuse a database
-  that already holds data.
+- **The seed** runs on every start after the migration, and the API waits for it: `--initialize` gives an empty
+  database the default categories, defined in code (`CategoryDefaults`), and empty decisions, and leaves a database
+  that holds data alone. There is no import from the AppHost; `--import-json` stays a manual command. (Amended
+  2026-11-11: this replaced two dashboard-only resources, `import-json` and `initialize`, after the owner chose to
+  start fresh and to keep the default categories in code rather than in `appsettings.json`.)
 - **Addresses do not change.** The API keeps `http://127.0.0.1:5080` and the web app `https://localhost:5001`, with
   no Aspire proxy in front of either; the web app calls the API on `127.0.0.1`. Forwarded headers stay off for both,
   so no local caller can rewrite the address the access checks rely on. Both run in Development: outside it they
