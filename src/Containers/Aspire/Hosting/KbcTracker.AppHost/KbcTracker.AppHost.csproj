@@ -1,0 +1,18 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>KbcTracker.AppHost</RootNamespace>
+    <!-- Holds the generated PostgreSQL password, so the persistent data volume keeps opening with the same one. -->
+    <UserSecretsId>kbctracker-apphost-development</UserSecretsId>
+    <!-- The dashboard and orchestrator come from NuGet packages, so `dotnet run` and Visual Studio start the AppHost
+         without installing the Aspire CLI (ADR-0005). ASPIRE010 only reports that choice: waiver in ADR-0002
+         (R25, Gihed Annabi, 2026-11-11, review at the latest 2027-06-30). -->
+    <AspireUseCliBundle>false</AspireUseCliBundle>
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <ProjectReference Include="..\..\..\API\KbcTracker.ApiService\KbcTracker.ApiService.csproj" />
+    <ProjectReference Include="..\..\..\UI\Hosting\KbcTracker.Web\KbcTracker.Web.csproj" />
+  </ItemGroup>
+</Project>

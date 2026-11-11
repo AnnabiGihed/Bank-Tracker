@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- One start runs the whole app: the Aspire AppHost `KbcTracker.AppHost` starts PostgreSQL in Docker, applies the
+  migrations, then starts the backend and the web app, with a dashboard at <https://localhost:17180> for their
+  state, logs and traces ([ADR-0005](docs/adr/0005-run-the-app-on-the-pc-with-aspire.md), proposed). The first
+  time, fill the new database from the dashboard with `import-json` or `initialize`. Your data stays in the Docker
+  volume `kbctracker-postgres`; a database you set up by hand before is not used by the AppHost
+  (see [Run the backend](docs/how-to/run-the-backend.md)).
 - A backend, `KbcTracker.ApiService`, that keeps your history and decisions in PostgreSQL and owns the bank key
   and the sync ([ADR-0004](docs/adr/0004-serve-both-apps-from-one-postgresql-backend-and-api.md), proposed). Its
   API serves the history, categories, the analysis the pages show, your decisions, the bank consent, the

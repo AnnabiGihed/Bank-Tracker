@@ -8,26 +8,26 @@ Enable Banking, finds your fixed payments and shows your spending per month. Bui
 **Beta.** Owned by Gihed Annabi ([GitHub issues](https://github.com/AnnabiGihed/Bank-Tracker/issues)).
 KbcTracker runs as one PostgreSQL backend and API on Pivot.Framework, used by the local web app and, later, an
 Android app ([ADR-0004][adr-0004], proposed). The backend owns the history, your decisions, the bank key and the
-sync; the web app is a client of its API and stores nothing. Docker Compose, Tailscale Serve and backups are not
-built yet, so today you start the backend and the web app yourself on your PC.
+sync; the web app is a client of its API and stores nothing. An Aspire AppHost starts the database, the backend and
+the web app together on your PC ([ADR-0005][adr-0005]); Docker Compose, Tailscale Serve and backups are not built
+yet.
 
 ## Run locally
 
-Prerequisites: the .NET 10 SDK, a PostgreSQL database, the Pivot.Framework feed variables below, and an Enable
-Banking application with its private key (see [Get started](docs/tutorials/get-started.md)).
+Prerequisites: the .NET 10 SDK, Docker, the Pivot.Framework feed variables below, and an Enable Banking
+application with its private key (see [Get started](docs/tutorials/get-started.md)).
 
-1. Configure the backend and prepare its database once: apply the migrations, then either import your existing
-   JSON data folder or start fresh. See [Run the backend](docs/how-to/run-the-backend.md).
-1. Start the backend, then the web app, in two terminals:
-
-   ```powershell
-   dotnet run --project src/Containers/API/KbcTracker.ApiService
-   ```
+1. Store the Enable Banking settings in the backend's user secrets
+   (see [Run the backend](docs/how-to/run-the-backend.md)).
+1. Start the AppHost, or set `KbcTracker.AppHost` as the startup project in Visual Studio:
 
    ```powershell
    dotnet dev-certs https --trust
-   dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web
+   dotnet run --project src/Containers/Aspire/Hosting/KbcTracker.AppHost
    ```
+
+1. In the Aspire dashboard (<https://localhost:17180>), fill the new database once: start `import-json` to import
+   your existing JSON data folder, or `initialize` to start fresh.
 
 Open <https://localhost:5001>. Run the tests with `dotnet test`; the database, API and end-to-end tests need
 Docker (see [Run the tests](docs/how-to/run-the-tests.md)).
@@ -56,6 +56,8 @@ inside every project.
 | `src/Infrastructure/KbcTracker.Infrastructure` | The Enable Banking client and its mapping, and the reader of the old JSON data folder. |
 | `src/Infrastructure/KbcTracker.Persistence.EntityFrameworkCore` | PostgreSQL persistence: the EF Core context, migrations, repositories, unit of work and the one-time import. |
 | `src/Containers/API/KbcTracker.ApiService` | The backend: the API, the automatic sync and the maintenance commands. |
+| `src/Containers/Aspire/Hosting/KbcTracker.AppHost` | The Aspire AppHost: starts PostgreSQL, the migrations, the backend and the web app together. |
+| `src/Containers/Aspire/Defaults/KbcTracker.ServiceDefaults` | The telemetry both hosts send to the Aspire dashboard. |
 | `src/Containers/UI/Core/KbcTracker.Shared` | The typed API client the user interfaces share. |
 | `src/Containers/UI/Hosting/KbcTracker.Web` | The local web app: server-rendered pages over the API. |
 | `test/` | One xUnit test project per tested source project, in the same folders, plus `KbcTracker.E2E.Tests`. |
@@ -81,3 +83,4 @@ The deviations from the static-analysis rules, with their expiry or review dates
 All rights reserved. See [LICENSE](LICENSE).
 
 [adr-0004]: docs/adr/0004-serve-both-apps-from-one-postgresql-backend-and-api.md
+[adr-0005]: docs/adr/0005-run-the-app-on-the-pc-with-aspire.md

@@ -5,8 +5,10 @@ Built on **Pivot.Framework** as one PostgreSQL backend + API on the home PC (`Kb
 `http://127.0.0.1:5080`) used by the web app (server-rendered HTML, no Razor/Blazor, Chart.js from CDN,
 `https://localhost:5001`, an API client that stores nothing) and later a MAUI Android app (SQLite cache later): see
 `docs/adr/0004-…` (Proposed), which supersedes ADR-0003. No login: outside Development both hosts require a
-loopback peer plus a `Tailscale-User-Login` equal to the configured owner. Docker Compose, Tailscale Serve and
-backups are not built yet.
+loopback peer plus a `Tailscale-User-Login` equal to the configured owner. The Aspire AppHost
+(`src/Containers/Aspire/Hosting/KbcTracker.AppHost`, ADR-0005) starts PostgreSQL (container + volume
+`kbctracker-postgres`), `--migrate`, the API and the web app. Docker Compose, Tailscale Serve and backups are not
+built yet.
 
 ## How data gets in
 - Bank access via **Enable Banking** (PSD2 aggregator), free "restricted mode": only accounts linked in their
@@ -43,6 +45,8 @@ Each project's `README.md` maps its types; read it before working in that projec
   `TailnetAccessMiddleware`. Contract: `docs/api/openapi.json`.
 - `src/Containers/UI/Core/KbcTracker.Shared` — `BackendClient`, the typed API client.
 - `src/Containers/UI/Hosting/KbcTracker.Web` — server-rendered tabs over `BackendClient`; stores nothing.
+- `src/Containers/Aspire/Hosting/KbcTracker.AppHost` — Aspire AppHost (ADR-0005); `Aspire/Defaults/KbcTracker.ServiceDefaults`
+  — OpenTelemetry for both hosts (no health endpoints, no HTTP retries: they would replay the bank's one-time code).
 
 Tests (xUnit + AwesomeAssertions + NSubstitute) mirror `src/`, plus `test/KbcTracker.E2E.Tests` (web + API in
 memory). Persistence, API and E2E tests use Testcontainers PostgreSQL (Docker required); `RealDataTests` in the
@@ -71,6 +75,8 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
 - The user wants: clear UI, little scrolling, no manual exports/imports, everything user-correctable.
 
 ## Build / run
+- Everything: `dotnet run --project src/Containers/Aspire/Hosting/KbcTracker.AppHost` (Docker required; dashboard
+  https://localhost:17180; `import-json`/`initialize` are dashboard-only resources). Without Aspire:
 - Backend: `dotnet run --project src/Containers/API/KbcTracker.ApiService` (add `-- --migrate`, `-- --sync`…);
   then the web app: `dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web` (needs
   `dotnet dev-certs https --trust` once). See `docs/how-to/run-the-backend.md`. `dotnet build` / `dotnet test` at the
