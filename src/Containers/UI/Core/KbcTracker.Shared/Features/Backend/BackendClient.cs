@@ -30,16 +30,20 @@ public sealed class BackendClient(HttpClient http)
 	/// <summary>Reads the centrally computed workspace used by the existing pages.</summary>
 	/// <param name="cancellationToken">Cancels the request.</param>
 	/// <returns>The classified workspace.</returns>
-	/// <exception cref="HttpRequestException">The backend is unavailable or refused the request.</exception>
+	/// <exception cref="BackendRefusedException">The backend refused the request; carries its status and safe detail.</exception>
+	/// <exception cref="HttpRequestException">The backend is unavailable or returned no workspace.</exception>
 	public async Task<WorkspaceSnapshot> GetWorkspaceAsync(CancellationToken cancellationToken) =>
-		await http.GetFromJsonAsync<WorkspaceSnapshot>(new Uri(Prefix + "workspace", UriKind.Relative), Json, cancellationToken).ConfigureAwait(false)
+		await GetAsync<WorkspaceSnapshot>(Prefix + "workspace", cancellationToken).ConfigureAwait(false)
 		?? throw new HttpRequestException("The backend returned no workspace.");
 
 	/// <summary>Lists the supported banks without contacting a bank from the client.</summary>
 	/// <param name="cancellationToken">Cancels the request.</param>
 	/// <returns>The supported banks.</returns>
+	/// <exception cref="BackendRefusedException">The backend refused the request, for example because bank access is not
+	/// set up; carries its status and safe detail.</exception>
+	/// <exception cref="HttpRequestException">The backend is unavailable.</exception>
 	public async Task<IReadOnlyList<BankDefinition>> GetBanksAsync(CancellationToken cancellationToken) =>
-		await http.GetFromJsonAsync<List<BankDefinition>>(new Uri(Prefix + "banks", UriKind.Relative), Json, cancellationToken).ConfigureAwait(false) ?? [];
+		await GetAsync<List<BankDefinition>>(Prefix + "banks", cancellationToken).ConfigureAwait(false) ?? [];
 
 	/// <summary>Persists one user decision on the backend.</summary>
 	/// <param name="request">The action and its fields.</param>
@@ -80,6 +84,14 @@ public sealed class BackendClient(HttpClient http)
 	#endregion
 
 	#region Private Helpers
+	/// <summary>Reads a resource a page needs; a refusal throws with the backend's own detail, so the page can say why.</summary>
+	private async Task<T?> GetAsync<T>(string path, CancellationToken cancellationToken)
+	{
+		using var response = await http.GetAsync(new Uri(path, UriKind.Relative), cancellationToken).ConfigureAwait(false);
+		var reply = await ReadAsync<T>(response, cancellationToken).ConfigureAwait(false);
+		return reply.IsSuccess ? reply.Value : throw new BackendRefusedException(reply.Error ?? string.Empty, response.StatusCode);
+	}
+
 	/// <summary>Sends a typed mutation and disposes its transport response.</summary>
 	private async Task<BackendReply<TResponse>> PostAsync<TRequest, TResponse>(string path, TRequest request, CancellationToken cancellationToken)
 	{

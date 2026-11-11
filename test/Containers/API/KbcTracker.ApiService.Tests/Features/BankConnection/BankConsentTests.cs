@@ -156,5 +156,29 @@ public sealed class BankConsentTests(ApiFixture fixture) : IClassFixture<ApiFixt
 		state.Should().NotBeNullOrWhiteSpace();
 		factory.Services.GetRequiredService<IConsentStateStore>().TryConsume(state, "development").Should().BeFalse();
 	}
+
+	/// <summary>Verifies a bank list that fails because the backend lacks its bank settings says which settings to set,
+	/// while any other provider failure keeps the generic message and never its own text.</summary>
+	/// <param name="notConfigured">Whether the provider failed for missing settings.</param>
+	/// <param name="expected">Text the problem detail must contain.</param>
+	/// <returns>A task that completes when verified.</returns>
+	[Theory]
+	[InlineData(true, "EnableBanking:ApplicationId")]
+	[InlineData(false, "Start again later")]
+	public async Task Banks_ProviderFails_ConflictNamesSettingsOnlyWhenMissing(bool notConfigured, string expected)
+	{
+		var bank = Substitute.For<IBankConsentSource>();
+		bank.GetBanksAsync(Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BankDefinition>>(_ => throw (notConfigured
+			? new BankAccessNotConfiguredException("private-setting-detail")
+			: new InvalidOperationException("private-provider-body")));
+		using var factory = fixture.CreateFactory("Development", bank);
+		using var client = factory.CreateClient();
+
+		using var banks = await client.GetAsync(new Uri("/api/v1/banks", UriKind.Relative));
+		var body = await banks.Content.ReadAsStringAsync();
+
+		banks.StatusCode.Should().Be(HttpStatusCode.Conflict);
+		body.Should().Contain(expected).And.NotContain("private-setting-detail").And.NotContain("private-provider-body");
+	}
 	#endregion
 }
