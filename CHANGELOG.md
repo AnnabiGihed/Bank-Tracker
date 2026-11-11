@@ -90,3 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shops such as Azad or Rad Huy in Groceries. A keyword glued to the end of a longer word (for example
   "APOTHEEK" in "STADSAPOTHEEK") no longer matches either; add the longer word as a keyword if you need it.
 - Removing a fixed payment whose shop names contain accents no longer brings its suggestion back.
+
+### Security
+
+- `Microsoft.AspNetCore.WebUtilities`, which Pivot's messaging package brings in, is pinned to 2.3.14, the version that
+  fixes the denial-of-service vulnerability CVE-2026-118750 (GHSA-6527-9fp8-r4x6). The build had failed since the
+  advisory was published, because vulnerability warnings count as errors.
