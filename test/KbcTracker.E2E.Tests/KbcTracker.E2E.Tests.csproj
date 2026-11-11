@@ -1,13 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- End-to-end tests: the web host started in memory over a temporary data folder. Test packages and settings
+  <!-- End-to-end tests: both HTTP hosts over a disposable PostgreSQL database. Test packages and settings
        come from test/Directory.Build.props. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Containers\UI\Hosting\KbcTracker.Web\KbcTracker.Web.csproj" />
+    <ProjectReference Include="..\..\src\Containers\API\KbcTracker.ApiService\KbcTracker.ApiService.csproj" />
   </ItemGroup>
 
 </Project>

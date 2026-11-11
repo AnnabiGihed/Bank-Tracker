@@ -2,54 +2,117 @@ using System.Net;
 using System.Net.Http.Json;
 using KbcTracker.Domain.Features.BankConnection.Aggregates;
 using KbcTracker.Domain.Features.Shared.Services;
+using KbcTracker.Domain.Features.Shared.Aggregates;
+using KbcTracker.Domain.Features.Categories.Services;
+using KbcTracker.Domain.Features.Categories.Aggregates;
 using KbcTracker.Domain.Features.Transactions.Aggregates;
 using KbcTracker.Domain.Features.Transactions.ValueObjects;
-using KbcTracker.Web.Features.Shared.Storage;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using KbcTracker.Persistence.EntityFrameworkCore.Features.Shared;
+using KbcTracker.Shared.Features.Backend;
 using Microsoft.Extensions.DependencyInjection;
+using ApiProgram = KbcTracker.ApiService.Program;
 
 namespace KbcTracker.E2E.Tests;
 
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
-/// Purpose     : Runs the web host end to end in memory, over a temporary data folder with automatic syncs off:
-///              every tab renders, and an action posted to <c>POST /api</c> is saved. Never touches the user's data
+/// Purpose     : Runs the web and API hosts end to end over a disposable PostgreSQL database:
+///              every tab renders, and actions reach central persistence through HTTP. Never touches personal data
 ///              or the bank.
 /// </summary>
-public sealed class WebHostTests : IDisposable
+/// <param name="fixture">The disposable database container shared by the class.</param>
+public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<BackendFixture>, IAsyncLifetime
 {
-	#region Fields
-	/// <summary>
-	/// The temporary data folder of this test.
-	/// </summary>
-	private readonly string _dataDir = Path.Combine(Path.GetTempPath(), "kbc-e2e-" + Guid.NewGuid().ToString("N"));
-
-	/// <summary>
-	/// The web host under test.
-	/// </summary>
-	private readonly WebApplicationFactory<Program> _factory;
+	#region Constants
+	/// <summary>The owner identity configured outside Development.</summary>
+	private const string OwnerLogin = "owner@example.invalid";
 	#endregion
 
-	#region Constructors
-	/// <summary>
-	/// Initialises a new <see cref="WebHostTests"/>: starts the host and stores two months of transactions.
-	/// </summary>
-	public WebHostTests()
+	#region Fields
+	/// <summary>The API host that owns persistence and application operations.</summary>
+	private WebApplicationFactory<ApiProgram>? _api;
+
+	/// <summary>The UI host that communicates with the API over its HTTP test transport.</summary>
+	private WebApplicationFactory<Program>? _web;
+	#endregion
+
+	#region Properties
+	/// <summary>Gets the started UI host.</summary>
+	private WebApplicationFactory<Program> Factory => _web ?? throw new InvalidOperationException("The web host is not started.");
+
+	/// <summary>Gets the started API host.</summary>
+	private WebApplicationFactory<ApiProgram> Api => _api ?? throw new InvalidOperationException("The API host is not started.");
+	#endregion
+
+	#region IAsyncLifetime Implementation
+	/// <inheritdoc />
+	public async Task InitializeAsync()
 	{
-		_factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
-			.UseSetting("DataDirectory", _dataDir)
+		_api = new WebApplicationFactory<ApiProgram>().WithWebHostBuilder(builder => builder
+			.UseEnvironment("Development")
+			.UseSetting("ConnectionStrings:KbcTracker", fixture.CreateConnectionString())
 			.UseSetting("AutoSyncHours", "0"));
-		_factory.Services.GetRequiredService<Store>().Merge(
-		[
-			Txn("t1", new DateOnly(2026, 10, 3), -12.50m, "Shop One", "SHOP ONE BE1000 Bruxelles Payment with card"),
-			Txn("t2", new DateOnly(2026, 11, 3), 2500m, "Acme Payroll", "Salary November"),
-		]);
+		await ChangeAsync(async db =>
+		{
+			await db.Database.MigrateAsync().ConfigureAwait(false);
+			db.Transactions.AddRange(
+				Txn("t1", new DateOnly(2026, 10, 3), -12.50m, "Shop One", "SHOP ONE BE1000 Bruxelles Payment with card"),
+				Txn("t2", new DateOnly(2026, 11, 3), 2500m, "Acme Payroll", "Salary November"));
+			db.Categories.AddRange(CategoryDefaults.Create(new Dictionary<string, string[]>(StringComparer.Ordinal)));
+			db.UserData.Add(UserData.Empty());
+		}).ConfigureAwait(false);
+		_web = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
+			.UseEnvironment("Development")
+			.UseSetting("Backend:BaseUrl", "http://localhost/")
+			.ConfigureTestServices(services => services.AddHttpClient<BackendClient>()
+				.ConfigurePrimaryHttpMessageHandler(() => Api.Server.CreateHandler())));
+	}
+
+	/// <inheritdoc />
+	public async Task DisposeAsync()
+	{
+		if (_web is not null)
+		{
+			await _web.DisposeAsync().ConfigureAwait(false);
+		}
+
+		if (_api is not null)
+		{
+			await _api.DisposeAsync().ConfigureAwait(false);
+		}
 	}
 	#endregion
 
 	#region Page Tests
+	/// <summary>Verifies the web host has no local data store or bank client after the cutover.</summary>
+	[Fact]
+	public void Services_ApiClientCutover_NoLocalPersistenceOrBankClient()
+	{
+		typeof(Program).Assembly.GetTypes().Should().NotContain(t => t.Namespace != null && t.Namespace.EndsWith(".Storage", StringComparison.Ordinal));
+		Factory.Services.GetService<KbcTracker.Infrastructure.Features.BankConnection.EnableBankingClient>().Should().BeNull();
+	}
+
+	/// <summary>Verifies backend failure returns a safe error instead of reading a local history fallback.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Get_BackendUnavailable_ServiceUnavailableWithoutTransportDetails()
+	{
+		using var unavailable = Factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+			services.AddHttpClient<BackendClient>().ConfigurePrimaryHttpMessageHandler(() => new UnavailableBackendHandler())));
+		using var client = unavailable.CreateClient();
+
+		using var response = await client.GetAsync(new Uri("/overview", UriKind.Relative));
+
+		response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+		(await response.Content.ReadAsStringAsync()).Should().Contain("Backend unavailable").And.NotContain("private transport details");
+	}
+
 	/// <summary>
 	/// Verifies that every tab renders for a month with data.
 	/// </summary>
@@ -64,12 +127,12 @@ public sealed class WebHostTests : IDisposable
 	[InlineData("/settings?m=2026-11")]
 	public async Task Get_Tab_RendersHtml(string path)
 	{
-		using var client = _factory.CreateClient();
+		using var client = Factory.CreateClient();
 
 		using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
 
 		response.StatusCode.Should().Be(HttpStatusCode.OK);
-		response.Content.Headers.ContentType!.MediaType.Should().Be("text/html");
+		response.Content.Headers.ContentType?.MediaType.Should().Be("text/html");
 		(await response.Content.ReadAsStringAsync()).Should().Contain("<html");
 	}
 
@@ -80,7 +143,7 @@ public sealed class WebHostTests : IDisposable
 	[Fact]
 	public async Task Get_Transactions_ListsStoredTransaction()
 	{
-		using var client = _factory.CreateClient();
+		using var client = Factory.CreateClient();
 
 		var html = await client.GetStringAsync(new Uri("/transactions?m=2026-10", UriKind.Relative));
 
@@ -95,19 +158,19 @@ public sealed class WebHostTests : IDisposable
 	[Fact]
 	public async Task Get_SessionWithSkippedTransactions_NoticeShownUnlessSyncFailed()
 	{
-		using var client = _factory.CreateClient();
-		var store = _factory.Services.GetRequiredService<Store>();
+		using var client = Factory.CreateClient();
+
 		var start = new DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero);
 
-		store.SaveSession(SessionInfo.Rehydrate(new BankSessionId("s"), ["acc-1"], start, start.AddDays(180), start, lastError: null, skippedTransactions: 0));
+		await SaveSessionAsync(SessionInfo.Rehydrate(new BankSessionId("s"), ["acc-1"], start, start.AddDays(180), start, lastError: null, skippedTransactions: 0));
 		var withoutSkipped = await client.GetStringAsync(new Uri("/overview", UriKind.Relative));
-		store.SaveSession(SessionInfo.Rehydrate(new BankSessionId("s"), ["acc-1"], start, start.AddDays(180), start, lastError: null, skippedTransactions: 3));
+		await SaveSessionAsync(SessionInfo.Rehydrate(new BankSessionId("s"), ["acc-1"], start, start.AddDays(180), start, lastError: null, skippedTransactions: 3));
 		var afterSkipped = await client.GetStringAsync(new Uri("/overview", UriKind.Relative));
-		store.SaveSession(SessionInfo.Rehydrate(new BankSessionId("s"), ["acc-1"], start, start.AddDays(180), start, lastError: "Bank down", skippedTransactions: 3));
+		await SaveSessionAsync(SessionInfo.Rehydrate(new BankSessionId("s"), ["acc-1"], start, start.AddDays(180), start, lastError: "Bank down", skippedTransactions: 3));
 		var afterFailure = await client.GetStringAsync(new Uri("/overview", UriKind.Relative));
 
 		withoutSkipped.Should().NotContain("could not be read");
-		afterSkipped.Should().Contain("3 transaction(s) from the bank could not be read").And.Contain("href='/sync?full=true&back=/settings'");
+		afterSkipped.Should().Contain("3 transaction(s) from the bank could not be read").And.Contain("action='/sync?full=true&back=/settings'");
 		afterFailure.Should().Contain("Last sync failed").And.NotContain("could not be read");
 	}
 	#endregion
@@ -120,12 +183,12 @@ public sealed class WebHostTests : IDisposable
 	[Fact]
 	public async Task PostApi_Rename_SavedInUserData()
 	{
-		using var client = _factory.CreateClient();
+		using var client = Factory.CreateClient();
 
 		using var response = await client.PostAsJsonAsync(new Uri("/api", UriKind.Relative), new { action = "rename", key = "CARD:SHOP ONE", name = "My shop" });
 
 		response.StatusCode.Should().Be(HttpStatusCode.OK);
-		_factory.Services.GetRequiredService<Store>().LoadUserData().PayeeNames["CARD:SHOP ONE"].Should().Be("My shop");
+		(await LoadUserDataAsync()).PayeeNames["CARD:SHOP ONE"].Should().Be("My shop");
 	}
 
 	/// <summary>
@@ -142,7 +205,7 @@ public sealed class WebHostTests : IDisposable
 	[InlineData("""{"action":"unknown"}""")]
 	public async Task PostApi_MissingOrInvalidField_BadRequest(string body)
 	{
-		using var client = _factory.CreateClient();
+		using var client = Factory.CreateClient();
 		using var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
 
 		using var response = await client.PostAsync(new Uri("/api", UriKind.Relative), content);
@@ -163,7 +226,7 @@ public sealed class WebHostTests : IDisposable
 	[InlineData("""{"action":"deleteCategory","id":"missing"}""")]
 	public async Task PostApi_UnknownTarget_NotFoundWithMessage(string body)
 	{
-		using var client = _factory.CreateClient();
+		using var client = Factory.CreateClient();
 		using var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
 
 		using var response = await client.PostAsync(new Uri("/api", UriKind.Relative), content);
@@ -180,10 +243,10 @@ public sealed class WebHostTests : IDisposable
 	[Fact]
 	public async Task PostApi_DismissAndConfirm_Saved()
 	{
-		using var client = _factory.CreateClient();
+		using var client = Factory.CreateClient();
 		var api = new Uri("/api", UriKind.Relative);
-		var store = _factory.Services.GetRequiredService<Store>();
-		var analysis = new Analysis(store.LoadTransactions(), store.LoadCategories(new Dictionary<string, string[]>(StringComparer.Ordinal)), store.LoadUserData());
+
+		var analysis = await AnalyseAsync();
 		var keys = analysis.Items.Select(i => i.SeriesKey).ToList();
 
 		using var dismiss = await client.PostAsJsonAsync(api, new { action = "dismiss", key = "SIGNATURE:X" });
@@ -193,7 +256,7 @@ public sealed class WebHostTests : IDisposable
 		dismiss.StatusCode.Should().Be(HttpStatusCode.OK);
 		confirmOne.StatusCode.Should().Be(HttpStatusCode.OK);
 		confirmAll.StatusCode.Should().Be(HttpStatusCode.OK);
-		var user = store.LoadUserData();
+		var user = await LoadUserDataAsync();
 		user.DismissedSuggestions.Should().Contain("SIGNATURE:X");
 		user.Payees.Keys.Should().BeEquivalentTo(keys);
 		user.Payees.Values.Should().OnlyContain(p => p.Confirmed);
@@ -207,7 +270,7 @@ public sealed class WebHostTests : IDisposable
 	[Fact]
 	public async Task PostApi_PayeeCategoryThenOnlyThisOne_PayeeRestoredTransactionSet()
 	{
-		using var client = _factory.CreateClient();
+		using var client = Factory.CreateClient();
 		var api = new Uri("/api", UriKind.Relative);
 		using var first = await client.PostAsJsonAsync(api, new { action = "payeeCategory", key = "CARD:SHOP ONE", categoryId = "bills" });
 		using var second = await client.PostAsJsonAsync(api, new { action = "payeeCategory", key = "CARD:SHOP ONE", categoryId = "cash" });
@@ -217,8 +280,8 @@ public sealed class WebHostTests : IDisposable
 
 		previous.Should().Be(new PreviousAssignment("bills", Confirmed: true));
 		onlyThis.StatusCode.Should().Be(HttpStatusCode.OK);
-		var user = _factory.Services.GetRequiredService<Store>().LoadUserData();
-		user.Payees["CARD:SHOP ONE"].CategoryId!.Value.Should().Be("bills");
+		var user = await LoadUserDataAsync();
+		user.Payees["CARD:SHOP ONE"].CategoryId.Should().Be(new CategoryId("bills"));
 		user.TxnCategories.Single().Value.Value.Should().Be("cash");
 	}
 
@@ -230,20 +293,19 @@ public sealed class WebHostTests : IDisposable
 	[Fact]
 	public async Task PostApi_MarkThenRemoveFixed_RemovedAndDismissed()
 	{
-		using var client = _factory.CreateClient();
+		using var client = Factory.CreateClient();
 		var api = new Uri("/api", UriKind.Relative);
-		var store = _factory.Services.GetRequiredService<Store>();
 
-		var analysis = new Analysis(store.LoadTransactions(), store.LoadCategories(new Dictionary<string, string[]>(StringComparer.Ordinal)), store.LoadUserData());
+		var analysis = await AnalyseAsync();
 		var seriesKey = analysis.Items.Single(i => i.T.Id.Equals(new TxnId("t1"))).SeriesKey;
 
 		using var mark = await client.PostAsJsonAsync(api, new { action = "mark", key = seriesKey });
-		var fixedPayment = store.LoadUserData().Recurring.Single();
+		var fixedPayment = (await LoadUserDataAsync()).Recurring.Single();
 		using var remove = await client.PostAsJsonAsync(api, new { action = "removeFixed", id = fixedPayment.Id.Value });
 
 		mark.StatusCode.Should().Be(HttpStatusCode.OK);
 		remove.StatusCode.Should().Be(HttpStatusCode.OK);
-		var user = store.LoadUserData();
+		var user = await LoadUserDataAsync();
 		user.Recurring.Should().BeEmpty();
 		user.DismissedSuggestions.Should().Contain(fixedPayment.Signature);
 	}
@@ -255,7 +317,7 @@ public sealed class WebHostTests : IDisposable
 	[Fact]
 	public async Task PostApi_UpdateUnknownFixedPayment_NotFound()
 	{
-		using var client = _factory.CreateClient();
+		using var client = Factory.CreateClient();
 
 		using var response = await client.PostAsJsonAsync(new Uri("/api", UriKind.Relative), new { action = "updateFixed", id = "missing", name = "Rent" });
 
@@ -270,13 +332,14 @@ public sealed class WebHostTests : IDisposable
 	[Fact]
 	public async Task PostApi_Categories_OtherProtectedAndNewOneDeletable()
 	{
-		using var client = _factory.CreateClient();
+		using var client = Factory.CreateClient();
 		var api = new Uri("/api", UriKind.Relative);
 
 		using var deleteOther = await client.PostAsJsonAsync(api, new { action = "deleteCategory", id = "other" });
 		using var save = await client.PostAsJsonAsync(api, new { action = "saveCategory", name = "Pets", type = "Expense", color = "#123456", keywords = "VET, ZOO" });
 		var created = await save.Content.ReadFromJsonAsync<CreatedCategory>();
-		using var deleteNew = await client.PostAsJsonAsync(api, new { action = "deleteCategory", id = created!.Id });
+		created.Should().NotBeNull();
+		using var deleteNew = await client.PostAsJsonAsync(api, new { action = "deleteCategory", id = created.Id });
 
 		deleteOther.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 		save.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -285,16 +348,214 @@ public sealed class WebHostTests : IDisposable
 	}
 	#endregion
 
-	#region IDisposable Implementation
-	/// <inheritdoc />
-	public void Dispose()
+	#region Sync Tests
+	/// <summary>
+	/// Verifies that after a sync the web app returns only to a page of its own: a local return path is kept, and
+	/// anything a browser could read as another site falls back to Settings.
+	/// </summary>
+	/// <param name="back">The requested return path.</param>
+	/// <param name="expected">The expected redirect.</param>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Theory]
+	[InlineData("/fixed?m=2026-11", "/fixed?m=2026-11")]
+	[InlineData("//evil.example/", "/settings")]
+	[InlineData("/\\evil.example/", "/settings")]
+	[InlineData("/\t/evil.example/", "/settings")]
+	[InlineData("https://evil.example/", "/settings")]
+	[InlineData("", "/settings")]
+	public async Task PostSync_ReturnPath_OnlyLocalKept(string back, string expected)
 	{
-		_factory.Dispose();
-		Directory.Delete(_dataDir, recursive: true);
+		using var synced = Factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+			services.AddHttpClient<BackendClient>().ConfigurePrimaryHttpMessageHandler(() => new SyncedBackendHandler())));
+		using var client = synced.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+		using var response = await client.PostAsync(new Uri("/sync?back=" + Uri.EscapeDataString(back), UriKind.Relative), content: null);
+
+		response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+		response.Headers.Location!.OriginalString.Should().Be(expected);
 	}
 	#endregion
 
+	#region Access And Export Tests
+	/// <summary>
+	/// Verifies that outside Development the web app lets in only a loopback request carrying the owner's identity:
+	/// a home-network caller sending the owner's header is refused, and so is a write from another site even from
+	/// the owner.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task Get_ProductionNonOwnerOrCrossSite_Forbidden()
+	{
+		using var production = Factory.WithWebHostBuilder(builder => builder
+			.UseEnvironment("Production")
+			.UseSetting("Backend:OwnerLogin", OwnerLogin)
+			.ConfigureTestServices(services => services.AddTransient<IStartupFilter>(_ => new RemoteAddressStartupFilter(IPAddress.Loopback))));
+		using var client = production.CreateClient();
+		using var network = production.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+			services.AddTransient<IStartupFilter>(_ => new RemoteAddressStartupFilter(IPAddress.Parse("192.168.1.20")))));
+		using var networkClient = network.CreateClient();
+		var overview = new Uri("/overview", UriKind.Relative);
+
+		using var anonymous = await client.GetAsync(overview);
+		using var stranger = await SendWithIdentityAsync(client, HttpMethod.Get, overview, "someone@example.invalid");
+		using var owner = await SendWithIdentityAsync(client, HttpMethod.Get, overview, OwnerLogin);
+		using var spoofed = await SendWithIdentityAsync(networkClient, HttpMethod.Get, overview, OwnerLogin);
+		using var crossOrigin = await SendWithIdentityAsync(client, HttpMethod.Post, new Uri("/api", UriKind.Relative), OwnerLogin,
+			request => request.Headers.Add("Origin", "https://evil.example"));
+		using var crossSite = await SendWithIdentityAsync(client, HttpMethod.Post, new Uri("/api", UriKind.Relative), OwnerLogin,
+			request => request.Headers.Add("Sec-Fetch-Site", "cross-site"));
+
+		anonymous.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+		stranger.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+		owner.StatusCode.Should().Be(HttpStatusCode.OK);
+		spoofed.StatusCode.Should().Be(HttpStatusCode.Forbidden, "only Tailscale Serve on this PC may supply the identity");
+		crossOrigin.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+		crossSite.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+	}
+
+	/// <summary>
+	/// Verifies the CSV export lists the history oldest first, with exact amounts and quoted text fields.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task GetExport_History_OldestFirstQuoted()
+	{
+		using var client = Factory.CreateClient();
+
+		var lines = (await client.GetStringAsync(new Uri("/export.csv", UriKind.Relative))).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+		lines[0].Should().Be("Date;Amount;Currency;Name;Category;Confirmed;Fixed payment;Description");
+		lines[1].Should().StartWith("2026-10-03;-12.50;EUR;").And.EndWith(";\"SHOP ONE BE1000 Bruxelles Payment with card\"");
+		lines[2].Should().StartWith("2026-11-03;2500;EUR;").And.EndWith(";\"Salary November\"");
+	}
+	#endregion
+
+	#region Private Helpers
+	/// <summary>Sends a request carrying a Tailscale identity, as Tailscale Serve would.</summary>
+	private static async Task<HttpResponseMessage> SendWithIdentityAsync(HttpClient client, HttpMethod method, Uri path, string identity,
+		Action<HttpRequestMessage>? configure = null)
+	{
+		using var request = new HttpRequestMessage(method, path);
+		request.Headers.Add("Tailscale-User-Login", identity);
+		if (method == HttpMethod.Post)
+		{
+			request.Content = new StringContent("""{"action":"dismiss","key":"SIGNATURE:CROSS"}""", System.Text.Encoding.UTF8, "application/json");
+		}
+
+		configure?.Invoke(request);
+		return await client.SendAsync(request).ConfigureAwait(false);
+	}
+
+	/// <summary>Reads the centrally stored user decisions through a fresh database scope.</summary>
+	private Task<UserData> LoadUserDataAsync() => ReadAsync(db => db.UserData.AsNoTracking().SingleAsync());
+
+	/// <summary>Builds the same analysis as the backend for selecting test action targets.</summary>
+	private async Task<Analysis> AnalyseAsync()
+	{
+		var transactions = await ReadAsync(db => db.Transactions.AsNoTracking().ToListAsync()).ConfigureAwait(false);
+		var categories = await ReadAsync(db => db.Categories.AsNoTracking().ToListAsync()).ConfigureAwait(false);
+		return new Analysis(transactions, categories, await LoadUserDataAsync().ConfigureAwait(false));
+	}
+
+	/// <summary>Replaces a test consent while retaining EF concurrency metadata.</summary>
+	private Task SaveSessionAsync(SessionInfo session) => ChangeAsync(async db =>
+	{
+		var existing = await db.BankSessions.SingleOrDefaultAsync().ConfigureAwait(false);
+		if (existing is null)
+		{
+			db.BankSessions.Add(session);
+		}
+		else
+		{
+			db.Entry(existing).CurrentValues.SetValues(session);
+		}
+	});
+
+	/// <summary>Persists test setup in its own scope rather than sharing request change trackers.</summary>
+	private async Task ChangeAsync(Func<KbcTrackerDbContext, Task> change)
+	{
+		var scope = Api.Services.CreateAsyncScope();
+		await using (scope.ConfigureAwait(false))
+		{
+			var db = scope.ServiceProvider.GetRequiredService<KbcTrackerDbContext>();
+			await change(db).ConfigureAwait(false);
+			await db.SaveChangesAsync().ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>Reads durable results independently of the requests that wrote them.</summary>
+	private async Task<T> ReadAsync<T>(Func<KbcTrackerDbContext, Task<T>> read)
+	{
+		var scope = Api.Services.CreateAsyncScope();
+		await using (scope.ConfigureAwait(false))
+		{
+			return await read(scope.ServiceProvider.GetRequiredService<KbcTrackerDbContext>()).ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	/// A transaction of the test account without bank JSON, as older histories hold.
+	/// </summary>
+	private static Txn Txn(string id, DateOnly date, decimal amount, string counterparty, string description) =>
+		Domain.Features.Transactions.Aggregates.Txn.Rehydrate(new TxnId(id), "acc-1", date, Money.Rehydrate(amount, "EUR"),
+			Counterparty.Rehydrate(counterparty, null), description, BankRecord.None);
+	#endregion
+
 	#region Nested Types
+	/// <summary>
+	/// Author      : Gihed Annabi
+	/// Date        : 11-2026
+	/// Purpose     : Sets the caller's address, which TestServer does not otherwise populate: loopback models Tailscale
+	///              Serve on this PC, another address a caller on the home network.
+	/// </summary>
+	/// <param name="address">The caller's address.</param>
+	private sealed class RemoteAddressStartupFilter(IPAddress address) : IStartupFilter
+	{
+		#region IStartupFilter Implementation
+		/// <inheritdoc />
+		public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+		{
+			app.Use(async (context, continuation) =>
+			{
+				context.Connection.RemoteIpAddress = address;
+				await continuation(context).ConfigureAwait(false);
+			});
+			next(app);
+		};
+		#endregion
+	}
+
+	/// <summary>
+	/// Author      : Gihed Annabi
+	/// Date        : 11-2026
+	/// Purpose     : Answers every request as a successful sync, so the web app's redirect is what is tested.
+	/// </summary>
+	private sealed class SyncedBackendHandler : HttpMessageHandler
+	{
+		#region Overrides
+		/// <inheritdoc />
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+			Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+			{
+				Content = new StringContent("""{"added":0}""", System.Text.Encoding.UTF8, "application/json"),
+			});
+		#endregion
+	}
+
+	/// <summary>
+	/// Author      : Gihed Annabi
+	/// Date        : 11-2026
+	/// Purpose     : Reproduces an unreachable API without relying on a real network or port race.
+	/// </summary>
+	private sealed class UnavailableBackendHandler : HttpMessageHandler
+	{
+		#region Overrides
+		/// <inheritdoc />
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+			Task.FromException<HttpResponseMessage>(new HttpRequestException("private transport details"));
+		#endregion
+	}
+
 	/// <summary>
 	/// Author      : Gihed Annabi
 	/// Date        : 11-2026
@@ -311,14 +572,5 @@ public sealed class WebHostTests : IDisposable
 	/// <param name="CategoryId">The previous category id.</param>
 	/// <param name="Confirmed">Whether it was confirmed.</param>
 	private sealed record PreviousAssignment(string? CategoryId, bool Confirmed);
-	#endregion
-
-	#region Private Helpers
-	/// <summary>
-	/// A transaction of the test account without bank JSON, as older histories hold.
-	/// </summary>
-	private static Txn Txn(string id, DateOnly date, decimal amount, string counterparty, string description) =>
-		Domain.Features.Transactions.Aggregates.Txn.Rehydrate(new TxnId(id), "acc-1", date, Money.Rehydrate(amount, "EUR"),
-			Counterparty.Rehydrate(counterparty, null), description, BankRecord.None);
 	#endregion
 }

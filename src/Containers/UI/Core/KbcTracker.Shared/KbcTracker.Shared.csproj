@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    What the user interfaces share (ADR-0004): the typed client of the backend's API. It references the application
+    project only for the API contracts, never for storage or the bank. Build settings come from Directory.Build.props.
+  -->
+  <PropertyGroup>
+    <RootNamespace>KbcTracker.Shared</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../../Core/KbcTracker.Application/KbcTracker.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="KbcTracker.Shared.Features.Backend" />
+  </ItemGroup>
+
+</Project>

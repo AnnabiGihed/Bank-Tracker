@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Containers\API\KbcTracker.ApiService\KbcTracker.ApiService.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="KbcTracker.ApiService.Tests.Features.BankConnection" />
+    <Using Include="KbcTracker.ApiService.Tests.Features.Shared" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\..\docs\api\openapi.json" Link="Contracts\openapi.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

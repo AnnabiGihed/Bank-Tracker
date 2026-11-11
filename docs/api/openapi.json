@@ -1,0 +1,1355 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "KbcTracker backend",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/v1/transactions": {
+      "get": {
+        "tags": [
+          "Backend"
+        ],
+        "summary": "Reads a bounded page of permanent transaction history.",
+        "operationId": "listTransactions",
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "description": "The row offset, not negative.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "take",
+            "in": "query",
+            "description": "The page size, between 1 and 500.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TransactionSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/categories": {
+      "get": {
+        "tags": [
+          "Backend"
+        ],
+        "summary": "Reads the central category definitions.",
+        "operationId": "listCategories",
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategorySummary"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connection": {
+      "get": {
+        "tags": [
+          "Backend"
+        ],
+        "summary": "Reads consent and sync status without exposing bank credentials or raw errors.",
+        "operationId": "getConnection",
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionStatus"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sync": {
+      "post": {
+        "tags": [
+          "Backend"
+        ],
+        "summary": "Runs a bank sync, requesting full history when selected or when history is empty.",
+        "operationId": "syncBank",
+        "parameters": [
+          {
+            "name": "full",
+            "in": "query",
+            "description": "Whether to request the longest available history.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncSummary"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Backend"
+        ],
+        "summary": "Reports process health without querying PostgreSQL or revealing configuration.",
+        "operationId": "getHealth",
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/banks": {
+      "get": {
+        "tags": [
+          "BankConsent"
+        ],
+        "summary": "Lists the available bank identities.",
+        "operationId": "listBanks",
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BankDefinition"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/consent": {
+      "post": {
+        "tags": [
+          "BankConsent"
+        ],
+        "summary": "Starts an owner-bound read-only bank consent request.",
+        "operationId": "beginConsent",
+        "parameters": [
+          {
+            "name": "Tailscale-User-Login",
+            "in": "header",
+            "description": "The proxy identity already checked by the access middleware.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The bank selected from the catalogue.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginConsentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/consent/callback": {
+      "get": {
+        "tags": [
+          "BankConsent"
+        ],
+        "summary": "Consumes a consent redirect and persists the resulting connection without disclosing credentials.",
+        "operationId": "completeConsent",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "description": "The one-use bank code, if consent succeeded.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "The owner-bound request state.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "description": "A provider failure marker, never echoed in the response.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Tailscale-User-Login",
+            "in": "header",
+            "description": "The proxy identity already checked by the access middleware.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspace": {
+      "get": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Reads the backend's computed workspace without exposing bank source records or credentials.",
+        "operationId": "getWorkspace",
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSnapshot"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/decisions": {
+      "post": {
+        "tags": [
+          "Workspace"
+        ],
+        "summary": "Applies a tracker decision and commits all affected category and user rows atomically.",
+        "operationId": "applyDecision",
+        "requestBody": {
+          "description": "The decision fields.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnalysisSnapshot": {
+        "required": [
+          "availableMonths",
+          "categories",
+          "fixed",
+          "holderName",
+          "items",
+          "months",
+          "review",
+          "suggestions",
+          "today"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionAnalysisSnapshot"
+            }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategorySnapshot"
+            }
+          },
+          "fixed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FixedPaymentSnapshot"
+            }
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestionSnapshot"
+            }
+          },
+          "review": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewSnapshot"
+            }
+          },
+          "months": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MonthSummary"
+            }
+          },
+          "availableMonths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "holderName": {
+            "type": "string"
+          },
+          "today": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BankDefinition": {
+        "required": [
+          "country",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BeginConsentRequest": {
+        "required": [
+          "country",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CategorySnapshot": {
+        "required": [
+          "builtIn",
+          "color",
+          "id",
+          "keywords",
+          "name",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/CategoryType"
+          },
+          "color": {
+            "type": "string"
+          },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "builtIn": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CategorySummary": {
+        "required": [
+          "color",
+          "id",
+          "keywords",
+          "name",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "CategoryType": {
+        "enum": [
+          "Expense",
+          "Income",
+          "Savings",
+          "Transfer"
+        ],
+        "type": "string"
+      },
+      "ConnectionStatus": {
+        "required": [
+          "connected",
+          "skippedTransactions",
+          "syncFailed"
+        ],
+        "type": "object",
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "validUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastSync": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "skippedTransactions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "syncFailed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConsentStarted": {
+        "required": [
+          "authorizationUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "authorizationUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DecisionRequest": {
+        "required": [
+          "action"
+        ],
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "keywords": {
+            "type": "string",
+            "nullable": true
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "cadence": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "restore": {
+            "$ref": "#/components/schemas/PayeeAssignmentSnapshot"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DecisionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "previousAssignment": {
+            "$ref": "#/components/schemas/PayeeAssignmentSnapshot"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FixedPaymentSnapshot": {
+        "required": [
+          "categoryId",
+          "definition",
+          "transactionIds"
+        ],
+        "type": "object",
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/RecurringPaymentSnapshot"
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "transactionIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Kind": {
+        "enum": [
+          "Card",
+          "DirectDebit",
+          "Loan",
+          "SavingsPlan",
+          "BankFee",
+          "Transfer",
+          "OwnTransferOut",
+          "SpareChange",
+          "CashWithdrawal",
+          "Income",
+          "OwnTransferIn",
+          "LoanReceived",
+          "CashDeposit",
+          "Refund",
+          "Other"
+        ],
+        "type": "string"
+      },
+      "MonthSummary": {
+        "required": [
+          "byCategory",
+          "fixed",
+          "income",
+          "month",
+          "net",
+          "saved",
+          "spent",
+          "variable"
+        ],
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string"
+          },
+          "income": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "fixed": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "variable": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "saved": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "byCategory": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number",
+              "format": "decimal"
+            }
+          },
+          "spent": {
+            "type": "number",
+            "format": "decimal",
+            "readOnly": true
+          },
+          "net": {
+            "type": "number",
+            "format": "decimal",
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PayeeAssignmentSnapshot": {
+        "required": [
+          "confirmed"
+        ],
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "nullable": true
+          },
+          "confirmed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "RecurringPaymentSnapshot": {
+        "required": [
+          "active",
+          "amount",
+          "cadenceDays",
+          "createdAt",
+          "id",
+          "name",
+          "seriesKeys",
+          "tokens",
+          "tolerancePct"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "categoryId": {
+            "type": "string",
+            "nullable": true
+          },
+          "seriesKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "tolerancePct": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "cadenceDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReviewSnapshot": {
+        "required": [
+          "categoryId",
+          "count",
+          "incoming",
+          "last",
+          "name",
+          "sample",
+          "seriesKey",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "seriesKey": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "last": {
+            "type": "string",
+            "format": "date"
+          },
+          "incoming": {
+            "type": "boolean"
+          },
+          "sample": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SuggestionSnapshot": {
+        "required": [
+          "amount",
+          "cadenceDays",
+          "categoryId",
+          "highConfidence",
+          "kind",
+          "name",
+          "reason",
+          "seriesKeys",
+          "signature",
+          "tokens",
+          "transactionIds"
+        ],
+        "type": "object",
+        "properties": {
+          "signature": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "cadenceDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "highConfidence": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "transactionIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "seriesKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Kind"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SyncSummary": {
+        "required": [
+          "added"
+        ],
+        "type": "object",
+        "properties": {
+          "added": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TransactionAnalysisSnapshot": {
+        "required": [
+          "amount",
+          "categoryConfirmed",
+          "categoryId",
+          "counterparty",
+          "currency",
+          "date",
+          "description",
+          "id",
+          "kind",
+          "name",
+          "seriesKey",
+          "tokens"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "counterparty": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Kind"
+          },
+          "seriesKey": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "categoryConfirmed": {
+            "type": "boolean"
+          },
+          "recurringId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TransactionSummary": {
+        "required": [
+          "amount",
+          "currency",
+          "date",
+          "description",
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkspaceSnapshot": {
+        "required": [
+          "accountCount",
+          "analysis",
+          "connection"
+        ],
+        "type": "object",
+        "properties": {
+          "analysis": {
+            "$ref": "#/components/schemas/AnalysisSnapshot"
+          },
+          "connection": {
+            "$ref": "#/components/schemas/ConnectionStatus"
+          },
+          "accountCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Backend"
+    },
+    {
+      "name": "BankConsent"
+    },
+    {
+      "name": "Workspace"
+    }
+  ]
+}

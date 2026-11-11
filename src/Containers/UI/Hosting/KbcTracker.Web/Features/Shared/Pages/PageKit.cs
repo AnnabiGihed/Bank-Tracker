@@ -117,7 +117,7 @@ internal static class PageKit
 			sb.Append(newer is null ? "<a style='opacity:.3'>›</a>" : $"<a href='?m={newer}' title='Next month'>›</a>");
 			sb.Append("</div>");
 		}
-		sb.Append(s is null ? "<a class=btn href=/banks>Connect bank</a>" : $"<a class=btn href='/sync?back=/{tab}?m={month}'>↻ Sync</a>");
+		sb.Append(s is null ? "<a class=btn href=/banks>Connect bank</a>" : $"<form method=post action='/sync?back=/{tab}?m={month}'><button class=btn>↻ Sync</button></form>");
 		sb.Append("</div><nav>");
 		var tabs = new (string Id, string Label, int Badge)[]
 		{
@@ -193,7 +193,7 @@ internal static class PageKit
 		}
 		else if (s is { SkippedTransactions: > 0 })
 		{
-			sb.Append(CultureInfo.InvariantCulture, $"<div class='notice err'><span><b>Sync:</b> {s.SkippedTransactions} transaction(s) from the bank could not be read and were left out.</span><a class='btn sm' href='/sync?full=true&back=/settings'>Sync all again</a></div>");
+			sb.Append(CultureInfo.InvariantCulture, $"<div class='notice err'><span><b>Sync:</b> {s.SkippedTransactions} transaction(s) from the bank could not be read and were left out.</span><form method=post action='/sync?full=true&back=/settings'><button class='btn sm'>Sync all again</button></form></div>");
 		}
 	}
 	#endregion

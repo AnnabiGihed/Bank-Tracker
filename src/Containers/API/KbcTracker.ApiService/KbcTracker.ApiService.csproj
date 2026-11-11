@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>KbcTracker.ApiService</RootNamespace>
+    <UserSecretsId>kbctracker-api-development</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Pivot.Framework.Containers.API" />
+    <ProjectReference Include="..\..\..\Core\KbcTracker.Application\KbcTracker.Application.csproj" />
+    <ProjectReference Include="..\..\..\Infrastructure\KbcTracker.Infrastructure\KbcTracker.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\Infrastructure\KbcTracker.Persistence.EntityFrameworkCore\KbcTracker.Persistence.EntityFrameworkCore.csproj" />
+  </ItemGroup>
+</Project>

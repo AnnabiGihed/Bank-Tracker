@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests of KbcTracker.Shared. Test packages and settings come from test/Directory.Build.props. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\..\src\Containers\UI\Core\KbcTracker.Shared\KbcTracker.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Feature namespaces used across the project">
+    <Using Include="KbcTracker.Shared.Features.Backend" />
+  </ItemGroup>
+
+</Project>

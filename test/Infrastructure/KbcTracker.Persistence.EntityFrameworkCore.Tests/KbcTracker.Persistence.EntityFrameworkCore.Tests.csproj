@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests of KbcTracker.Persistence.EntityFrameworkCore against a real PostgreSQL started by Testcontainers
+       (Docker required). Test packages and settings come from test/Directory.Build.props. -->
+  <ItemGroup>
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Infrastructure\KbcTracker.Persistence.EntityFrameworkCore\KbcTracker.Persistence.EntityFrameworkCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Feature namespaces used across the project">
+    <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.FixedPayments.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.ValueObjects" />
+    <Using Include="KbcTracker.Persistence.EntityFrameworkCore.Features.Shared" />
+    <Using Include="KbcTracker.Persistence.EntityFrameworkCore.Tests.Features.Shared" />
+    <Using Include="Microsoft.EntityFrameworkCore" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+</Project>

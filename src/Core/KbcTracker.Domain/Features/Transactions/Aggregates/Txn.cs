@@ -16,50 +16,63 @@ public sealed class Txn : LightweightAggregateRoot<TxnId>
 	/// <summary>
 	/// Gets the Enable Banking account the transaction belongs to.
 	/// </summary>
-	public string AccountUid { get; }
+	public string AccountUid { get; private set; }
 
 	/// <summary>
 	/// Gets the booking date (or value or transaction date when the bank sends no booking date).
 	/// </summary>
-	public DateOnly Date { get; }
+	public DateOnly Date { get; private set; }
 
 	/// <summary>
 	/// Gets the amount: negative for money out, positive for money in.
 	/// </summary>
-	public decimal Amount { get; }
+	public decimal Amount { get; private set; }
 
 	/// <summary>
 	/// Gets the ISO 4217 currency code, usually <c>EUR</c>.
 	/// </summary>
-	public string Currency { get; }
+	public string Currency { get; private set; }
 
 	/// <summary>
 	/// Gets the other party's name, or the start of the description when the bank sends no name.
 	/// </summary>
-	public string Counterparty { get; }
+	public string Counterparty { get; private set; }
 
 	/// <summary>
 	/// Gets the remittance information joined with the note, additional information and reference.
 	/// </summary>
-	public string Description { get; }
+	public string Description { get; private set; }
 
 	/// <summary>
 	/// Gets the other party's IBAN without spaces, when known.
 	/// </summary>
-	public string? CounterpartyIban { get; }
+	public string? CounterpartyIban { get; private set; }
 
 	/// <summary>
 	/// Gets the domain of the ISO bank transaction code (for example <c>PMNT</c>), when sent.
 	/// </summary>
-	public string? BankCode { get; }
+	public string? BankCode { get; private set; }
 
 	/// <summary>
 	/// Gets the original JSON from the bank.
 	/// </summary>
-	public string? Raw { get; }
+	public string? Raw { get; private set; }
 	#endregion
 
 	#region Constructors
+	/// <summary>
+	/// Constructor used by EF Core to materialise a stored transaction; the persistence layer then sets its values. Domain
+	/// code creates instances only through the factory methods. It is <see langword="internal"/> rather than private
+	/// because the analyzers report an unused private constructor (S1144) without seeing EF Core's reflection.
+	/// </summary>
+	internal Txn()
+	{
+		AccountUid = "";
+		Currency = "";
+		Counterparty = "";
+		Description = "";
+	}
+
 	/// <summary>
 	/// Initialises a new <see cref="Txn"/> from already valid parts.
 	/// </summary>

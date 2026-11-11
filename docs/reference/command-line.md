@@ -6,29 +6,30 @@ Run these commands from the repository folder.
 | --- | --- |
 | `dotnet build` | Builds the solution (`KbcTracker.slnx`). |
 | `dotnet test` | Runs the tests. |
-| `dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web` | Starts the web app at <https://localhost:5001>. |
-| `dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web -- --sync` | Syncs once and exits. |
-| `dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web -- --AutoSyncHours=0` | Starts the web app with automatic syncs off; any setting can be given this way. |
+| `dotnet run --project src/Containers/API/KbcTracker.ApiService` | Starts the backend at <http://127.0.0.1:5080>. |
+| `dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web` | Starts the web app at <https://localhost:5001>. Start the backend first. |
+| `dotnet run --project src/Containers/API/KbcTracker.ApiService -- --AutoSyncHours=0` | Starts the backend with automatic syncs off; any setting can be given this way. |
 
-## Sync mode
+## Backend maintenance commands
 
-With `--sync`, the app syncs every connected account once and exits:
+Each command runs once and exits without starting the API. Give one command at a time, after `--`, for example
+`dotnet run --project src/Containers/API/KbcTracker.ApiService -- --migrate`.
 
-| Outcome | Output | Exit code |
-| --- | --- | --- |
-| Success | `OK, <n> new transactions`, followed by `, <k> could not be read and were left out` when some were | 0 |
-| Failure | The error message | 1 |
-| Transactions stored, but the sync result could not be saved | `<n> new transactions stored, but: <error>` | 1 |
+| Command | Effect |
+| --- | --- |
+| `--migrate` | Applies the database migrations. Normal startup never migrates. |
+| `--import-json <folder>` | Imports a JSON data folder of an older version: transactions, categories, your decisions and the bank connection. The folder is only read. Refused when the database already holds data. |
+| `--initialize` | Starts with no history: the default categories (from the `Categories` setting) and no decisions. Refused when the database already holds data. |
+| `--sync` | Syncs every connected account once. |
 
-The daily scheduled task runs the published app this way: `dotnet KbcTracker.Web.dll --sync`, from
-`%LOCALAPPDATA%\KbcTracker\app`.
+Until you run `--import-json` or `--initialize`, the backend refuses decisions and new bank connections with
+`409 Conflict`, so that the import stays possible.
 
-## Install script
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Done. `--sync` prints `Sync completed: <n> new transactions.` |
+| 1 | The command failed or was refused; the message says why. Nothing was half-imported. |
+| 2 | The arguments were not one of the commands above. |
 
-`scripts/install-daily-sync.ps1` installs the daily sync.
-
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| `-Time` | `12:40` | The time of the daily sync, as `HH:mm`. |
-| `-WhatIf` | off | Shows what the script would do, without changing anything. |
-| `-Confirm` | off | Asks before each step. |
+The web app has no commands of its own. Its former `--sync` option now exits with code 2 and points to the
+backend's `--sync`.

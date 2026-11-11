@@ -41,11 +41,12 @@ public sealed class EnableBankingClient
 	/// <summary>
 	/// Lists the banks available in the configured country.
 	/// </summary>
+	/// <param name="cancellationToken">Cancels the provider request.</param>
 	/// <returns>The name and country of each bank; the UI filters for KBC.</returns>
 	/// <exception cref="InvalidOperationException">The API answered with an error status.</exception>
-	public async Task<IReadOnlyList<(string Name, string Country)>> GetBanksAsync()
+	public async Task<IReadOnlyList<(string Name, string Country)>> GetBanksAsync(CancellationToken cancellationToken = default)
 	{
-		var json = await SendAsync(HttpMethod.Get, $"/aspsps?country={_options.Country}").ConfigureAwait(false);
+		var json = await SendAsync(HttpMethod.Get, $"/aspsps?country={_options.Country}", cancellationToken: cancellationToken).ConfigureAwait(false);
 		return json["aspsps"]!.AsArray()
 			.Select(bank => (bank!["name"]!.GetValue<string>(), bank["country"]!.GetValue<string>()))
 			.ToList();
@@ -57,9 +58,10 @@ public sealed class EnableBankingClient
 	/// <param name="bankName">The bank's name as returned by <see cref="GetBanksAsync"/>.</param>
 	/// <param name="country">The bank's country.</param>
 	/// <param name="state">A random value echoed back on the redirect, to tie it to this request.</param>
+	/// <param name="cancellationToken">Cancels the provider request.</param>
 	/// <returns>The URL where the user logs in at the bank (itsme or card reader).</returns>
 	/// <exception cref="InvalidOperationException">The API answered with an error status.</exception>
-	public async Task<string> StartAuthAsync(string bankName, string country, string state)
+	public async Task<string> StartAuthAsync(string bankName, string country, string state, CancellationToken cancellationToken = default)
 	{
 		var body = new
 		{
@@ -69,7 +71,7 @@ public sealed class EnableBankingClient
 			redirect_url = _options.RedirectUrl,
 			psu_type = "personal",
 		};
-		var json = await SendAsync(HttpMethod.Post, "/auth", body).ConfigureAwait(false);
+		var json = await SendAsync(HttpMethod.Post, "/auth", body, cancellationToken).ConfigureAwait(false);
 		return json["url"]!.GetValue<string>();
 	}
 
@@ -77,11 +79,12 @@ public sealed class EnableBankingClient
 	/// Exchanges the code from the consent redirect for a session.
 	/// </summary>
 	/// <param name="code">The <c>code</c> query parameter of the redirect.</param>
+	/// <param name="cancellationToken">Cancels the provider request.</param>
 	/// <returns>The session id, the ids of the accounts the user gave access to, and the raw response.</returns>
 	/// <exception cref="InvalidOperationException">The API answered with an error status.</exception>
-	public async Task<(string SessionId, IList<string> AccountUids, JsonNode Raw)> CreateSessionAsync(string code)
+	public async Task<(string SessionId, IList<string> AccountUids, JsonNode Raw)> CreateSessionAsync(string code, CancellationToken cancellationToken = default)
 	{
-		var json = await SendAsync(HttpMethod.Post, "/sessions", new { code }).ConfigureAwait(false);
+		var json = await SendAsync(HttpMethod.Post, "/sessions", new { code }, cancellationToken).ConfigureAwait(false);
 		var sessionId = json["session_id"]?.GetValue<string>() ?? "";
 		var uids = json["accounts"]!.AsArray()
 			.Select(account => account is JsonValue value ? value.GetValue<string>() : account!["uid"]!.GetValue<string>())
@@ -175,9 +178,14 @@ public sealed class EnableBankingClient
 	/// <summary>
 	/// Sends an authenticated request and parses the JSON response.
 	/// </summary>
+	/// <param name="method">The HTTP method.</param>
+	/// <param name="path">The path relative to the API base address, with its query.</param>
+	/// <param name="body">The JSON body, or <see langword="null"/> for none.</param>
+	/// <param name="cancellationToken">Cancels the provider request.</param>
+	/// <returns>The parsed response.</returns>
 	/// <exception cref="InvalidOperationException">The API answered with an error status; the message holds the
 	/// method, path, status and response body.</exception>
-	private async Task<JsonNode> SendAsync(HttpMethod method, string path, object? body = null)
+	private async Task<JsonNode> SendAsync(HttpMethod method, string path, object? body = null, CancellationToken cancellationToken = default)
 	{
 		using var request = new HttpRequestMessage(method, new Uri(_options.BaseUrl, path));
 		request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", CreateJwt());
@@ -186,8 +194,8 @@ public sealed class EnableBankingClient
 			request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
 		}
 
-		using var response = await _http.SendAsync(request).ConfigureAwait(false);
-		var text = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+		using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+		var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 		if (!response.IsSuccessStatusCode)
 		{
 			throw new InvalidOperationException($"Enable Banking {method} {path} failed ({(int)response.StatusCode}): {text}");

@@ -1,7 +1,13 @@
 <Solution>
   <Folder Name="/src/" />
   <Folder Name="/src/Containers/" />
+  <Folder Name="/src/Containers/API/">
+    <Project Path="src/Containers/API/KbcTracker.ApiService/KbcTracker.ApiService.csproj" />
+  </Folder>
   <Folder Name="/src/Containers/UI/" />
+  <Folder Name="/src/Containers/UI/Core/">
+    <Project Path="src/Containers/UI/Core/KbcTracker.Shared/KbcTracker.Shared.csproj" />
+  </Folder>
   <Folder Name="/src/Containers/UI/Hosting/">
     <Project Path="src/Containers/UI/Hosting/KbcTracker.Web/KbcTracker.Web.csproj" />
   </Folder>
@@ -11,11 +17,15 @@
   </Folder>
   <Folder Name="/src/Infrastructure/">
     <Project Path="src/Infrastructure/KbcTracker.Infrastructure/KbcTracker.Infrastructure.csproj" />
+    <Project Path="src/Infrastructure/KbcTracker.Persistence.EntityFrameworkCore/KbcTracker.Persistence.EntityFrameworkCore.csproj" />
   </Folder>
   <Folder Name="/test/Containers/" />
+  <Folder Name="/test/Containers/API/">
+    <Project Path="test/Containers/API/KbcTracker.ApiService.Tests/KbcTracker.ApiService.Tests.csproj" />
+  </Folder>
   <Folder Name="/test/Containers/UI/" />
-  <Folder Name="/test/Containers/UI/Hosting/">
-    <Project Path="test/Containers/UI/Hosting/KbcTracker.Web.Tests/KbcTracker.Web.Tests.csproj" />
+  <Folder Name="/test/Containers/UI/Core/">
+    <Project Path="test/Containers/UI/Core/KbcTracker.Shared.Tests/KbcTracker.Shared.Tests.csproj" />
   </Folder>
   <Folder Name="/test/Core/">
     <Project Path="test/Core/KbcTracker.Domain.Tests/KbcTracker.Domain.Tests.csproj" />
@@ -23,6 +33,7 @@
   </Folder>
   <Folder Name="/test/Infrastructure/">
     <Project Path="test/Infrastructure/KbcTracker.Infrastructure.Tests/KbcTracker.Infrastructure.Tests.csproj" />
+    <Project Path="test/Infrastructure/KbcTracker.Persistence.EntityFrameworkCore.Tests/KbcTracker.Persistence.EntityFrameworkCore.Tests.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/KbcTracker.E2E.Tests/KbcTracker.E2E.Tests.csproj" />

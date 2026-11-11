@@ -1,0 +1,34 @@
+using System.Globalization;
+using System.Text;
+
+namespace KbcTracker.Web.Features.Shared.Api;
+
+/// <summary>
+/// Author      : Gihed Annabi
+/// Date        : 11-2026
+/// Purpose     : Exports the backend's classified workspace without reading local history files.
+/// </summary>
+public static class CsvExport
+{
+	#region Public Methods
+	/// <summary>Writes permanent history as semicolon-separated values, oldest first.</summary>
+	/// <param name="analysis">The workspace received from the backend.</param>
+	/// <returns>The CSV document.</returns>
+	public static string Write(Analysis analysis)
+	{
+		var csv = new StringBuilder("Date;Amount;Currency;Name;Category;Confirmed;Fixed payment;Description\n");
+		foreach (var item in analysis.Items.OrderBy(i => i.T.Date))
+		{
+			csv.Append(CultureInfo.InvariantCulture,
+				$"{item.T.Date:yyyy-MM-dd};{item.T.Amount};{item.T.Currency};{Quote(item.Name)};{Quote(item.Category.Name)};{(item.CategoryConfirmed ? "yes" : "")};{Quote(item.Recurring?.Name ?? "")};{Quote(item.T.Description)}\n");
+		}
+
+		return csv.ToString();
+	}
+	#endregion
+
+	#region Private Helpers
+	/// <summary>Escapes embedded quotes in a spreadsheet field.</summary>
+	private static string Quote(string text) => "\"" + text.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+	#endregion
+}
