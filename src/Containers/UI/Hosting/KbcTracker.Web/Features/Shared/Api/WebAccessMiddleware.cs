@@ -48,7 +48,11 @@ public sealed class WebAccessMiddleware(RequestDelegate next, IWebHostEnvironmen
 	#endregion
 
 	#region Private Helpers
-	/// <summary>Protects mutations while allowing the state-validated bank callback navigation.</summary>
+	/// <summary>Protects mutations while allowing the state-validated bank callback navigation. A browser's
+	/// <c>Sec-Fetch-Site</c> decides when present: only this site's own pages (<c>same-origin</c>) or the owner typing
+	/// the address (<c>none</c>) may write. <c>Origin</c> is not enough on its own: the pages send
+	/// <c>Referrer-Policy: no-referrer</c>, under which browsers send <c>Origin: null</c> for the app's own form posts.
+	/// Clients without <c>Sec-Fetch-Site</c> fall back to the <c>Origin</c> check.</summary>
 	private static bool IsCrossOriginWrite(HttpRequest request)
 	{
 		if (HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method) || HttpMethods.IsOptions(request.Method))
@@ -56,10 +60,15 @@ public sealed class WebAccessMiddleware(RequestDelegate next, IWebHostEnvironmen
 			return false;
 		}
 
+		var site = request.Headers["Sec-Fetch-Site"].ToString();
+		if (!string.IsNullOrEmpty(site))
+		{
+			return !(string.Equals(site, "same-origin", StringComparison.OrdinalIgnoreCase) || string.Equals(site, "none", StringComparison.OrdinalIgnoreCase));
+		}
+
 		var origin = request.Headers.Origin.ToString();
-		return string.Equals(request.Headers["Sec-Fetch-Site"].ToString(), "cross-site", StringComparison.OrdinalIgnoreCase)
-			|| (!string.IsNullOrEmpty(origin) && (!Uri.TryCreate(origin, UriKind.Absolute, out var address)
-				|| !string.Equals(address.Authority, request.Host.Value, StringComparison.OrdinalIgnoreCase)));
+		return !string.IsNullOrEmpty(origin) && (!Uri.TryCreate(origin, UriKind.Absolute, out var address)
+			|| !string.Equals(address.Authority, request.Host.Value, StringComparison.OrdinalIgnoreCase));
 	}
 	#endregion
 }
