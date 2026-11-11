@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests of the Aspire AppHost's resource graph (ADR-0005). They build the model only and start nothing, so they need
+       neither Docker nor the dashboard. Test packages and settings come from test/Directory.Build.props. -->
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Testing" />
+    <ProjectReference Include="..\..\..\..\..\src\Containers\Aspire\Hosting\KbcTracker.AppHost\KbcTracker.AppHost.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Aspire.Hosting" />
+    <Using Include="Aspire.Hosting.ApplicationModel" />
+    <Using Include="Aspire.Hosting.Testing" />
+  </ItemGroup>
+
+</Project>

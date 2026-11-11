@@ -11,6 +11,7 @@ using KbcTracker.Application.Features.Transactions.Queries;
 using KbcTracker.Infrastructure.Features.BankConnection;
 using KbcTracker.Persistence.EntityFrameworkCore.Features.BankConnection;
 using KbcTracker.Persistence.EntityFrameworkCore.Features.Shared;
+using KbcTracker.ServiceDefaults.Features.Telemetry;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
@@ -46,6 +47,7 @@ public sealed class Program
 	{
 		var administrative = BackendAdministration.IsRequested(args);
 		var builder = WebApplication.CreateBuilder(administrative ? [] : args);
+		builder.AddServiceDefaults();
 		builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, builder.Configuration.GetValue("BackendPort", DefaultPort)));
 		ConfigureServices(builder);
 		var app = builder.Build();

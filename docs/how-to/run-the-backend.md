@@ -2,11 +2,56 @@
 
 The backend holds your history and decisions in PostgreSQL, owns the Enable Banking key and the sync, and serves
 the API the web app uses ([ADR-0004](../adr/0004-serve-both-apps-from-one-postgresql-backend-and-api.md)).
-You need the .NET 10 SDK, a PostgreSQL database, and the private-feed credentials described in the root README.
+You need the .NET 10 SDK and the private-feed credentials described in the root README.
 
-Set it up in this order: configure, migrate, import or initialise, start the backend, start the web app.
+There are two ways to run it. The Aspire AppHost starts everything at once and is the recommended one; the manual
+way below runs each program yourself against a PostgreSQL server you provide.
 
-## Configure
+## Run everything with Aspire
+
+The AppHost starts PostgreSQL in Docker, applies the migrations, then starts the backend and the web app
+([ADR-0005](../adr/0005-run-the-app-on-the-pc-with-aspire.md)). You also need Docker running.
+
+1. Store the Enable Banking settings in the backend's user secrets, once. The AppHost provides the database, so
+   skip the connection string:
+
+   ```powershell
+   $project = 'src/Containers/API/KbcTracker.ApiService'
+   dotnet user-secrets set "EnableBanking:ApplicationId" "<application-id>" --project $project
+   dotnet user-secrets set "EnableBanking:PrivateKeyPath" "<full-path-of-the-pem-file>" --project $project
+   ```
+
+1. Trust the local HTTPS certificate, once, then start the AppHost:
+
+   ```powershell
+   dotnet dev-certs https --trust
+   dotnet run --project src/Containers/Aspire/Hosting/KbcTracker.AppHost
+   ```
+
+   In Visual Studio, set `KbcTracker.AppHost` as the startup project with its `https` profile and press F5.
+
+1. The Aspire dashboard opens at <https://localhost:17180>. Wait until `migrate` shows **Finished** and `api` and
+   `web` show **Running**. The first run downloads the PostgreSQL image. If `api` stays **Waiting**, open the
+   console log of `migrate`: a failed migration keeps the backend from starting until it is fixed.
+1. The first time only, fill the new database from the dashboard: start `import-json` to import your old JSON data
+   folder (`%LOCALAPPDATA%\KbcTracker` unless you set `KbcTracker:JsonArchive`), or `initialize` to start fresh.
+   Use the start button on its row. Each refuses a database that already holds data.
+1. Open <https://localhost:5001>.
+
+PostgreSQL keeps running in its container after you stop the AppHost, and your data stays in the Docker volume
+`kbctracker-postgres`. Its password is generated on the first run and kept in the AppHost's user secrets as
+`Parameters:postgres-password`. Do not remove either, or the history is lost or locked out. Migrations run on every
+start without a backup first, so back up before you pull a change that adds a migration.
+
+A database you set up by hand earlier is not used by the AppHost. The connection string in the backend's user
+secrets only applies when you start the backend on its own.
+
+## Run it yourself
+
+Set it up in this order: configure, migrate, import or initialise, start the backend, start the web app. You need
+a PostgreSQL database.
+
+### Configure
 
 Use a database of its own. Store the connection string and the Enable Banking settings as user secrets, which
 the backend reads in Development:
@@ -21,7 +66,7 @@ dotnet user-secrets set "EnableBanking:PrivateKeyPath" "<full-path-of-the-pem-fi
 Replace the placeholders locally. Never commit the connection string or the private key. The other settings are in
 [Configuration](../reference/configuration.md).
 
-## Prepare the database
+### Prepare the database
 
 Back up any database that holds history before you apply migrations; normal startup never migrates.
 
@@ -49,7 +94,7 @@ bank connections with `409 Conflict`, because anything saved first would make th
 shows this as "Backend not ready", or as a notice on the page you were on. See
 [Command line](../reference/command-line.md) for the exit codes.
 
-## Start the backend and the web app
+### Start the backend and the web app
 
 ```powershell
 dotnet run --project src/Containers/API/KbcTracker.ApiService
@@ -82,8 +127,8 @@ host name to `AllowedHosts` before you serve the apps through Tailscale.
 
 ## What is not built yet
 
-- Docker Compose, Tailscale Serve and automated backups. Until then, run both programs yourself and back up with
-  `pg_dump`.
+- Docker Compose, Tailscale Serve and automated backups. Until then, run the app with the AppHost or yourself on
+  your PC, and back up with `pg_dump`.
 - Not yet verified: that Docker publishes the backend on loopback only, which Host header Tailscale Serve passes,
   and that Enable Banking accepts a `*.ts.net` redirect URL.
 - The Android app and its SQLite cache.

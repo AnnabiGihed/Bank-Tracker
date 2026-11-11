@@ -4,6 +4,13 @@
   <Folder Name="/src/Containers/API/">
     <Project Path="src/Containers/API/KbcTracker.ApiService/KbcTracker.ApiService.csproj" />
   </Folder>
+  <Folder Name="/src/Containers/Aspire/" />
+  <Folder Name="/src/Containers/Aspire/Defaults/">
+    <Project Path="src/Containers/Aspire/Defaults/KbcTracker.ServiceDefaults/KbcTracker.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/src/Containers/Aspire/Hosting/">
+    <Project Path="src/Containers/Aspire/Hosting/KbcTracker.AppHost/KbcTracker.AppHost.csproj" />
+  </Folder>
   <Folder Name="/src/Containers/UI/" />
   <Folder Name="/src/Containers/UI/Core/">
     <Project Path="src/Containers/UI/Core/KbcTracker.Shared/KbcTracker.Shared.csproj" />
@@ -20,6 +27,10 @@
     <Project Path="src/Infrastructure/KbcTracker.Persistence.EntityFrameworkCore/KbcTracker.Persistence.EntityFrameworkCore.csproj" />
   </Folder>
   <Folder Name="/test/Containers/" />
+  <Folder Name="/test/Containers/Aspire/" />
+  <Folder Name="/test/Containers/Aspire/Hosting/">
+    <Project Path="test/Containers/Aspire/Hosting/KbcTracker.AppHost.Tests/KbcTracker.AppHost.Tests.csproj" />
+  </Folder>
   <Folder Name="/test/Containers/API/">
     <Project Path="test/Containers/API/KbcTracker.ApiService.Tests/KbcTracker.ApiService.Tests.csproj" />
   </Folder>

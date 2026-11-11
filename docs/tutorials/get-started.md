@@ -9,7 +9,7 @@ Its free "restricted mode" only gives access to accounts you link yourself, and 
 ## What you need
 
 - The .NET 10 SDK.
-- A PostgreSQL database you can reach from your PC, for example in Docker.
+- Docker, which runs the PostgreSQL database for you.
 - The Pivot.Framework feed variables `PIVOT_PACKAGES_USER` and `PIVOT_PACKAGES_TOKEN` (see the root README).
 - A KBC Brussels account, with itsme or a card reader to log in.
 
@@ -24,33 +24,33 @@ Its free "restricted mode" only gives access to accounts you link yourself, and 
 1. On the new application, which shows as *Inactive*, choose **Activate by linking accounts**.
 1. Pick **KBC Brussels** and log in with itsme or a card reader. The application becomes *Active (restricted)*.
 
-## 2. Configure and prepare the backend
+## 2. Configure the backend
 
-Follow [Run the backend](../how-to/run-the-backend.md) up to and including "Prepare the database":
+Store the application ID and the private-key path in the backend's user secrets:
 
-1. Store the database connection string, the application ID and the private-key path as user secrets.
-1. Apply the migrations.
-1. Start fresh with `--initialize`. If you used an older version that kept its data in JSON files, import that
-   folder with `--import-json` instead, so you keep your history and decisions.
+```powershell
+$project = 'src/Containers/API/KbcTracker.ApiService'
+dotnet user-secrets set "EnableBanking:ApplicationId" "<application-id>" --project $project
+dotnet user-secrets set "EnableBanking:PrivateKeyPath" "<full-path-of-the-pem-file>" --project $project
+```
 
 The other settings are described in [Configuration](../reference/configuration.md).
 
-## 3. Run the backend and the web app
+## 3. Start the app
 
-In one terminal, start the backend:
-
-```powershell
-dotnet run --project src/Containers/API/KbcTracker.ApiService
-```
-
-In a second terminal, start the web app:
+Start Docker, then run the Aspire AppHost, which starts the database, the backend and the web app together:
 
 ```powershell
 dotnet dev-certs https --trust
-dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web
+dotnet run --project src/Containers/Aspire/Hosting/KbcTracker.AppHost
 ```
 
-You run `dotnet dev-certs https --trust` only once; it trusts the local HTTPS certificate.
+You run `dotnet dev-certs https --trust` only once; it trusts the local HTTPS certificate. The Aspire dashboard
+opens at <https://localhost:17180>. Wait until `api` and `web` show **Running**.
+
+The first time, fill the new database from the dashboard: start `initialize` to begin fresh, or `import-json` if
+you used an older version that kept its data in JSON files, so you keep your history and decisions. See
+[Run the backend](../how-to/run-the-backend.md) for details and for running the programs without Aspire.
 
 ## 4. Connect and download your transactions
 

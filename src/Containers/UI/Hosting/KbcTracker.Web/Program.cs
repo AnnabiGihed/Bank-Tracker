@@ -1,6 +1,8 @@
+using KbcTracker.ServiceDefaults.Features.Telemetry;
 using KbcTracker.Shared.Features.Backend;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddServiceDefaults();
 builder.Services.AddHttpClient<BackendClient>(http =>
 {
 	var address = builder.Configuration["Backend:BaseUrl"];
