@@ -75,6 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The web app's buttons that post a form (**Connect**, **↻ Sync**, **Sync all again**) no longer answer "Web access
+  denied". Because the pages ask browsers to send no referrer, browsers send an empty origin with these posts, and the
+  web app took that for another site. It now relies on the browser's own same-origin marker (`Sec-Fetch-Site`), and
+  still refuses writes from any other site, including another port on this PC.
 - When the backend refuses a page's request (`409`), the web app now shows the backend's own reason instead of
   always blaming an empty database. When bank access is not set up, connecting a bank says which settings the
   backend needs (`EnableBanking:ApplicationId`, `EnableBanking:PrivateKeyPath`) instead of "Start again later", and

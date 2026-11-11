@@ -518,6 +518,46 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	}
 
 	/// <summary>
+	/// Verifies the owner's writes from the app's own pages pass as a browser sends them: the pages' no-referrer policy
+	/// makes the browser send <c>Origin: null</c> on a form post, alongside <c>Sec-Fetch-Site: same-origin</c>. A write
+	/// from another site, even another port on this PC, or with a forged origin and no fetch metadata, stays refused.
+	/// </summary>
+	/// <param name="site">The <c>Sec-Fetch-Site</c> header, or empty for none.</param>
+	/// <param name="origin">The <c>Origin</c> header, or empty for none.</param>
+	/// <param name="expected">The expected status.</param>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Theory]
+	[InlineData("same-origin", "null", HttpStatusCode.OK)]
+	[InlineData("none", "", HttpStatusCode.OK)]
+	[InlineData("same-site", "https://localhost:17180", HttpStatusCode.Forbidden)]
+	[InlineData("cross-site", "null", HttpStatusCode.Forbidden)]
+	[InlineData("", "null", HttpStatusCode.Forbidden)]
+	[InlineData("", "https://evil.example", HttpStatusCode.Forbidden)]
+	public async Task PostApi_ProductionOwnerFetchMetadata_OnlyOwnPagesWrite(string site, string origin, HttpStatusCode expected)
+	{
+		using var production = Factory.WithWebHostBuilder(builder => builder
+			.UseEnvironment("Production")
+			.UseSetting("Backend:OwnerLogin", OwnerLogin)
+			.ConfigureTestServices(services => services.AddTransient<IStartupFilter>(_ => new RemoteAddressStartupFilter(IPAddress.Loopback))));
+		using var client = production.CreateClient();
+
+		using var response = await SendWithIdentityAsync(client, HttpMethod.Post, new Uri("/api", UriKind.Relative), OwnerLogin, request =>
+		{
+			if (site.Length > 0)
+			{
+				request.Headers.Add("Sec-Fetch-Site", site);
+			}
+
+			if (origin.Length > 0)
+			{
+				request.Headers.Add("Origin", origin);
+			}
+		});
+
+		response.StatusCode.Should().Be(expected);
+	}
+
+	/// <summary>
 	/// Verifies the CSV export lists the history oldest first, with exact amounts and quoted text fields.
 	/// </summary>
 	/// <returns>A task that completes when the test has run.</returns>
