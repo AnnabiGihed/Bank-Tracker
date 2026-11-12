@@ -7,7 +7,7 @@ namespace KbcTracker.Domain.Tests.Features.Shared.Services;
 /// Date        : 11-2026
 /// Purpose     : Pins the behaviour of <see cref="Analysis"/> that the user relies on: classification by ISO bank
 ///              transaction code, card shop names, automatic categories by keyword, and fixed-payment suggestions
-///              and matching.
+///              and matching, and how split payments count by part.
 ///
 ///              Uses invented transactions from <see cref="BankJson"/> and a fixed reference date, so results do
 ///              not depend on the machine or the day the tests run.
@@ -434,6 +434,141 @@ public sealed class AnalysisTests
 		var user = UserData.Empty();
 		user.AssignPayeeCategory(review[0].SeriesKey, review[0].Category.Id);
 		Analyse(txns, user).Review.Should().HaveCount(1);
+	}
+	#endregion
+
+	#region Split Tests
+	/// <summary>
+	/// Runs the analysis with the default category tree, where a supermarket payment lands on food.
+	/// </summary>
+	private static Analysis AnalyseDefaults(IEnumerable<Txn> txns, UserData user) =>
+		new([.. txns], CategoryDefaults.CreateDefaults("BE"), user, Today);
+
+	/// <summary>
+	/// Splits a payment as the application does, after checking the parts add up.
+	/// </summary>
+	private static void Split(UserData user, Txn txn, params SplitLine[] lines)
+	{
+		var split = PaymentSplit.Create(txn.Amount, lines);
+		split.IsSuccess.Should().BeTrue();
+		user.SplitPayment(txn.Id, split.Value);
+	}
+
+	/// <summary>
+	/// Verifies that the parts of a split payment feed the totals by category, the payment stays one spending item
+	/// confirmed by the split, and the payment's own category is the one it has without the split.
+	/// </summary>
+	[Fact]
+	public void BuildMonth_SplitPayment_ByCategoryFollowsParts()
+	{
+		var shop = BankJson.Card("2026-10-10", 84.30m, "DELHAIZE BE1000 Bruxelles");
+		var user = UserData.Empty();
+		Split(user, shop, new SplitLine(50m, new CategoryId("food-meat"), "Meat"), new SplitLine(34.30m, new CategoryId("care-toiletries"), null));
+
+		var analysis = AnalyseDefaults([shop], user);
+
+		var item = analysis.Items.Single();
+		var october = analysis.MonthData("2026-10");
+		item.IsSplit.Should().BeTrue();
+		item.IsSpending.Should().BeTrue();
+		item.CategoryConfirmed.Should().BeTrue();
+		item.Category.Id.Value.Should().NotBe("food-meat", "The payment's own category ignores the split.");
+		item.Parts.Select(p => (p.Category.Id.Value, p.Amount, p.Label)).Should().Equal(("food-meat", -50m, "Meat"), ("care-toiletries", -34.30m, (string?)null));
+		october.ByCategory.Should().Equal(new Dictionary<string, decimal> { ["food-meat"] = 50m, ["care-toiletries"] = 34.30m });
+		october.Variable.Should().Be(84.30m);
+		analysis.Review.Should().BeEmpty("A split payment counts as confirmed.");
+	}
+
+	/// <summary>
+	/// Verifies that an unsplit payment has one part with its whole amount and its category.
+	/// </summary>
+	[Fact]
+	public void Parts_UnsplitPayment_OnePartWithWholeAmount()
+	{
+		var item = AnalyseDefaults([BankJson.Card("2026-10-10", 12m, "DELHAIZE BE1000 Bruxelles")], UserData.Empty()).Items.Single();
+
+		item.IsSplit.Should().BeFalse();
+		item.Parts.Should().ContainSingle().Which.Should().Be(new TxnPart(item.Category, -12m, null));
+	}
+
+	/// <summary>
+	/// Verifies that a split wins over a category chosen for the payment alone, which comes back when the split is
+	/// removed.
+	/// </summary>
+	[Fact]
+	public void Split_WithTransactionCategory_SplitWinsUntilRemoved()
+	{
+		var shop = BankJson.Card("2026-10-10", 20m, "DELHAIZE BE1000 Bruxelles");
+		var user = UserData.Empty();
+		user.AssignTransactionCategory(shop.Id, new CategoryId("car-fuel"));
+		Split(user, shop, new SplitLine(5m, new CategoryId("food-meat"), null), new SplitLine(15m, new CategoryId("food-bread-cereals"), null));
+
+		var split = AnalyseDefaults([shop], user).MonthData("2026-10").ByCategory;
+		user.RemoveSplit(shop.Id);
+		var restored = AnalyseDefaults([shop], user).MonthData("2026-10").ByCategory;
+
+		split.Should().NotContainKey("car-fuel");
+		split.Values.Sum().Should().Be(20m);
+		restored.Should().Equal(new Dictionary<string, decimal> { ["car-fuel"] = 20m });
+	}
+
+	/// <summary>
+	/// Verifies that splitting one payment does not teach the payee's other payments its parts' categories.
+	/// </summary>
+	[Fact]
+	public void Split_OnePayment_PayeeCategoryUnchanged()
+	{
+		var first = BankJson.Card("2026-10-02", 20m, "DELHAIZE BE1000 Bruxelles");
+		var second = BankJson.Card("2026-10-09", 30m, "DELHAIZE BE1000 Bruxelles");
+		var user = UserData.Empty();
+		user.AssignPayeeCategory(Analyse([first]).Items.Single().SeriesKey, new CategoryId("groceries"));
+		Split(user, second, new SplitLine(10m, new CategoryId("car"), null), new SplitLine(20m, new CategoryId("housing"), null));
+
+		var items = Analyse([first, second], user).Items;
+
+		items.Single(i => i.T.Id.Equals(first.Id)).Category.Id.Value.Should().Be("groceries");
+		items.Single(i => i.T.Id.Equals(second.Id)).Category.Id.Value.Should().Be("groceries", "The unsplit category stays the payee's.");
+	}
+
+	/// <summary>
+	/// Verifies that the parts of a refund reduce spending in their categories.
+	/// </summary>
+	[Fact]
+	public void BuildMonth_SplitRefund_PartsReduceSpending()
+	{
+		var spend = BankJson.Card("2026-10-02", 100m, "DELHAIZE BE1000 Bruxelles");
+		var refund = BankJson.TransferIn("2026-10-05", 30m, "DELHAIZE", "Return");
+		var user = UserData.Empty();
+		user.AssignTransactionCategory(refund.Id, new CategoryId("food-meat"));
+		Split(user, refund, new SplitLine(10m, new CategoryId("food-meat"), null), new SplitLine(20m, new CategoryId("care-toiletries"), null));
+
+		var october = AnalyseDefaults([spend, refund], user).MonthData("2026-10");
+
+		october.ByCategory["food-meat"].Should().Be(-10m);
+		october.ByCategory["care-toiletries"].Should().Be(-20m);
+		october.Variable.Should().Be(70m);
+	}
+
+	/// <summary>
+	/// Verifies that a stored split that no longer adds up gets a "Difference" part on the payment's own category,
+	/// so the totals still equal the bank amount.
+	/// </summary>
+	[Fact]
+	public void SplitParts_SumDiffersFromPayment_DifferencePartKeepsTotal()
+	{
+		var shop = BankJson.Card("2026-10-10", 100m, "DELHAIZE BE1000 Bruxelles");
+		var user = UserData.Empty();
+		user.SplitPayment(shop.Id, PaymentSplit.Rehydrate([new SplitLine(50m, new CategoryId("food-meat"), null), new SplitLine(34.30m, new CategoryId("care-toiletries"), null)]));
+
+		var analysis = AnalyseDefaults([shop], user);
+
+		var item = analysis.Items.Single();
+		var difference = item.Parts[^1];
+		difference.Label.Should().Be("Difference");
+		difference.Amount.Should().Be(-15.70m);
+		difference.Category.Should().Be(item.Category);
+		item.Parts.Sum(p => p.Amount).Should().Be(-100m);
+		analysis.MonthData("2026-10").ByCategory.Values.Sum().Should().Be(100m);
 	}
 	#endregion
 

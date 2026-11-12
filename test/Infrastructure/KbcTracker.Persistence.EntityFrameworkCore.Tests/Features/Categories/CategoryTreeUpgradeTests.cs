@@ -62,7 +62,7 @@ public sealed class CategoryTreeUpgradeTests(PostgreSqlFixture fixture) : Databa
 
 	/// <summary>
 	/// Verifies that every reference to a merged flat default moves to the category whose keyword matches its payee
-	/// (payee rules by series key, payment choices by the transaction's shop, fixed payments by name), to the fallback
+	/// (payee rules by series key, payment choices and split lines by the transaction's shop, fixed payments by name), to the fallback
 	/// node when none matches, that payee rules become unconfirmed and that payment choices keep their state.
 	/// </summary>
 	/// <returns>A task that completes when verified.</returns>
@@ -70,7 +70,7 @@ public sealed class CategoryTreeUpgradeTests(PostgreSqlFixture fixture) : Databa
 	public async Task Upgrade_DecisionsOnMergedDefaults_MovedByKeywordWithFallback()
 	{
 		await AddAsync([.. FlatDefaults(editedCar: false), Decisions(),
-			Card("t1", "ORANGE"), Card("t2", "STIB"), Card("t3", "MYSTERY SHOP")]);
+			Card("t1", "ORANGE"), Card("t2", "STIB"), Card("t3", "MYSTERY SHOP"), Card("t4", "SHELL")]);
 
 		(await UpgradeAsync()).IsSuccess.Should().BeTrue();
 
@@ -80,6 +80,8 @@ public sealed class CategoryTreeUpgradeTests(PostgreSqlFixture fixture) : Databa
 		user.Payees["CARD:PROXIMUS"].Should().Be(new PayeeAssignment(new CategoryId("comm-services"), Confirmed: false));
 		user.Payees["CARD:NOTHING KNOWN"].Should().Be(new PayeeAssignment(new CategoryId("transport"), Confirmed: false));
 		user.Payees["CARD:UNKNOWN PHONE"].Should().Be(new PayeeAssignment(new CategoryId("bills"), Confirmed: false));
+		user.Splits[new TxnId("t4")].Lines.Select(l => (l.CategoryId.Value, l.Label)).Should().Equal(
+			("car-fuel", "Fuel"), ("car-fuel", (string?)null), ("groceries", (string?)null));
 		user.TxnCategories[new TxnId("t1")].Should().Be(new CategoryId("comm-services"));
 		user.TxnCategories[new TxnId("t2")].Should().Be(new CategoryId("transport-public"));
 		user.TxnCategories[new TxnId("t3")].Should().Be(new CategoryId("bills"));
@@ -97,7 +99,7 @@ public sealed class CategoryTreeUpgradeTests(PostgreSqlFixture fixture) : Databa
 	{
 		var edited = Category.Rehydrate(new CategoryId("transport-fuel"), "My fuel", CategoryType.Expense, "#111111", ["MYPUMP", "SHELL"], builtIn: false);
 		var flat = FlatDefaults(editedCar: false).Where(e => e is not Category c || c.Id != new CategoryId("transport-fuel")).ToList();
-		var user = UserData.Rehydrate([], [], [KeyValuePair.Create("CARD:MYPUMP", new PayeeAssignment(new CategoryId("transport-fuel"), Confirmed: true))], [], []);
+		var user = UserData.Rehydrate([], [], [KeyValuePair.Create("CARD:MYPUMP", new PayeeAssignment(new CategoryId("transport-fuel"), Confirmed: true))], [], [], []);
 		await AddAsync([.. flat, edited, user]);
 
 		(await UpgradeAsync()).IsSuccess.Should().BeTrue();
@@ -250,7 +252,11 @@ public sealed class CategoryTreeUpgradeTests(PostgreSqlFixture fixture) : Databa
 				KeyValuePair.Create(new TxnId("t2"), new CategoryId("transport-fuel")),
 				KeyValuePair.Create(new TxnId("t3"), new CategoryId("utilities-telecom")),
 			],
-			[]);
+			[],
+			[KeyValuePair.Create(new TxnId("t4"), PaymentSplit.Rehydrate([
+				new SplitLine(30m, new CategoryId("transport-fuel"), "Fuel"),
+				new SplitLine(10m, new CategoryId("utilities-telecom"), null),
+				new SplitLine(5m, new CategoryId("groceries"), null)]))]);
 	}
 	#endregion
 }

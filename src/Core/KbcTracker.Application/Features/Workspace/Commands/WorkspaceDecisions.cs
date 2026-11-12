@@ -4,6 +4,8 @@ using KbcTracker.Domain.Features.Categories.Errors;
 using KbcTracker.Domain.Features.Categories.ValueObjects;
 using KbcTracker.Domain.Features.FixedPayments.Aggregates;
 using KbcTracker.Domain.Features.Shared.Services;
+using KbcTracker.Domain.Features.Splits.Errors;
+using KbcTracker.Domain.Features.Splits.ValueObjects;
 using KbcTracker.Domain.Features.Transactions.Aggregates;
 using Pivot.Framework.Domain.Shared;
 
@@ -34,6 +36,8 @@ internal sealed class WorkspaceDecisions(WorkspaceData data, IWorkspacePersisten
 		"removeFixed" when Has(request.Id) => FromResult(data.User.RemoveFixedPayment(new RecurringPaymentId(request.Id!))),
 		"payeeCategory" when Has(request.Key) => UnknownCategory(request.CategoryId) ?? AssignPayee(request.Key!, request.CategoryId),
 		"txnOnly" when Has(request.Key) && Has(request.Id) && Has(request.CategoryId) => UnknownCategory(request.CategoryId) ?? AssignTransaction(request),
+		"split" when Has(request.Id) && request.Parts is not null => Split(request.Id!, request.Parts),
+		"unsplit" when Has(request.Id) => FromResult(data.User.RemoveSplit(new TxnId(request.Id!))),
 		"confirm" => Confirm(request),
 		"rename" when Has(request.Key) => FromResult(data.User.RenamePayee(request.Key!, request.Name)),
 		"saveCategory" => CategoryDecisions.Save(data, persistence, request),
@@ -91,6 +95,46 @@ internal sealed class WorkspaceDecisions(WorkspaceData data, IWorkspacePersisten
 	{
 		data.User.RestorePayeeCategory(request.Key!, request.Restore?.ToDomain());
 		data.User.AssignTransactionCategory(new TxnId(request.Id!), new CategoryId(request.CategoryId!));
+		return Result.Success(new DecisionResponse());
+	}
+
+	/// <summary>Divides an existing spending payment (or refund) into spending parts that add up to its amount.</summary>
+	private Result<DecisionResponse> Split(string txnId, IReadOnlyList<SplitPartRequest> parts)
+	{
+		var id = new TxnId(txnId);
+		var payment = data.Transactions.FirstOrDefault(t => t.Id == id);
+		if (payment is null)
+		{
+			return Missing("This payment does not exist.");
+		}
+
+		// Splitting income or savings into spending parts would silently move it out of its own totals (ADR-0007).
+		if (Analyse().Items.First(i => i.T.Id == id).Category.Type != CategoryType.Expense)
+		{
+			return Result.Failure<DecisionResponse>(PaymentSplitErrors.NotSpendingPayment);
+		}
+
+		foreach (var part in parts)
+		{
+			var category = data.Categories.FirstOrDefault(c => string.Equals(c.Id.Value, part.CategoryId, StringComparison.Ordinal));
+			if (category is null)
+			{
+				return Result.Failure<DecisionResponse>(CategoryErrors.Unknown);
+			}
+
+			if (category.Type != CategoryType.Expense)
+			{
+				return Result.Failure<DecisionResponse>(PaymentSplitErrors.NotExpenseCategory);
+			}
+		}
+
+		var split = PaymentSplit.Create(payment.Amount, parts.Select(p => new SplitLine(p.Amount, new CategoryId(p.CategoryId), p.Label)));
+		if (split.IsFailure)
+		{
+			return Result.Failure<DecisionResponse>(split.Error, split.ResultExceptionType);
+		}
+
+		data.User.SplitPayment(id, split.Value);
 		return Result.Success(new DecisionResponse());
 	}
 

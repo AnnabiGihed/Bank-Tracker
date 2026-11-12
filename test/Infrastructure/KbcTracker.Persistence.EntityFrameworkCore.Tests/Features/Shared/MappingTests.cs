@@ -101,6 +101,9 @@ public sealed class MappingTests(PostgreSqlFixture fixture) : DatabaseTests(fixt
 		read.Payees["CARD:SHOP ONE"].Should().Be(new PayeeAssignment(new CategoryId("groceries"), Confirmed: true));
 		read.TxnCategories[new TxnId("t1")].Should().Be(new CategoryId("car"));
 		read.PayeeNames["CARD:SHOP ONE"].Should().Be("Shop One");
+		read.Splits[new TxnId("t2")].Lines.Should().Equal(
+			new SplitLine(50m, new CategoryId("groceries"), "Meat"),
+			new SplitLine(34.30m, new CategoryId("car"), null));
 	}
 	#endregion
 }

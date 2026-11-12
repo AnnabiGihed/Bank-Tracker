@@ -475,6 +475,169 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 		created.Id.Should().Be("pets");
 		deleteNew.StatusCode.Should().Be(HttpStatusCode.OK);
 	}
+
+	/// <summary>
+	/// Verifies the split flow: splitting a payment stores its parts, the analysis totals follow them, and removing
+	/// the split brings the payment back to its own category.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task PostApi_SplitThenUnsplit_PartsStoredAndRemoved()
+	{
+		using var client = Factory.CreateClient();
+		var api = new Uri("/api", UriKind.Relative);
+
+		using var split = await client.PostAsJsonAsync(api, new
+		{
+			action = "split",
+			id = "t1",
+			parts = new object[] { new { amount = 10m, categoryId = "bills", label = " Water " }, new { amount = 2.50m, categoryId = "cash" } },
+		});
+		var splitUser = await LoadUserDataAsync();
+		var splitMonth = (await AnalyseAsync()).MonthData("2026-10");
+		using var unsplit = await client.PostAsJsonAsync(api, new { action = "unsplit", id = "t1" });
+		using var unsplitAgain = await client.PostAsJsonAsync(api, new { action = "unsplit", id = "t1" });
+
+		split.StatusCode.Should().Be(HttpStatusCode.OK);
+		splitUser.Splits[new TxnId("t1")].Lines.Select(l => (l.CategoryId.Value, l.Amount, l.Label)).Should().Equal(("bills", 10m, "Water"), ("cash", 2.50m, (string?)null));
+		splitMonth.ByCategory.Should().Equal(new Dictionary<string, decimal> { ["bills"] = 10m, ["cash"] = 2.50m });
+		unsplit.StatusCode.Should().Be(HttpStatusCode.OK);
+		unsplitAgain.StatusCode.Should().Be(HttpStatusCode.NotFound);
+		(await LoadUserDataAsync()).Splits.Should().BeEmpty();
+	}
+
+	/// <summary>
+	/// Verifies that a split that does not add up, uses an unknown or non-spending category or has one part is
+	/// refused with 400, and that splitting an unknown payment answers 404; nothing is stored.
+	/// </summary>
+	/// <param name="body">The request body.</param>
+	/// <param name="status">The expected answer.</param>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Theory]
+	[InlineData("""{"action":"split","id":"t1","parts":[{"amount":10,"categoryId":"bills"},{"amount":2,"categoryId":"cash"}]}""", HttpStatusCode.BadRequest)]
+	[InlineData("""{"action":"split","id":"t1","parts":[{"amount":10,"categoryId":"bills"},{"amount":2.5,"categoryId":"missing"}]}""", HttpStatusCode.BadRequest)]
+	[InlineData("""{"action":"split","id":"t1","parts":[{"amount":10,"categoryId":"bills"},{"amount":2.5,"categoryId":"income"}]}""", HttpStatusCode.BadRequest)]
+	[InlineData("""{"action":"split","id":"t1","parts":[{"amount":12.5,"categoryId":"bills"}]}""", HttpStatusCode.BadRequest)]
+	[InlineData("""{"action":"split","id":"t1"}""", HttpStatusCode.BadRequest)]
+	[InlineData("""{"action":"split","id":"missing","parts":[{"amount":10,"categoryId":"bills"},{"amount":2.5,"categoryId":"cash"}]}""", HttpStatusCode.NotFound)]
+	[InlineData("""{"action":"split","id":"t1","parts":[{"amount":10.005,"categoryId":"bills"},{"amount":2.495,"categoryId":"cash"}]}""", HttpStatusCode.BadRequest)]
+	[InlineData("""{"action":"split","id":"t2","parts":[{"amount":2000,"categoryId":"bills"},{"amount":500,"categoryId":"cash"}]}""", HttpStatusCode.BadRequest)]
+	public async Task PostApi_InvalidSplit_RefusedAndNothingStored(string body, HttpStatusCode status)
+	{
+		using var client = Factory.CreateClient();
+		using var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+
+		using var response = await client.PostAsync(new Uri("/api", UriKind.Relative), content);
+
+		response.StatusCode.Should().Be(status);
+		(await LoadUserDataAsync()).Splits.Should().BeEmpty();
+	}
+
+	/// <summary>
+	/// Verifies that deleting a category moves the split lines that use it to its parent.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task PostApi_DeleteCategoryOfSplitLine_LineMovedToParent()
+	{
+		using var client = Factory.CreateClient();
+		var api = new Uri("/api", UriKind.Relative);
+		using var pets = await client.PostAsJsonAsync(api, new { action = "saveCategory", name = "Pets", type = "Expense", color = "#123456", keywords = "" });
+		using var vet = await client.PostAsJsonAsync(api, new { action = "saveCategory", name = "Vet", type = "Expense", color = "#123456", keywords = "", parentId = "pets" });
+		using var split = await client.PostAsJsonAsync(api, new
+		{
+			action = "split",
+			id = "t1",
+			parts = new object[] { new { amount = 10m, categoryId = "vet" }, new { amount = 2.50m, categoryId = "bills" } },
+		});
+
+		using var delete = await client.PostAsJsonAsync(api, new { action = "deleteCategory", id = "vet" });
+
+		pets.StatusCode.Should().Be(HttpStatusCode.OK);
+		vet.StatusCode.Should().Be(HttpStatusCode.OK);
+		split.StatusCode.Should().Be(HttpStatusCode.OK);
+		delete.StatusCode.Should().Be(HttpStatusCode.OK);
+		(await LoadUserDataAsync()).Splits[new TxnId("t1")].Lines.Select(l => l.CategoryId.Value).Should().Equal("pets", "bills");
+	}
+
+	/// <summary>
+	/// Verifies that a top-level category whose sub-category is used by a split line cannot stop counting as spending,
+	/// so the parts of a split payment always stay spending.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task PostApi_ChangeTypeOfCategoryUsedBySplit_Refused()
+	{
+		using var client = Factory.CreateClient();
+		var api = new Uri("/api", UriKind.Relative);
+		using var pets = await client.PostAsJsonAsync(api, new { action = "saveCategory", name = "Pets", type = "Expense", color = "#123456", keywords = "" });
+		using var vet = await client.PostAsJsonAsync(api, new { action = "saveCategory", name = "Vet", type = "Expense", color = "#123456", keywords = "", parentId = "pets" });
+		using var split = await client.PostAsJsonAsync(api, new
+		{
+			action = "split",
+			id = "t1",
+			parts = new object[] { new { amount = 10m, categoryId = "vet" }, new { amount = 2.50m, categoryId = "bills" } },
+		});
+
+		using var toSavings = await client.PostAsJsonAsync(api, new { action = "saveCategory", id = "pets", name = "Pets", type = "Savings", color = "#123456", keywords = "" });
+		using var rename = await client.PostAsJsonAsync(api, new { action = "saveCategory", id = "pets", name = "Animals", type = "Expense", color = "#123456", keywords = "" });
+
+		split.StatusCode.Should().Be(HttpStatusCode.OK);
+		toSavings.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+		rename.StatusCode.Should().Be(HttpStatusCode.OK);
+	}
+
+	/// <summary>
+	/// Verifies that the pages follow a split payment: the Transactions tab shows its parts with the split editor and
+	/// the per-category amounts its filter totals, the Categories tab counts each part in its own category, and the
+	/// export writes one line per part.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task GetPages_SplitPayment_ShowPartsTotalsAndExportLines()
+	{
+		using var client = Factory.CreateClient();
+		using var split = await client.PostAsJsonAsync(new Uri("/api", UriKind.Relative), new
+		{
+			action = "split",
+			id = "t1",
+			parts = new object[] { new { amount = 10m, categoryId = "bills", label = "Water bottle" }, new { amount = 2.50m, categoryId = "cash" } },
+		});
+
+		var transactions = await client.GetStringAsync(new Uri("/transactions?m=2026-10", UriKind.Relative));
+		var categories = await client.GetStringAsync(new Uri("/categories?m=2026-10", UriKind.Relative));
+		var export = (await client.GetStringAsync(new Uri("/export.csv", UriKind.Relative))).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+		split.StatusCode.Should().Be(HttpStatusCode.OK);
+		transactions.Should().Contain("Water bottle").And.Contain("openSplit(").And.Contain("data-p=").And.Contain("Edit the split");
+		categories.Should().Contain("10,00 €").And.Contain("2,50 €");
+		export.Where(l => l.StartsWith("2026-10-03;", StringComparison.Ordinal)).Should().HaveCount(2)
+			.And.Contain(l => l.StartsWith("2026-10-03;-10", StringComparison.Ordinal) && l.EndsWith(";\"Water bottle\"", StringComparison.Ordinal))
+			.And.Contain(l => l.StartsWith("2026-10-03;-2.5", StringComparison.Ordinal));
+	}
+
+	/// <summary>
+	/// Verifies that the workspace the web app renders carries the parts of a split payment, so its rebuilt analysis
+	/// totals by category without the stored decisions.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task GetWorkspace_SplitPayment_SnapshotCarriesParts()
+	{
+		using var client = Factory.CreateClient();
+		using var split = await client.PostAsJsonAsync(new Uri("/api", UriKind.Relative), new
+		{
+			action = "split",
+			id = "t1",
+			parts = new object[] { new { amount = 10m, categoryId = "bills" }, new { amount = 2.50m, categoryId = "cash", label = "Cash back" } },
+		});
+
+		var item = (await Factory.Services.GetRequiredService<BackendClient>().GetWorkspaceAsync(CancellationToken.None)).ToAnalysis().Items.Single(i => i.T.Id.Equals(new TxnId("t1")));
+
+		split.StatusCode.Should().Be(HttpStatusCode.OK);
+		item.IsSplit.Should().BeTrue();
+		item.Parts.Select(p => (p.Category.Id.Value, p.Amount, p.Label)).Should().Equal(("bills", -10m, (string?)null), ("cash", -2.50m, "Cash back"));
+	}
 	#endregion
 
 	#region Sync Tests
@@ -673,9 +836,9 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 
 		var lines = (await client.GetStringAsync(new Uri("/export.csv", UriKind.Relative))).Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
-		lines[0].Should().Be("Date;Amount;Currency;Name;Category;Confirmed;Fixed payment;Description");
-		lines[1].Should().StartWith("2026-10-03;-12.50;EUR;").And.EndWith(";\"SHOP ONE BE1000 Bruxelles Payment with card\"");
-		lines[2].Should().StartWith("2026-11-03;2500;EUR;").And.EndWith(";\"Salary November\"");
+		lines[0].Should().Be("Date;Amount;Currency;Name;Category;Confirmed;Fixed payment;Description;Part");
+		lines[1].Should().StartWith("2026-10-03;-12.50;EUR;").And.EndWith(";\"SHOP ONE BE1000 Bruxelles Payment with card\";\"\"");
+		lines[2].Should().StartWith("2026-11-03;2500;EUR;").And.EndWith(";\"Salary November\";\"\"");
 	}
 	#endregion
 

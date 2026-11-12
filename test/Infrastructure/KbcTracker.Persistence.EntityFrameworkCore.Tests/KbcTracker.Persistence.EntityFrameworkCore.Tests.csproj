@@ -17,6 +17,7 @@
     <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Splits.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Transactions.ValueObjects" />
     <Using Include="KbcTracker.Persistence.EntityFrameworkCore.Features.Shared" />

@@ -64,6 +64,7 @@ public sealed record UserDataDocument
 		(TxnCategories ?? new Dictionary<string, string>(StringComparer.Ordinal))
 			.Where(kv => !string.IsNullOrWhiteSpace(kv.Key))
 			.Select(kv => KeyValuePair.Create(new TxnId(kv.Key), LegacyValues.Category(kv.Value) ?? CategoryId.Other)),
-		(PayeeNames ?? new Dictionary<string, string>(StringComparer.Ordinal)).Where(kv => !string.IsNullOrWhiteSpace(kv.Key) && kv.Value is not null));
+		(PayeeNames ?? new Dictionary<string, string>(StringComparer.Ordinal)).Where(kv => !string.IsNullOrWhiteSpace(kv.Key) && kv.Value is not null),
+		[]);
 	#endregion
 }

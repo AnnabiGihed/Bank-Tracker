@@ -4,7 +4,7 @@ namespace KbcTracker.Domain.Tests.Features.Shared.Aggregates;
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Verifies the user's decisions held by <see cref="UserData"/>: fixed payments, dismissals, payee and
-///              transaction categories, payee names and reassigning a deleted category.
+///              transaction categories, splits of payments, payee names and reassigning a deleted category.
 /// </summary>
 public sealed class UserDataTests
 {
@@ -207,6 +207,83 @@ public sealed class UserDataTests
 
 		user.Payees[RentKey].Should().Be(new PayeeAssignment(new CategoryId("housing-rent"), Confirmed: false));
 		user.Recurring.Single().CategoryId.Should().Be(new CategoryId("housing-rent"));
+	}
+	#endregion
+
+	#region Split Tests
+	/// <summary>
+	/// A split of a 30 € payment into bread and meat.
+	/// </summary>
+	private static PaymentSplit BreadAndMeat() =>
+		PaymentSplit.Create(-30m, [new SplitLine(10m, new CategoryId("bread"), null), new SplitLine(20m, new CategoryId("meat"), "Steak")]).Value;
+
+	/// <summary>
+	/// Verifies that a split can be stored, replaced and removed, and that removing a payment's split twice is
+	/// reported as not found.
+	/// </summary>
+	[Fact]
+	public void SplitPaymentThenRemove_Payment_StoredReplacedAndRemoved()
+	{
+		var user = UserData.Empty();
+		var id = new TxnId("t1");
+
+		user.SplitPayment(id, BreadAndMeat());
+		var replacement = PaymentSplit.Create(-30m, [new SplitLine(15m, new CategoryId("bread"), null), new SplitLine(15m, new CategoryId("meat"), null)]).Value;
+		user.SplitPayment(id, replacement);
+		var removed = user.RemoveSplit(id);
+		var removedAgain = user.RemoveSplit(id);
+
+		removed.IsSuccess.Should().BeTrue();
+		removedAgain.Error.Should().Be(PaymentSplitErrors.NotFound);
+		removedAgain.ResultExceptionType.Should().Be(Pivot.Framework.Domain.Shared.ResultExceptionType.NotFound);
+		user.Splits.Should().BeEmpty();
+	}
+
+	/// <summary>
+	/// Verifies that a split does not erase the category chosen for the payment alone.
+	/// </summary>
+	[Fact]
+	public void SplitPayment_WithTransactionCategory_CategoryKept()
+	{
+		var user = UserData.Empty();
+		user.AssignTransactionCategory(new TxnId("t1"), new CategoryId("groceries"));
+
+		user.SplitPayment(new TxnId("t1"), BreadAndMeat());
+		user.RemoveSplit(new TxnId("t1"));
+
+		user.TxnCategories[new TxnId("t1")].Should().Be(new CategoryId("groceries"));
+	}
+
+	/// <summary>
+	/// Verifies that deleting a category moves the split lines that use it to the heir, and the rest stays.
+	/// </summary>
+	[Fact]
+	public void ReassignCategory_SplitLines_MovedToHeir()
+	{
+		var user = UserData.Empty();
+		user.SplitPayment(new TxnId("t1"), BreadAndMeat());
+
+		user.ReassignCategory(new CategoryId("bread"), new CategoryId("food"));
+
+		user.Splits[new TxnId("t1")].Lines.Select(l => l.CategoryId.Value).Should().Equal("food", "meat");
+	}
+
+	/// <summary>
+	/// Verifies that the lines of one payment can be moved on their own and that an unsplit payment is ignored.
+	/// </summary>
+	[Fact]
+	public void ReassignSplitLines_OnePayment_OthersUntouched()
+	{
+		var user = UserData.Empty();
+		user.SplitPayment(new TxnId("t1"), BreadAndMeat());
+		user.SplitPayment(new TxnId("t2"), BreadAndMeat());
+
+		user.ReassignSplitLines(new TxnId("t1"), new CategoryId("meat"), new CategoryId("food-meat"));
+		user.ReassignSplitLines(new TxnId("unsplit"), new CategoryId("meat"), new CategoryId("food-meat"));
+
+		user.Splits[new TxnId("t1")].Lines[1].CategoryId.Should().Be(new CategoryId("food-meat"));
+		user.Splits[new TxnId("t2")].Lines[1].CategoryId.Should().Be(new CategoryId("meat"));
+		user.Splits.Should().HaveCount(2);
 	}
 	#endregion
 
