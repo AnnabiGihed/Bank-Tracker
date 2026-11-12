@@ -109,6 +109,14 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
 ## Open ideas / known gaps
 - Fixed payments and categories set in the version before `34987bb` (`user-rules.json`) are not migrated.
 - Chart.js is loaded from a CDN (fails offline) — could be bundled into `wwwroot`.
+- Two decisions at the same moment: the second gets 409 at once (`ApplyDecisionCommandHandler` uses
+  `TryAcquireWriteAsync`) instead of waiting briefly for the write lease.
+- Car-dealer payments match the keyword AUTOMOBILE and land on Car › Maintenance & repair; a purchase belongs in
+  Buying vehicles (the owner sets it on the payee). Built-in roots such as Other and Loan repayments offer no
+  "+ sub-category".
+- Running app locks `bin/`: build and test with `python .agent-kit/verify.py --artifacts-path <temp dir>` (or
+  `dotnet test KbcTracker.slnx --artifacts-path <dir>`) instead of stopping it. Back up with `pg_dump -Fc` before a data
+  upgrade runs on the owner's database.
 - Next: Docker Compose, Tailscale Serve and backups (unverified: loopback-only port publishing, the Host header
   Serve passes, Enable Banking accepting a `*.ts.net` redirect); then MAUI and its SQLite cache.
   Later: savings account, salary/quarterly/yearly detection, Loan and Salary tabs, notifications.
