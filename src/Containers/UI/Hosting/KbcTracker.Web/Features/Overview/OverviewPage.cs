@@ -27,31 +27,27 @@ public static class OverviewPage
 	public static string Render(Analysis a, string month, SessionInfo? s, string? notice)
 	{
 		if (a.Items.Count == 0)
+		{
 			return Layout("overview", month, a, s, Empty(s is null
 				? "Connect your bank to get started: click <b>Connect bank</b> and log in with itsme."
 				: "No transactions yet — click <b>↻ Sync</b>."), notice: notice);
+		}
 
 		var cur = a.MonthData(month);
 		var today = DateOnly.FromDateTime(DateTime.Today);
-		var fixedRows = a.Fixed.Select(f => (f, st: f.StatusIn(month, today))).Where(x => x.st.Status is not (FixedStatus.NotStarted or FixedStatus.NotThisMonth) || x.st.Paid > 0).ToList();
-		var open = fixedRows.Where(x => x.st.Status is FixedStatus.Due or FixedStatus.Late).ToList();
+		var fixedRows = a.Fixed.Select(f => (f, State: f.StatusIn(month, today))).Where(x => x.State.Status is not (FixedStatus.NotStarted or FixedStatus.NotThisMonth) || x.State.Paid > 0).ToList();
+		var open = fixedRows.Where(x => x.State.Status is FixedStatus.Due or FixedStatus.Late).ToList();
 
 		var sb = new StringBuilder();
 		if (a.Suggestions.Count > 0 || a.Review.Count > 0)
 		{
-			sb.Append("<div class=notice><span>");
-			if (a.Suggestions.Count > 0) sb.Append($"<b>{a.Suggestions.Count}</b> possible fixed payment(s) found. ");
-			if (a.Review.Count > 0) sb.Append($"<b>{a.Review.Count}</b> payee(s) with an automatic category to confirm.");
-			sb.Append("</span><span style='display:flex;gap:6px'>");
-			if (a.Suggestions.Count > 0) sb.Append($"<a class='btn sm' href='/fixed?m={month}'>Check fixed payments</a>");
-			if (a.Review.Count > 0) sb.Append($"<a class='btn sm ghost' href='/review?m={month}'>Review categories</a>");
-			sb.Append("</span></div>");
+			AppendAttentionNotice(sb, a, month);
 		}
 
 		sb.Append("<div class='grid k5' style='margin-bottom:12px'>");
 		Kpi(sb, "inc", "Income", Money(cur.Income), "salary, refunds…");
 		Kpi(sb, "", "Spent", Money(cur.Spent), $"fixed {WholeMoney(cur.Fixed)} · variable {WholeMoney(cur.Variable)}");
-		Kpi(sb, "fix", "Fixed payments", Money(cur.Fixed), open.Count == 0 ? (fixedRows.Count == 0 ? "none confirmed yet" : "all paid") : $"{open.Count} still to come · {WholeMoney(open.Sum(x => x.f.Def.Amount))}");
+		Kpi(sb, "fix", "Fixed payments", Money(cur.Fixed), FixedPaymentsOutlook(open.Count, fixedRows.Count, open.Sum(x => x.f.Def.Amount)));
 		Kpi(sb, "sav", "Saved & invested", Money(cur.Saved), "plans, spare change…");
 		Kpi(sb, "var", "Left over", Money(cur.Net), "income − spent − saved");
 		sb.Append("</div>");
@@ -61,16 +57,9 @@ public static class OverviewPage
 		sb.Append($"<div class=card><h2>Where it went</h2><div id=crumb class=muted style='margin:-4px 0 6px'></div><div class=chart><canvas id=cats></canvas></div></div></div>");
 
 		sb.Append("<div class='grid c2e'>");
-		sb.Append($"<div class=card><h2>Fixed payments <a class=muted href='/fixed?m={month}'>see all →</a></h2><table>");
-		foreach (var (f, st) in fixedRows.OrderBy(x => x.st.Status is FixedStatus.Paid or FixedStatus.PaidChanged).ThenBy(x => x.f.UsualDay).Take(6))
-			sb.Append($"<tr><td>{Html(f.Def.Name)}</td><td class=num>{Money(st.Paid > 0 ? st.Paid : f.Def.Amount)}</td><td style='width:1%'>{StatusPill(st, f)}</td></tr>");
-		if (fixedRows.Count == 0) sb.Append($"<tr><td class=muted>No confirmed fixed payments yet{(a.Suggestions.Count > 0 ? $" — <a href='/fixed?m={month}'>{a.Suggestions.Count} suggestions waiting</a>" : "")}.</td></tr>");
-		sb.Append($"</table><div class=muted style='margin-top:8px'>{fixedRows.Count(x => x.st.Paid > 0)} of {fixedRows.Count} paid this month</div></div>");
-
-		sb.Append($"<div class=card><h2>Biggest expenses <a class=muted href='/transactions?m={month}'>all transactions →</a></h2><table>");
-		foreach (var i in a.Items.Where(i => i.Month == month && i.IsSpending).OrderBy(i => i.T.Amount).Take(6))
-			sb.Append($"<tr><td class=muted style='width:1%'>{i.T.Date:dd/MM}</td><td>{Html(i.Name)}{CategoryTag(i)}</td><td class=num>{Money(-i.T.Amount)}</td></tr>");
-		sb.Append("</table></div></div>");
+		AppendFixedPaymentsCard(sb, a, month, fixedRows);
+		AppendBiggestExpensesCard(sb, a, month);
+		sb.Append("</div>");
 
 		var script = ChartScript(a, cur, month);
 		return Layout("overview", month, a, s, sb.ToString(), script, notice);
@@ -78,6 +67,97 @@ public static class OverviewPage
 	#endregion
 
 	#region Private Helpers
+	/// <summary>
+	/// Adds the banner that points to the suggestions to check and the payees to review, with a link to each.
+	/// </summary>
+	/// <param name="sb">The page being built.</param>
+	/// <param name="a">The analysis that counts the suggestions and the payees to review.</param>
+	/// <param name="month">The selected month, kept in the links.</param>
+	private static void AppendAttentionNotice(StringBuilder sb, Analysis a, string month)
+	{
+		sb.Append("<div class=notice><span>");
+		if (a.Suggestions.Count > 0)
+		{
+			sb.Append(CultureInfo.CurrentCulture, $"<b>{a.Suggestions.Count}</b> possible fixed payment(s) found. ");
+		}
+
+		if (a.Review.Count > 0)
+		{
+			sb.Append(CultureInfo.CurrentCulture, $"<b>{a.Review.Count}</b> payee(s) with an automatic category to confirm.");
+		}
+
+		sb.Append("</span><span style='display:flex;gap:6px'>");
+		if (a.Suggestions.Count > 0)
+		{
+			sb.Append(CultureInfo.InvariantCulture, $"<a class='btn sm' href='/fixed?m={month}'>Check fixed payments</a>");
+		}
+
+		if (a.Review.Count > 0)
+		{
+			sb.Append(CultureInfo.InvariantCulture, $"<a class='btn sm ghost' href='/review?m={month}'>Review categories</a>");
+		}
+
+		sb.Append("</span></div>");
+	}
+
+	/// <summary>
+	/// Words the sub-line of the fixed-payments figure: what is still to come, or that everything is paid or none is
+	/// confirmed yet.
+	/// </summary>
+	/// <param name="stillToCome">The number of fixed payments that are due or late.</param>
+	/// <param name="tracked">The number of fixed payments shown for the month.</param>
+	/// <param name="amountToCome">The total of the usual amounts of the payments still to come.</param>
+	/// <returns>The sub-line.</returns>
+	private static string FixedPaymentsOutlook(int stillToCome, int tracked, decimal amountToCome)
+	{
+		if (stillToCome > 0)
+		{
+			return $"{stillToCome} still to come · {WholeMoney(amountToCome)}";
+		}
+
+		return tracked == 0 ? "none confirmed yet" : "all paid";
+	}
+
+	/// <summary>
+	/// Adds the card of the month's fixed payments (the first six) with their status, and how many are paid.
+	/// </summary>
+	/// <param name="sb">The page being built.</param>
+	/// <param name="a">The analysis that counts the suggestions waiting.</param>
+	/// <param name="month">The selected month, kept in the links.</param>
+	/// <param name="fixedRows">The fixed payments of the month with their status.</param>
+	private static void AppendFixedPaymentsCard(StringBuilder sb, Analysis a, string month, List<(FixedRow Payment, (FixedStatus Status, decimal Paid, DateOnly? Date) State)> fixedRows)
+	{
+		sb.Append(CultureInfo.InvariantCulture, $"<div class=card><h2>Fixed payments <a class=muted href='/fixed?m={month}'>see all →</a></h2><table>");
+		foreach (var (f, st) in fixedRows.OrderBy(x => x.State.Status is FixedStatus.Paid or FixedStatus.PaidChanged).ThenBy(x => x.Payment.UsualDay).Take(6))
+		{
+			sb.Append(CultureInfo.InvariantCulture, $"<tr><td>{Html(f.Def.Name)}</td><td class=num>{Money(st.Paid > 0 ? st.Paid : f.Def.Amount)}</td><td style='width:1%'>{StatusPill(st, f)}</td></tr>");
+		}
+
+		if (fixedRows.Count == 0)
+		{
+			sb.Append(CultureInfo.InvariantCulture, $"<tr><td class=muted>No confirmed fixed payments yet{(a.Suggestions.Count > 0 ? $" — <a href='/fixed?m={month}'>{a.Suggestions.Count} suggestions waiting</a>" : "")}.</td></tr>");
+		}
+
+		sb.Append(CultureInfo.CurrentCulture, $"</table><div class=muted style='margin-top:8px'>{fixedRows.Count(x => x.State.Paid > 0)} of {fixedRows.Count} paid this month</div></div>");
+	}
+
+	/// <summary>
+	/// Adds the card of the month's six biggest expenses.
+	/// </summary>
+	/// <param name="sb">The page being built.</param>
+	/// <param name="a">The analysis that holds the payments.</param>
+	/// <param name="month">The selected month, as <c>yyyy-MM</c>.</param>
+	private static void AppendBiggestExpensesCard(StringBuilder sb, Analysis a, string month)
+	{
+		sb.Append(CultureInfo.InvariantCulture, $"<div class=card><h2>Biggest expenses <a class=muted href='/transactions?m={month}'>all transactions →</a></h2><table>");
+		foreach (var i in a.Items.Where(i => string.Equals(i.Month, month, StringComparison.Ordinal) && i.IsSpending).OrderBy(i => i.T.Amount).Take(6))
+		{
+			sb.Append(CultureInfo.CurrentCulture, $"<tr><td class=muted style='width:1%'>{i.T.Date:dd/MM}</td><td>{Html(i.Name)}{CategoryTag(i)}</td><td class=num>{Money(-i.T.Amount)}</td></tr>");
+		}
+
+		sb.Append("</table></div>");
+	}
+
 	/// <summary>
 	/// Renders the tag that names a payment's category, or the number of parts of a split payment.
 	/// </summary>
@@ -157,7 +237,12 @@ public static class OverviewPage
 	/// <summary>
 	/// Appends one key-figure card.
 	/// </summary>
+	/// <param name="sb">The page being built.</param>
+	/// <param name="cls">The extra style class that colours the card's top edge, or empty for none.</param>
+	/// <param name="label">The figure's name; it is encoded.</param>
+	/// <param name="value">The figure, as HTML.</param>
+	/// <param name="sub">The explanation under the figure; it is encoded.</param>
 	private static void Kpi(StringBuilder sb, string cls, string label, string value, string sub) =>
-		sb.Append($"<div class='card kpi {cls}'><div class=muted>{Html(label)}</div><div class=v>{value}</div><div class=s>{Html(sub)}</div></div>");
+		sb.Append(CultureInfo.InvariantCulture, $"<div class='card kpi {cls}'><div class=muted>{Html(label)}</div><div class=v>{value}</div><div class=s>{Html(sub)}</div></div>");
 	#endregion
 }

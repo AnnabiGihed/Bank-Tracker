@@ -99,8 +99,7 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
 - Packages: versions in `Directory.Packages.props`, reasons in ADR-0002/0004. `Pivot.Framework.*` (2.1.0) come from
   the private feed in `nuget.config`; restoring them needs `PIVOT_PACKAGES_USER`/`PIVOT_PACKAGES_TOKEN` (GitHub token
   with `read:packages`, e.g. `gh auth token`). Never write the token into a file.
-- Analyzers + warnings as errors for every project (`Directory.Build.props`); the web host's page classes are
-  waived until they are brought up to the analyzers, at the latest 2027-06-30 (ADR-0002).
+- Analyzers + warnings as errors for every project, the web host included (`Directory.Build.props`, ADR-0002).
   Deviations and suppressions are listed in ADR-0002 — fix findings, don't suppress them.
 - `dotnet test`. When changing detection, add a test and keep `RealDataTests` passing:
   it reads (never writes) the old JSON data in `%LOCALAPPDATA%\KbcTracker`

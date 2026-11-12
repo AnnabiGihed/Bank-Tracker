@@ -20,11 +20,14 @@ public static class BankPickerPage
 	/// <param name="banks">The banks offered by Enable Banking.</param>
 	/// <param name="notice">A one-time failure message, such as a refused connection, or <see langword="null"/> for none.</param>
 	/// <returns>The complete HTML page.</returns>
-	public static string Render(List<(string Name, string Country)> banks, string? notice)
+	public static string Render(IReadOnlyList<(string Name, string Country)> banks, string? notice)
 	{
 		var sb = new StringBuilder($"<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Choose bank</title><style>{Css}</style></head><body><main style='max-width:640px'><h1>Choose your bank</h1>{FailureNotice(notice)}<div class=card><table>");
-		foreach (var b in banks.OrderByDescending(b => b.Name.Contains("KBC", StringComparison.OrdinalIgnoreCase)).ThenBy(b => b.Name))
-			sb.Append($"<tr><td>{Html(b.Name)}</td><td class=num><form method=post action='/connect?name={Uri.EscapeDataString(b.Name)}&country={Uri.EscapeDataString(b.Country)}'><button class=btn>Connect</button></form></td></tr>");
+		foreach (var b in banks.OrderByDescending(b => b.Name.Contains("KBC", StringComparison.OrdinalIgnoreCase)).ThenBy(b => b.Name, StringComparer.CurrentCulture))
+		{
+			sb.Append(CultureInfo.InvariantCulture, $"<tr><td>{Html(b.Name)}</td><td class=num><form method=post action='/connect?name={Uri.EscapeDataString(b.Name)}&country={Uri.EscapeDataString(b.Country)}'><button class=btn>Connect</button></form></td></tr>");
+		}
+
 		sb.Append("</table></div><p><a href=/>← back</a></p></main></body></html>");
 		return sb.ToString();
 	}

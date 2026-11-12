@@ -26,10 +26,13 @@ public static class SettingsPage
 	{
 		var sb = new StringBuilder("<div class='grid c2e'>");
 		sb.Append("<div class=card><h2>Bank connection</h2>");
-		if (s is null) sb.Append("<p>Not connected.</p><a class=btn href=/banks>Connect KBC Brussels</a>");
+		if (s is null)
+		{
+			sb.Append("<p>Not connected.</p><a class=btn href=/banks>Connect KBC Brussels</a>");
+		}
 		else
 		{
-			sb.Append($"""
+			sb.Append(CultureInfo.CurrentCulture, $"""
 				<table>
 				<tr><td class=muted>Accounts</td><td>{s.AccountUids.Count}</td></tr>
 				<tr><td class=muted>Bank access valid until</td><td>{s.ValidUntil.ToLocalTime():dd/MM/yyyy} <span class=muted>(then click Reconnect)</span></td></tr>
@@ -41,12 +44,13 @@ public static class SettingsPage
 				</div>
 				""");
 		}
+
 		sb.Append("</div>");
 
 		sb.Append("<div class=card><h2>Your history</h2><table>");
-		sb.Append($"<tr><td class=muted>Stored</td><td>{(a.Items.Count == 0 ? "—" : $"{a.Items.Min(i => i.T.Date):dd/MM/yyyy} → {a.Items.Max(i => i.T.Date):dd/MM/yyyy}")}</td></tr>");
-		sb.Append($"<tr><td class=muted>Transactions</td><td>{a.Items.Count}</td></tr>");
-		sb.Append($"<tr><td class=muted>Fixed payments</td><td>{a.Fixed.Count}</td></tr>");
+		sb.Append(CultureInfo.CurrentCulture, $"<tr><td class=muted>Stored</td><td>{(a.Items.Count == 0 ? "—" : $"{a.Items.Min(i => i.T.Date):dd/MM/yyyy} → {a.Items.Max(i => i.T.Date):dd/MM/yyyy}")}</td></tr>");
+		sb.Append(CultureInfo.CurrentCulture, $"<tr><td class=muted>Transactions</td><td>{a.Items.Count}</td></tr>");
+		sb.Append(CultureInfo.CurrentCulture, $"<tr><td class=muted>Fixed payments</td><td>{a.Fixed.Count}</td></tr>");
 		sb.Append("<tr><td class=muted>Storage</td><td>Central PostgreSQL backend</td></tr></table>");
 		sb.Append("""
 			<p class=muted>KBC only shares the last ~90 days. Your backend keeps every downloaded transaction in PostgreSQL.

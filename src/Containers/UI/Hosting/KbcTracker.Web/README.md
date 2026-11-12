@@ -15,7 +15,7 @@ backend's API with `BackendClient`. It stores no data and holds no bank key.
 | `Features/<Tab>/<Tab>Page.cs` | The HTML of one tab (`Render`): Overview, FixedPayments, Transactions, Review, Categories, Settings, and the bank picker in BankConnection. |
 | `Features/Shared/Pages/PageKit.cs` | What every page shares: stylesheet, page shell, formatting helpers. |
 
-Start the backend first, then run `dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web`. Analyzer
-findings in the page classes and `Program.cs` are warnings, not errors, for now
+Start the backend first, then run `dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web`. The analyzers
+run with warnings as errors, as in every project
 ([ADR-0002](../../../../../docs/adr/0002-adopt-the-shared-analyzer-set.md)).
 Tests: `test/KbcTracker.E2E.Tests`.
