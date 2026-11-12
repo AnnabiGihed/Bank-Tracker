@@ -4,7 +4,7 @@ namespace KbcTracker.Domain.Tests.Features.Shared.Aggregates;
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Verifies the user's decisions held by <see cref="UserData"/>: fixed payments, dismissals, payee and
-///              transaction categories, payee names and forgetting a deleted category.
+///              transaction categories, payee names and reassigning a deleted category.
 /// </summary>
 public sealed class UserDataTests
 {
@@ -148,24 +148,65 @@ public sealed class UserDataTests
 	}
 
 	/// <summary>
-	/// Verifies that forgetting a deleted category removes it from payees and transactions and clears it from
-	/// fixed payments, leaving other categories alone.
+	/// Verifies that reassigning a deleted category moves its payee rules (keeping their confirmed state), the choices
+	/// for single transactions and its fixed payments to the new category, leaving other categories alone.
 	/// </summary>
 	[Fact]
-	public void ForgetCategory_UsedEverywhere_RemovedEverywhere()
+	public void ReassignCategory_UsedEverywhere_MovedEverywhere()
 	{
 		var housing = new CategoryId("housing");
+		var heir = new CategoryId("home");
 		var user = UserData.Empty();
 		user.AcceptFixedPayment(Rent(housing));
 		user.AssignPayeeCategory(RentKey, housing);
 		user.AssignPayeeCategory("CARD:SHOP", new CategoryId("groceries"));
 		user.AssignTransactionCategory(new TxnId("t1"), housing);
+		user.AssignTransactionCategory(new TxnId("t2"), new CategoryId("car"));
 
-		user.ForgetCategory(housing);
+		user.ReassignCategory(housing, heir);
 
-		user.Payees.Keys.Should().Equal("CARD:SHOP");
-		user.TxnCategories.Should().BeEmpty();
-		user.Recurring.Single().CategoryId.Should().BeNull();
+		user.Payees[RentKey].Should().Be(new PayeeAssignment(heir, Confirmed: true));
+		user.Payees["CARD:SHOP"].CategoryId.Should().Be(new CategoryId("groceries"));
+		user.TxnCategories[new TxnId("t1")].Should().Be(heir);
+		user.TxnCategories[new TxnId("t2")].Should().Be(new CategoryId("car"));
+		user.Recurring.Single().CategoryId.Should().Be(heir);
+	}
+
+	/// <summary>
+	/// Verifies that a payee rule reassigned to <c>other</c> becomes unconfirmed, so it shows up in the review queue,
+	/// while one reassigned to a parent keeps its state.
+	/// </summary>
+	[Fact]
+	public void ReassignCategory_ToOther_PayeeRuleUnconfirmed()
+	{
+		var user = UserData.Empty();
+		user.AssignPayeeCategory(RentKey, new CategoryId("housing"));
+		user.AssignPayeeCategory("CARD:SHOP", new CategoryId("groceries"));
+
+		user.ReassignCategory(new CategoryId("housing"), CategoryId.Other);
+		user.ReassignCategory(new CategoryId("groceries"), new CategoryId("home"));
+
+		user.Payees[RentKey].Should().Be(new PayeeAssignment(CategoryId.Other, Confirmed: false));
+		user.Payees["CARD:SHOP"].Should().Be(new PayeeAssignment(new CategoryId("home"), Confirmed: true));
+	}
+
+	/// <summary>
+	/// Verifies that a payee rule and a fixed payment can be pointed to another category without the user choosing
+	/// it, the rule with the confirmed state the caller gives.
+	/// </summary>
+	[Fact]
+	public void ReassignPayeeAndFixedPayment_Moved_StateAsGiven()
+	{
+		var user = UserData.Empty();
+		var payment = Rent(new CategoryId("housing"));
+		user.AcceptFixedPayment(payment);
+		user.AssignPayeeCategory(RentKey, new CategoryId("housing"));
+
+		user.ReassignPayee(RentKey, new CategoryId("housing-rent"), confirmed: false);
+		user.ReassignFixedPayment(payment.Id, new CategoryId("housing-rent"));
+
+		user.Payees[RentKey].Should().Be(new PayeeAssignment(new CategoryId("housing-rent"), Confirmed: false));
+		user.Recurring.Single().CategoryId.Should().Be(new CategoryId("housing-rent"));
 	}
 	#endregion
 

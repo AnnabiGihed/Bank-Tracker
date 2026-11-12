@@ -199,6 +199,111 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	}
 	#endregion
 
+	#region Category Tree Tests
+	/// <summary>
+	/// Verifies that the Overview ships the spending tree and the month's own amount per category for the
+	/// drill-down chart.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task Get_Overview_CarriesCategoryTreeAndOwnAmounts()
+	{
+		using var client = Factory.CreateClient();
+		await SeedTrainPaymentAsync(client);
+
+		var html = await client.GetStringAsync(new Uri("/overview?m=2026-10", UriKind.Relative));
+
+		html.Should().Contain("id=crumb")
+			.And.Contain("\"id\":\"transport\",\"parent\":null,\"name\":\"Transport\"")
+			.And.Contain("\"id\":\"train\",\"parent\":\"transport\",\"name\":\"Train\"")
+			.And.MatchRegex("\"o\":\\{[^}]*\"train\":8(\\.0+)?[,}]");
+	}
+
+	/// <summary>
+	/// Verifies that a category whose id is a name every JavaScript object has (<c>constructor</c>) reaches the
+	/// Overview data as an own key, and that the page reads the tree through prototype-less maps; and that the shared
+	/// script escapes names before they go into the toast.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task Get_OverviewAndTransactions_CategoryNamedConstructorAndEscapedToast()
+	{
+		using var client = Factory.CreateClient();
+		var api = new Uri("/api", UriKind.Relative);
+		using var created = await client.PostAsJsonAsync(api, new { action = "saveCategory", name = "Constructor", type = "Expense", color = "#123456", keywords = "" });
+		var seriesKey = (await AnalyseAsync()).Items.Single(i => i.T.Id.Equals(new TxnId("t1"))).SeriesKey;
+		using var assign = await client.PostAsJsonAsync(api, new { action = "payeeCategory", key = seriesKey, categoryId = "constructor" });
+
+		var overview = await client.GetStringAsync(new Uri("/overview?m=2026-10", UriKind.Relative));
+		var transactions = await client.GetStringAsync(new Uri("/transactions?m=2026-10", UriKind.Relative));
+
+		created.StatusCode.Should().Be(HttpStatusCode.OK);
+		assign.StatusCode.Should().Be(HttpStatusCode.OK);
+		overview.Should().Contain("\"id\":\"constructor\"")
+			.And.MatchRegex("\"o\":\\{[^}]*\"constructor\":12\\.5")
+			.And.Contain("Object.create(null)")
+			.And.Contain("own=Object.assign(nul(),d.o)");
+		transactions.Should().Contain("const esc=").And.Contain("${esc(label)}").And.Contain("${esc(x.name)}");
+	}
+
+	/// <summary>
+	/// Verifies that filtering Transactions on a parent category includes the payments of its sub-categories: each
+	/// row lists its category and the ancestors, and the filter lists the parent with its child indented.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task Get_TransactionsFilteredOnParent_RowOfChildCarriesParentId()
+	{
+		using var client = Factory.CreateClient();
+		await SeedTrainPaymentAsync(client);
+
+		var html = await client.GetStringAsync(new Uri("/transactions?m=2026-10&cat=transport", UriKind.Relative));
+
+		html.Should().Contain("data-cats='train transport'")
+			.And.Contain("data-cats='other'")
+			.And.Contain("<option value='transport' selected>Transport</option>")
+			.And.Contain("<option value='train'>— Train</option>");
+	}
+
+	/// <summary>
+	/// Verifies that the Categories tab renders a child under its parent, with a control to add a sub-category.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task Get_Categories_ChildRowFollowsParentWithAddSubCategory()
+	{
+		using var client = Factory.CreateClient();
+		await SeedTrainPaymentAsync(client);
+
+		var html = await client.GetStringAsync(new Uri("/categories?m=2026-10", UriKind.Relative));
+
+		var parent = html.IndexOf("data-id='transport'", StringComparison.Ordinal);
+		var child = html.IndexOf("data-id='train' data-parent='transport'", StringComparison.Ordinal);
+		parent.Should().BeGreaterThan(0);
+		child.Should().BeGreaterThan(parent);
+		html.Should().Contain("+ sub-category").And.Contain("editCat(null,&quot;transport&quot;)").And.Contain("data-toggle")
+			.And.Contain("id=cdParentRow").And.Contain("&quot;BuiltIn&quot;:true");
+	}
+
+	/// <summary>
+	/// Verifies that the category picker lists a parent before its child, the child indented.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task Get_Transactions_PickerListsChildAfterParentIndented()
+	{
+		using var client = Factory.CreateClient();
+		await SeedTrainPaymentAsync(client);
+
+		var html = await client.GetStringAsync(new Uri("/transactions?m=2026-10", UriKind.Relative));
+
+		var parent = html.IndexOf(">Transport</option>", StringComparison.Ordinal);
+		var child = html.IndexOf(">— Train</option>", StringComparison.Ordinal);
+		parent.Should().BeGreaterThan(0);
+		child.Should().BeGreaterThan(parent);
+	}
+	#endregion
+
 	#region Api Tests
 	/// <summary>
 	/// Verifies that renaming a payee through <c>POST /api</c> is saved in the user's decisions.
@@ -593,6 +698,27 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 
 		configure?.Invoke(request);
 		return await client.SendAsync(request).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Creates the categories Transport and its child Train through the API, stores an 8 euro payment in October and
+	/// assigns its payee to Train.
+	/// </summary>
+	private async Task SeedTrainPaymentAsync(HttpClient client)
+	{
+		var api = new Uri("/api", UriKind.Relative);
+		using var parent = await client.PostAsJsonAsync(api, new { action = "saveCategory", name = "Transport", type = "Expense", color = "#3454d1", keywords = "" }).ConfigureAwait(false);
+		using var child = await client.PostAsJsonAsync(api, new { action = "saveCategory", name = "Train", type = "Expense", parentId = "transport", color = "#56ccf2", keywords = "" }).ConfigureAwait(false);
+		parent.StatusCode.Should().Be(HttpStatusCode.OK);
+		child.StatusCode.Should().Be(HttpStatusCode.OK);
+		await ChangeAsync(db =>
+		{
+			db.Transactions.Add(Txn("t3", new DateOnly(2026, 10, 5), -8m, "Rail Co", "RAIL CO BE1000 Bruxelles Payment with card"));
+			return Task.CompletedTask;
+		}).ConfigureAwait(false);
+		var seriesKey = (await AnalyseAsync().ConfigureAwait(false)).Items.Single(i => i.T.Id.Equals(new TxnId("t3"))).SeriesKey;
+		using var assign = await client.PostAsJsonAsync(api, new { action = "payeeCategory", key = seriesKey, categoryId = "train" }).ConfigureAwait(false);
+		assign.StatusCode.Should().Be(HttpStatusCode.OK);
 	}
 
 	/// <summary>Reads the centrally stored user decisions through a fresh database scope.</summary>

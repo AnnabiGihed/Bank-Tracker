@@ -45,6 +45,25 @@ public sealed class MappingTests(PostgreSqlFixture fixture) : DatabaseTests(fixt
 	}
 
 	/// <summary>
+	/// Verifies that a category keeps its parent and COICOP code, and that a top-level category has neither stored.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task Category_ParentAndCoicop_RoundTrip()
+	{
+		await AddAsync(
+			Category.Rehydrate(new CategoryId("transport"), "Transport", CategoryType.Expense, "#3454d1", [], builtIn: false, coicop: "07"),
+			Category.Rehydrate(new CategoryId("car"), "Car", CategoryType.Expense, "#3454d1", [], builtIn: false, new CategoryId("transport"), "07.2"));
+
+		var read = await ReadAsync(db => db.Categories.OrderBy(c => c.Id).ToListAsync());
+
+		read.Single(c => c.Id == new CategoryId("car")).ParentId.Should().Be(new CategoryId("transport"));
+		read.Single(c => c.Id == new CategoryId("car")).Coicop.Should().Be("07.2");
+		read.Single(c => c.Id == new CategoryId("transport")).ParentId.Should().BeNull();
+		read.Single(c => c.Id == new CategoryId("transport")).Coicop.Should().Be("07");
+	}
+
+	/// <summary>
 	/// Verifies that a bank connection keeps its accounts and the same instants, stored in UTC.
 	/// </summary>
 	/// <returns>A task that completes when the test has run.</returns>

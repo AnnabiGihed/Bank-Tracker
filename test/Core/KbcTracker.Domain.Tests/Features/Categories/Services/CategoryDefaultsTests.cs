@@ -3,7 +3,7 @@ namespace KbcTracker.Domain.Tests.Features.Categories.Services;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
-/// Purpose     : Verifies the first-run categories and the category ids from <see cref="CategoryDefaults"/>.
+/// Purpose     : Verifies the default category tree and the category ids from <see cref="CategoryDefaults"/>.
 ///              The ids are stored in the user's data, so <see cref="CategoryDefaults.Slug"/> must keep producing
 ///              the same id for the same name.
 /// </summary>
@@ -60,21 +60,80 @@ public sealed class CategoryDefaultsTests
 		categories.Should().NotContain(c => c.Name == "&&");
 		categories.Should().Contain(c => c.Id == CategoryId.Other);
 	}
+	#endregion
 
+	#region CreateDefaults Tests
 	/// <summary>
-	/// Verifies the default seed a new database starts with: the built-in categories plus the seeded ones, with their
-	/// stable ids, the seed's bank-fee words merged into the built-in category, and the deliberate trailing spaces kept.
+	/// Verifies the default tree a new database starts with: unique ids, every built-in present, kept ids in their
+	/// place, and the deliberate trailing spaces kept.
 	/// </summary>
 	[Fact]
-	public void CreateDefaults_NewDatabase_BuiltInsAndSeededCategories()
+	public void CreateDefaults_Belgium_TreeWithBuiltInsAndKeptIds()
 	{
-		var categories = CategoryDefaults.CreateDefaults();
+		var categories = CategoryDefaults.CreateDefaults("BE");
 
-		categories.Select(c => c.Id.Value).Should().Contain(["other", "income", "savings", "groceries", "restaurants-cafes", "transport-fuel", "own-transfers"]);
 		categories.Should().OnlyHaveUniqueItems(c => c.Id);
-		categories.Single(c => c.Id == new CategoryId("bank-fees")).Keywords.Should().Contain(["KOSTEN", "FRAIS BANCAIRES"]);
+		categories.Select(c => c.Id.Value).Should().Contain(
+			["other", "income", "refunds", "savings", "own-transfers", "loan", "bills", "bank-fees", "cash", "transfers", "groceries", "car", "housing", "car-fuel"]);
+		categories.Where(c => c.BuiltIn).Select(c => c.Id.Value).Should().HaveCount(10).And.Contain(
+			["income", "refunds", "savings", "own-transfers", "loan", "bills", "bank-fees", "cash", "transfers", "other"]);
+		categories.Single(c => c.Id == new CategoryId("car-fuel")).ParentId.Should().Be(new CategoryId("car"));
+		categories.Single(c => c.Id == new CategoryId("car-fuel")).Coicop.Should().Be("07.2");
 		categories.Single(c => c.Id == new CategoryId("groceries")).Keywords.Should().Contain("AD ");
 		categories.Single(c => c.Id == new CategoryId("own-transfers")).Type.Should().Be(CategoryType.Transfer);
+	}
+
+	/// <summary>
+	/// Verifies that the tree is well formed: at most four levels, every parent exists, every child has its root's
+	/// type.
+	/// </summary>
+	[Fact]
+	public void CreateDefaults_Tree_DepthTypeAndParentsConsistent()
+	{
+		var categories = CategoryDefaults.CreateDefaults("BE");
+		var tree = new CategoryTree(categories);
+
+		foreach (var category in categories)
+		{
+			tree.Depth(category.Id.Value).Should().BeLessThanOrEqualTo(CategoryTree.MaxDepth, category.Id.Value);
+			(category.ParentId is null || tree.Contains(category.ParentId.Value)).Should().BeTrue(category.Id.Value);
+			category.Type.Should().Be(tree.Root(category.Id.Value)!.Type, category.Id.Value);
+		}
+
+		tree.Depth("car-fuel").Should().Be(4);
+	}
+
+	/// <summary>
+	/// Verifies that the Belgian pack is loaded only for Belgium, in any letter case, while the worldwide core is
+	/// always there.
+	/// </summary>
+	/// <param name="country">The country code.</param>
+	/// <param name="belgianPack">Whether the Belgian keywords are expected.</param>
+	[Theory]
+	[InlineData("BE", true)]
+	[InlineData("be", true)]
+	[InlineData("FR", false)]
+	[InlineData("", false)]
+	public void CreateDefaults_Country_BelgianPackOnlyForBelgium(string country, bool belgianPack)
+	{
+		var categories = CategoryDefaults.CreateDefaults(country);
+
+		var groceries = categories.Single(c => c.Id == new CategoryId("groceries")).Keywords;
+		groceries.Should().Contain("LIDL");
+		groceries.Contains("DELHAIZE").Should().Be(belgianPack);
+		categories.Single(c => c.Id == new CategoryId("transport-public")).Keywords.Contains("STIB").Should().Be(belgianPack);
+	}
+
+	/// <summary>
+	/// Verifies that the trailing space of the deliberate keywords survives in the seed.
+	/// </summary>
+	[Fact]
+	public void CreateDefaults_Belgium_TrailingSpaceKeywordsKept()
+	{
+		var categories = CategoryDefaults.CreateDefaults("BE");
+
+		categories.SelectMany(c => c.Keywords).Should().Contain(["AD ", "CM ", "BAR ", "CHU ", "UZ ", "DI ", "VOI "]);
+		categories.SelectMany(c => c.Keywords).Should().NotContain(["AD", "CM", "BAR"]);
 	}
 	#endregion
 }

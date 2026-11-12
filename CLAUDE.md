@@ -74,6 +74,14 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
   the description — it contains "Google Pay", "KBC").
   Automatic categories need user confirmation, except bank-certain kinds (loan, own transfer, fee, plan, cash).
 - Category type decides totals: Expense = spending, Income, Savings (separate), Transfer (ignored).
+- Categories are a tree (ADR-0006): COICOP 2018 divisions as spending roots plus non-spending roots, max depth 4,
+  children carry their root's type, classified by purpose (shampoo = Personal care, car insurance = Insurance).
+  A payment stays on the deepest node that is known (STIB → Public & paid transport, "not specified" below it);
+  totals roll up. Keyword tie → deeper node. Keywords: worldwide core + country pack (`EnableBanking:Country`, BE).
+  Built-in ids (income, refunds, savings, own-transfers, loan, bills, bank-fees, cash, transfers, other) can't be
+  deleted; deleting a node moves its payments to its parent. KBC sends no merchant category code (field empty).
+- Later, in order: split one payment into parts; the Android app; instant payment detection from Google Wallet /
+  KBC Mobile notifications (other wallets and banks later); receipts read and matched to payments.
 - The user wants: clear UI, little scrolling, no manual exports/imports, everything user-correctable.
 
 ## Build / run

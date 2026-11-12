@@ -192,8 +192,9 @@ public sealed class RecurringPayment : Entity<RecurringPaymentId>
 	}
 
 	/// <summary>
-	/// Forgets its category, so its payments fall back to their own (used when the category is deleted).
+	/// Moves it to another category (used when its category is deleted).
 	/// </summary>
-	internal void ClearCategory() => CategoryId = null;
+	/// <param name="categoryId">The category that takes over.</param>
+	internal void ReassignCategory(CategoryId categoryId) => CategoryId = categoryId;
 	#endregion
 }

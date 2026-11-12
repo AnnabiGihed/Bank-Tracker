@@ -10,4 +10,7 @@ namespace KbcTracker.Application.Features.Categories.Queries;
 /// <param name="Type">The category's totals classification.</param>
 /// <param name="Color">The display colour.</param>
 /// <param name="Keywords">The classification keywords.</param>
-public sealed record CategorySummary(string Id, string Name, string Type, string Color, IReadOnlyList<string> Keywords);
+/// <param name="ParentId">The parent category, or <see langword="null"/> for a top-level category.</param>
+/// <param name="Coicop">The COICOP 2018 code, or <see langword="null"/>.</param>
+public sealed record CategorySummary(string Id, string Name, string Type, string Color, IReadOnlyList<string> Keywords,
+	string? ParentId = null, string? Coicop = null);

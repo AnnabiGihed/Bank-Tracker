@@ -7,6 +7,7 @@ using KbcTracker.Domain.Features.Shared.Repositories;
 using KbcTracker.Persistence.EntityFrameworkCore.Features.BankConnection;
 using KbcTracker.Persistence.EntityFrameworkCore.Features.Transactions.Repositories;
 using KbcTracker.Persistence.EntityFrameworkCore.Features.BankConnection.Repositories;
+using KbcTracker.Persistence.EntityFrameworkCore.Features.Categories;
 using KbcTracker.Persistence.EntityFrameworkCore.Features.Categories.Repositories;
 using KbcTracker.Persistence.EntityFrameworkCore.Features.Shared.Repositories;
 using KbcTracker.Persistence.EntityFrameworkCore.Features.Shared.Import;
@@ -22,14 +23,14 @@ namespace KbcTracker.Persistence.EntityFrameworkCore.Features.Shared;
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Registers the PostgreSQL persistence of KbcTracker in a host: the context, Pivot's unit of work
-///              and the data import.
+///              the data import and the category tree upgrade.
 /// </summary>
 public static class PersistenceServiceCollectionExtensions
 {
 	#region Public Methods
 	/// <summary>
 	/// Registers the context on PostgreSQL, the unit of work (also as Pivot's <see cref="IUnitOfWork"/>, which use
-	/// cases depend on) and the <see cref="DataImporter"/>.
+	/// cases depend on), the <see cref="DataImporter"/> and the <see cref="CategoryTreeUpgrade"/>.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <param name="connectionString">The PostgreSQL connection string; required.</param>
@@ -46,6 +47,7 @@ public static class PersistenceServiceCollectionExtensions
 		// Pivot registers only the context-specific unit of work; use cases depend on the general one.
 		services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<IUnitOfWork<KbcTrackerDbContext>>());
 		services.AddScoped<DataImporter>();
+		services.AddScoped<CategoryTreeUpgrade>();
 		services.AddScoped<ITransactionRepository, TransactionRepository>();
 		services.AddScoped<IBankSessionRepository, BankSessionRepository>();
 		services.AddScoped<ICategoryRepository, CategoryRepository>();

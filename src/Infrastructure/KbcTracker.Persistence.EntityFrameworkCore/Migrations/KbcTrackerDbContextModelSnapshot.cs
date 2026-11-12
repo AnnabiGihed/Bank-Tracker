@@ -71,12 +71,18 @@ namespace KbcTracker.Persistence.EntityFrameworkCore.Migrations
                     b.Property<bool>("BuiltIn")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Coicop")
+                        .HasColumnType("text");
+
                     b.Property<string>("Color")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParentId")
                         .HasColumnType("text");
 
                     b.Property<uint>("RowVersion")
@@ -98,6 +104,8 @@ namespace KbcTracker.Persistence.EntityFrameworkCore.Migrations
                         .HasColumnName("Keywords");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ParentId");
 
                     b.ToTable("Categories", (string)null);
                 });

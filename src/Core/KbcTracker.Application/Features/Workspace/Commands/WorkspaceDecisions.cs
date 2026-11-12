@@ -1,5 +1,6 @@
 using KbcTracker.Application.Features.Workspace.Abstractions;
 using KbcTracker.Application.Features.Workspace.Contracts;
+using KbcTracker.Domain.Features.Categories.Errors;
 using KbcTracker.Domain.Features.Categories.ValueObjects;
 using KbcTracker.Domain.Features.FixedPayments.Aggregates;
 using KbcTracker.Domain.Features.Shared.Services;
@@ -27,11 +28,12 @@ internal sealed class WorkspaceDecisions(WorkspaceData data, IWorkspacePersisten
 		"accept" when Has(request.Key) => Accept(request.Key!),
 		"dismiss" when Has(request.Key) => Dismiss(request.Key!),
 		"mark" when Has(request.Key) => Mark(request.Key!),
-		"updateFixed" when Has(request.Id) => FromResult(data.User.UpdateFixedPayment(new RecurringPaymentId(request.Id!), request.Name,
-			CategoryOrNull(request.CategoryId), request.Amount, request.Cadence)),
+		"updateFixed" when Has(request.Id) => UnknownCategory(request.CategoryId)
+			?? FromResult(data.User.UpdateFixedPayment(new RecurringPaymentId(request.Id!), request.Name,
+				CategoryOrNull(request.CategoryId), request.Amount, request.Cadence)),
 		"removeFixed" when Has(request.Id) => FromResult(data.User.RemoveFixedPayment(new RecurringPaymentId(request.Id!))),
-		"payeeCategory" when Has(request.Key) => AssignPayee(request.Key!, request.CategoryId),
-		"txnOnly" when Has(request.Key) && Has(request.Id) && Has(request.CategoryId) => AssignTransaction(request),
+		"payeeCategory" when Has(request.Key) => UnknownCategory(request.CategoryId) ?? AssignPayee(request.Key!, request.CategoryId),
+		"txnOnly" when Has(request.Key) && Has(request.Id) && Has(request.CategoryId) => UnknownCategory(request.CategoryId) ?? AssignTransaction(request),
 		"confirm" => Confirm(request),
 		"rename" when Has(request.Key) => FromResult(data.User.RenamePayee(request.Key!, request.Name)),
 		"saveCategory" => CategoryDecisions.Save(data, persistence, request),
@@ -111,6 +113,12 @@ internal sealed class WorkspaceDecisions(WorkspaceData data, IWorkspacePersisten
 
 	/// <summary>Computes decision candidates using the complete backend source records.</summary>
 	private Analysis Analyse() => new(data.Transactions, data.Categories, data.User, DateOnly.FromDateTime(clock.GetLocalNow().Date));
+
+	/// <summary>Refuses a chosen category that does not exist, so a decision never points to nothing.</summary>
+	/// <returns>The failure, or <see langword="null"/> when no category was chosen or it exists.</returns>
+	private Result<DecisionResponse>? UnknownCategory(string? categoryId) =>
+		!Has(categoryId) || data.Categories.Any(c => string.Equals(c.Id.Value, categoryId, StringComparison.Ordinal)) ? null
+			: Result.Failure<DecisionResponse>(CategoryErrors.Unknown);
 
 	/// <summary>Normalises an optional category without inventing a new identifier.</summary>
 	private static CategoryId? CategoryOrNull(string? value) => Has(value) ? new CategoryId(value!) : null;

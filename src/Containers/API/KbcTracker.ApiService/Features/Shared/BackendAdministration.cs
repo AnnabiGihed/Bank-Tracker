@@ -3,6 +3,7 @@ using KbcTracker.Application.Features.BankConnection.Services;
 using KbcTracker.Domain.Features.Categories.Services;
 using KbcTracker.Domain.Features.Shared.Aggregates;
 using KbcTracker.Infrastructure.Features.Legacy;
+using KbcTracker.Persistence.EntityFrameworkCore.Features.Categories;
 using KbcTracker.Persistence.EntityFrameworkCore.Features.Shared;
 using KbcTracker.Persistence.EntityFrameworkCore.Features.Shared.Import;
 using Microsoft.EntityFrameworkCore;
@@ -16,8 +17,10 @@ namespace KbcTracker.ApiService.Features.Shared;
 ///
 ///              A new database must be filled once before the API accepts writes: <c>--import-json</c> brings the
 ///              existing history and refuses a database that already holds data; <c>--initialize</c> seeds the default
-///              categories (<see cref="CategoryDefaults.CreateDefaults"/>) and empty decisions, and leaves a database
-///              that already holds data alone, so the Aspire AppHost can run it on every start.
+///              categories (<see cref="CategoryDefaults.CreateDefaults"/>, with the keyword pack of the configured
+///              <c>EnableBanking:Country</c>, <c>BE</c> by default) and empty decisions, and leaves a database that already
+///              holds data alone, except that it upgrades a flat category list to the category tree once
+///              (<see cref="CategoryTreeUpgrade"/>), so the Aspire AppHost can run it on every start.
 /// </summary>
 public static class BackendAdministration
 {
@@ -97,27 +100,42 @@ public static class BackendAdministration
 		return 0;
 	}
 
-	/// <summary>Seeds an empty database with the default categories and empty decisions, through the same
-	/// all-or-nothing import as <c>--import-json</c>. A database that already holds data is left untouched and counts
-	/// as success, so running it on every start never changes the owner's categories.</summary>
+	/// <summary>Seeds an empty database with the default category tree and empty decisions, through the same
+	/// all-or-nothing import as <c>--import-json</c>. A database that already holds data keeps its categories, except
+	/// that a flat list from before the tree is upgraded once to the tree, so running it on every start never
+	/// changes what the owner has decided.</summary>
 	private static async Task<int> InitializeAsync(IServiceProvider services, CancellationToken cancellationToken)
 	{
-		var categories = CategoryDefaults.CreateDefaults().ToList();
+		var country = services.GetRequiredService<IConfiguration>()["EnableBanking:Country"];
+		var categories = CategoryDefaults.CreateDefaults(string.IsNullOrWhiteSpace(country) ? CategoryDefaults.DefaultCountry : country).ToList();
 		var result = await services.GetRequiredService<DataImporter>().ImportAsync(
 			new DataSnapshot([], categories, UserData.Empty(), null), cancellationToken).ConfigureAwait(false);
-		if (result.IsFailure && result.Error == ImportErrors.DatabaseNotEmpty)
-		{
-			Console.WriteLine("The database already holds data; nothing was seeded.");
-			return 0;
-		}
-
-		if (result.IsFailure)
+		if (result.IsFailure && result.Error != ImportErrors.DatabaseNotEmpty)
 		{
 			await Console.Error.WriteLineAsync("Initialisation failed; nothing was committed. Check the database configuration.").ConfigureAwait(false);
 			return 1;
 		}
 
-		Console.WriteLine($"Seeded {categories.Count} categories and no history.");
+		if (result.IsSuccess)
+		{
+			Console.WriteLine($"Seeded {categories.Count} categories and no history.");
+			return 0;
+		}
+
+		Console.WriteLine("The database already holds data; nothing was seeded.");
+		var upgrade = await services.GetRequiredService<CategoryTreeUpgrade>().UpgradeAsync(
+			string.IsNullOrWhiteSpace(country) ? CategoryDefaults.DefaultCountry : country, cancellationToken).ConfigureAwait(false);
+		if (upgrade.IsFailure)
+		{
+			await Console.Error.WriteLineAsync("The category tree upgrade failed; nothing was committed. Check the database configuration.").ConfigureAwait(false);
+			return 1;
+		}
+
+		if (upgrade.Value)
+		{
+			Console.WriteLine("The flat category list was upgraded to the category tree.");
+		}
+
 		return 0;
 	}
 	#endregion

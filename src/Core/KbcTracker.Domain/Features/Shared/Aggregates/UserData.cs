@@ -243,27 +243,61 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 	}
 
 	/// <summary>
-	/// Forgets a deleted category everywhere: its payees and transactions go back to automatic categorisation (and
-	/// to the review queue), and its fixed payments use their payments' own category.
+	/// Points a payee rule to another category without the user having chosen it, for instance when a category is
+	/// merged into the default tree.
 	/// </summary>
-	/// <param name="categoryId">The deleted category.</param>
+	/// <param name="seriesKey">The payee series key.</param>
+	/// <param name="categoryId">The category that takes over.</param>
+	/// <param name="confirmed">Whether the rule counts as confirmed; <see langword="false"/> puts the payee in the
+	/// review queue.</param>
+	/// <exception cref="ArgumentException"><paramref name="seriesKey"/> is blank.</exception>
 	/// <exception cref="ArgumentNullException"><paramref name="categoryId"/> is <see langword="null"/>.</exception>
-	public void ForgetCategory(CategoryId categoryId)
+	public void ReassignPayee(string seriesKey, CategoryId categoryId, bool confirmed)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(seriesKey);
 		ArgumentNullException.ThrowIfNull(categoryId);
-		foreach (var key in _payees.Where(kv => kv.Value.CategoryId == categoryId).Select(kv => kv.Key).ToList())
+		_payees[seriesKey] = new PayeeAssignment(categoryId, confirmed);
+	}
+
+	/// <summary>
+	/// Points a fixed payment to another category, keeping everything else about it.
+	/// </summary>
+	/// <param name="id">The fixed payment.</param>
+	/// <param name="categoryId">The category that takes over.</param>
+	/// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
+	public void ReassignFixedPayment(RecurringPaymentId id, CategoryId categoryId)
+	{
+		ArgumentNullException.ThrowIfNull(id);
+		ArgumentNullException.ThrowIfNull(categoryId);
+		_recurring.Find(p => p.Id == id)?.ReassignCategory(categoryId);
+	}
+
+	/// <summary>
+	/// Moves everything that refers to a category to another one, used when the category is deleted: its payee
+	/// rules, the choices made for single transactions and its fixed payments now point to <paramref name="to"/>.
+	/// A payee rule keeps its confirmed state, except when it moves to <c>other</c>: that is no decision of the user's, so
+	/// the rule becomes unconfirmed and its payments show up in the review queue.
+	/// </summary>
+	/// <param name="from">The category being removed.</param>
+	/// <param name="to">The category that takes over: the parent, or <c>other</c> for a top-level category.</param>
+	/// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
+	public void ReassignCategory(CategoryId from, CategoryId to)
+	{
+		ArgumentNullException.ThrowIfNull(from);
+		ArgumentNullException.ThrowIfNull(to);
+		foreach (var (key, assignment) in _payees.Where(kv => kv.Value.CategoryId == from).ToList())
 		{
-			_payees.Remove(key);
+			_payees[key] = assignment with { CategoryId = to, Confirmed = assignment.Confirmed && to != CategoryId.Other };
 		}
 
-		foreach (var txnId in _txnCategories.Where(kv => kv.Value == categoryId).Select(kv => kv.Key).ToList())
+		foreach (var txnId in _txnCategories.Where(kv => kv.Value == from).Select(kv => kv.Key).ToList())
 		{
-			_txnCategories.Remove(txnId);
+			_txnCategories[txnId] = to;
 		}
 
-		foreach (var payment in _recurring.Where(p => p.CategoryId == categoryId))
+		foreach (var payment in _recurring.Where(p => p.CategoryId == from))
 		{
-			payment.ClearCategory();
+			payment.ReassignCategory(to);
 		}
 	}
 	#endregion

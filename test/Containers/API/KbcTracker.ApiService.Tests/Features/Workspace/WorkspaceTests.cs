@@ -164,6 +164,100 @@ public sealed class WorkspaceTests(ApiFixture fixture) : IClassFixture<ApiFixtur
 	}
 	#endregion
 
+	#region Category Tree Tests
+	/// <summary>Verifies a child can be created under a parent, moved under another parent and made top level again,
+	/// and that the child takes its root's type.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Decisions_ChildCreatedAndMoved_TreeUpdated()
+	{
+		using var client = fixture.CreateClient();
+		var first = await ApplyAsync(client, new("saveCategory", Name: "Move root one", Type: "Savings"));
+		var second = await ApplyAsync(client, new("saveCategory", Name: "Move root two", Type: "Savings"));
+		var child = await ApplyAsync(client, new("saveCategory", Name: "Move child", ParentId: first.Id));
+
+		(await CategoryAsync(client, child.Id!)).ParentId.Should().Be(first.Id);
+		(await CategoryAsync(client, child.Id!)).Type.Should().Be(KbcTracker.Domain.Features.Categories.ValueObjects.CategoryType.Savings);
+		await ApplyAsync(client, new("saveCategory", Id: child.Id, Name: "Move child", ParentId: second.Id));
+		(await CategoryAsync(client, child.Id!)).ParentId.Should().Be(second.Id);
+		await ApplyAsync(client, new("saveCategory", Id: child.Id, Name: "Move child", ParentId: ""));
+		(await CategoryAsync(client, child.Id!)).ParentId.Should().BeNull();
+	}
+
+	/// <summary>Verifies a cycle, a tree deeper than four levels and a type that differs from the root are refused with a 400.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Decisions_CycleTooDeepTypeMismatch_Rejected()
+	{
+		using var client = fixture.CreateClient();
+		var root = await ApplyAsync(client, new("saveCategory", Name: "Rule root"));
+		var one = await ApplyAsync(client, new("saveCategory", Name: "Rule one", ParentId: root.Id));
+		var two = await ApplyAsync(client, new("saveCategory", Name: "Rule two", ParentId: one.Id));
+		var three = await ApplyAsync(client, new("saveCategory", Name: "Rule three", ParentId: two.Id));
+
+		(await StatusAsync(client, new("saveCategory", Id: root.Id, Name: "Rule root", ParentId: three.Id))).Should().Be(HttpStatusCode.BadRequest);
+		(await StatusAsync(client, new("saveCategory", Name: "Rule four", ParentId: three.Id))).Should().Be(HttpStatusCode.BadRequest);
+		(await StatusAsync(client, new("saveCategory", Name: "Rule income", Type: "Income", ParentId: root.Id))).Should().Be(HttpStatusCode.BadRequest);
+		(await StatusAsync(client, new("saveCategory", Name: "Rule orphan", ParentId: "no-such-parent"))).Should().Be(HttpStatusCode.BadRequest);
+	}
+
+	/// <summary>Verifies deleting a node sends its payments to its parent and moves its children up, and deleting a
+	/// top-level category sends them to the built-in other category.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Decisions_DeleteNode_PaymentsToParentChildrenUp()
+	{
+		using var client = fixture.CreateClient();
+		var key = (await WorkspaceAsync(client)).Analysis.Items.Single(i => string.Equals(i.Id, "historical", StringComparison.Ordinal)).SeriesKey;
+		var root = await ApplyAsync(client, new("saveCategory", Name: "Delete root"));
+		var middle = await ApplyAsync(client, new("saveCategory", Name: "Delete middle", ParentId: root.Id));
+		var leaf = await ApplyAsync(client, new("saveCategory", Name: "Delete leaf", ParentId: middle.Id));
+		await ApplyAsync(client, new("payeeCategory", Key: key, CategoryId: middle.Id));
+
+		await ApplyAsync(client, new("deleteCategory", Id: middle.Id));
+
+		var afterNode = await WorkspaceAsync(client);
+		afterNode.Analysis.Items.Single(i => string.Equals(i.Id, "historical", StringComparison.Ordinal)).CategoryId.Should().Be(root.Id);
+		afterNode.Analysis.Items.Single(i => string.Equals(i.Id, "historical", StringComparison.Ordinal)).CategoryConfirmed.Should().BeTrue();
+		afterNode.Analysis.Categories.Single(c => string.Equals(c.Id, leaf.Id, StringComparison.Ordinal)).ParentId.Should().Be(root.Id);
+		await ApplyAsync(client, new("deleteCategory", Id: root.Id));
+		var afterRoot = await WorkspaceAsync(client);
+		afterRoot.Analysis.Items.Single(i => string.Equals(i.Id, "historical", StringComparison.Ordinal)).CategoryId.Should().Be("other");
+		afterRoot.Analysis.Items.Single(i => string.Equals(i.Id, "historical", StringComparison.Ordinal)).CategoryConfirmed.Should().BeFalse();
+		afterRoot.Analysis.Categories.Single(c => string.Equals(c.Id, leaf.Id, StringComparison.Ordinal)).ParentId.Should().BeNull();
+	}
+
+	/// <summary>Verifies a built-in category can be renamed and recoloured but neither moved under another category
+	/// nor given another type.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Decisions_BuiltInMovedOrRetyped_RejectedRenameAllowed()
+	{
+		using var client = fixture.CreateClient();
+		var root = await ApplyAsync(client, new("saveCategory", Name: "Builtin root"));
+
+		(await StatusAsync(client, new("saveCategory", Id: "other", Name: "Other", ParentId: root.Id))).Should().Be(HttpStatusCode.BadRequest);
+		(await StatusAsync(client, new("saveCategory", Id: "other", Name: "Other", Type: "Income"))).Should().Be(HttpStatusCode.BadRequest);
+		(await StatusAsync(client, new("saveCategory", Id: "other", Name: "Everything else", Type: "Expense", Color: "#654321"))).Should().Be(HttpStatusCode.OK);
+		var renamed = await CategoryAsync(client, "other");
+		renamed.Name.Should().Be("Everything else");
+		renamed.ParentId.Should().BeNull();
+	}
+
+	/// <summary>Verifies decisions that name an unknown category are refused instead of pointing to nothing.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Decisions_UnknownCategory_Rejected()
+	{
+		using var client = fixture.CreateClient();
+		var key = (await WorkspaceAsync(client)).Analysis.Items.Single(i => string.Equals(i.Id, "historical", StringComparison.Ordinal)).SeriesKey;
+
+		(await StatusAsync(client, new("payeeCategory", Key: key, CategoryId: "no-such-category"))).Should().Be(HttpStatusCode.BadRequest);
+		(await StatusAsync(client, new("txnOnly", Key: key, Id: "historical", CategoryId: "no-such-category"))).Should().Be(HttpStatusCode.BadRequest);
+		(await StatusAsync(client, new("updateFixed", Id: "any-fixed-payment", CategoryId: "no-such-category"))).Should().Be(HttpStatusCode.BadRequest);
+	}
+	#endregion
+
 	#region Private Helpers
 	/// <summary>Creates a monthly loan instalment as KBC sends it, so the backend suggests it as a fixed payment.</summary>
 	private static Txn LoanInstalment(string id, DateOnly date) => Txn.Rehydrate(new TxnId(id), "current", date,
@@ -174,6 +268,17 @@ public sealed class WorkspaceTests(ApiFixture fixture) : IClassFixture<ApiFixtur
 	private static async Task<WorkspaceSnapshot> WorkspaceAsync(HttpClient client) =>
 		await client.GetFromJsonAsync<WorkspaceSnapshot>(new Uri("/api/v1/workspace", UriKind.Relative), ApiJson).ConfigureAwait(false)
 		?? throw new InvalidOperationException("The workspace must be returned.");
+
+	/// <summary>Posts a decision and returns only the HTTP status.</summary>
+	private static async Task<HttpStatusCode> StatusAsync(HttpClient client, DecisionRequest request)
+	{
+		using var response = await client.PostAsJsonAsync(new Uri("/api/v1/decisions", UriKind.Relative), request).ConfigureAwait(false);
+		return response.StatusCode;
+	}
+
+	/// <summary>Reads one category from the current workspace.</summary>
+	private static async Task<CategorySnapshot> CategoryAsync(HttpClient client, string id) =>
+		(await WorkspaceAsync(client).ConfigureAwait(false)).Analysis.Categories.Single(c => string.Equals(c.Id, id, StringComparison.Ordinal));
 
 	/// <summary>Commits a decision and reads its success payload.</summary>
 	private static async Task<DecisionResponse> ApplyAsync(HttpClient client, DecisionRequest request)

@@ -41,11 +41,27 @@ public sealed class CategoryTests
 	{
 		var category = Category.Create(new CategoryId("car"), "Car", CategoryType.Expense, "#3454d1", ["TOTAL"], builtIn: false).Value;
 
-		category.Update("Car & fuel", CategoryType.Expense, "#123456", ["TOTAL", "Q8"]).IsSuccess.Should().BeTrue();
-		category.Update("", CategoryType.Income, "#000000", []).IsFailure.Should().BeTrue();
+		category.Update("Car & fuel", CategoryType.Expense, "#123456", ["TOTAL", "Q8"], null).IsSuccess.Should().BeTrue();
+		category.Update("", CategoryType.Income, "#000000", [], null).IsFailure.Should().BeTrue();
 
 		category.Name.Should().Be("Car & fuel");
 		category.Type.Should().Be(CategoryType.Expense);
+		category.Keywords.Should().Equal("TOTAL", "Q8");
+	}
+
+	/// <summary>
+	/// Verifies that an update can move a category under a parent and that passing the category's own keyword list
+	/// back in keeps the keywords.
+	/// </summary>
+	[Fact]
+	public void Update_ParentAndOwnKeywords_ParentSetKeywordsKept()
+	{
+		var category = Category.Create(new CategoryId("car"), "Car", CategoryType.Expense, "#3454d1", ["TOTAL", "Q8"], builtIn: false, coicop: "07.2").Value;
+
+		category.Update(category.Name, category.Type, category.Color, category.Keywords, new CategoryId("transport")).IsSuccess.Should().BeTrue();
+
+		category.ParentId.Should().Be(new CategoryId("transport"));
+		category.Coicop.Should().Be("07.2");
 		category.Keywords.Should().Equal("TOTAL", "Q8");
 	}
 	#endregion
