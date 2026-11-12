@@ -26,7 +26,9 @@ public static class ReviewPage
 	{
 		var sb = new StringBuilder();
 		if (a.Review.Count == 0)
+		{
 			return Layout("review", month, a, s, Empty("All categories are confirmed. 🎉 New payees will show up here after a sync."), notice: notice);
+		}
 
 		sb.Append($"<div class=filters><span class=muted style='margin-right:auto'>These payees got a category automatically. Confirm it (✓) or pick another — it then applies to all their payments, past and future.</span>");
 		sb.Append("<select id=dir><option value=all>All</option><option value=out>Money out</option><option value=in>Money in</option></select>");
@@ -35,12 +37,13 @@ public static class ReviewPage
 		foreach (var r in a.Review)
 		{
 			var ctx = JsonAttribute(new { key = r.SeriesKey });
-			sb.Append($"<tr data-dir={(r.Incoming ? "in" : "out")} data-key='{Html(r.SeriesKey)}'>");
-			sb.Append($"<td><b>{Html(r.Name)}</b><div class='muted ell' title='{Html(r.Sample)}'>{Html(r.Sample)}</div></td>");
-			sb.Append($"<td class=num>{r.Count}</td><td class=num style='color:{(r.Total > 0 ? "var(--inc)" : "inherit")}'>{Money(r.Total)}</td><td class='num muted'>{r.Last:dd/MM/yy}</td>");
+			sb.Append(CultureInfo.InvariantCulture, $"<tr data-dir={(r.Incoming ? "in" : "out")} data-key='{Html(r.SeriesKey)}'>");
+			sb.Append(CultureInfo.InvariantCulture, $"<td><b>{Html(r.Name)}</b><div class='muted ell' title='{Html(r.Sample)}'>{Html(r.Sample)}</div></td>");
+			sb.Append(CultureInfo.CurrentCulture, $"<td class=num>{r.Count}</td><td class=num style='color:{(r.Total > 0 ? "var(--inc)" : "inherit")}'>{Money(r.Total)}</td><td class='num muted'>{r.Last:dd/MM/yy}</td>");
 			sb.Append("<td>").Append(CategorySelect(a, r.Category, false, $"api({{action:'payeeCategory',key:{ctx}.key,categoryId:this.value}})")).Append("</td>");
-			sb.Append($"<td class=num><button class='btn sm okb' onclick=\"api({JsonAttribute(new { action = "confirm", key = r.SeriesKey })})\">✓</button></td></tr>");
+			sb.Append(CultureInfo.InvariantCulture, $"<td class=num><button class='btn sm okb' onclick=\"api({JsonAttribute(new { action = "confirm", key = r.SeriesKey })})\">✓</button></td></tr>");
 		}
+
 		sb.Append("</table></div></div>");
 		const string script = """
 			const dir=document.getElementById('dir');

@@ -43,7 +43,6 @@ We accept these deviations:
 
 | Rule | Deviation | Reason | Expires |
 | --- | --- | --- | --- |
-| R6 | `TreatWarningsAsErrors` is `false` for the web host (`src/Containers/UI/Hosting/KbcTracker.Web`); its remaining findings, in the page classes (`Features/*/…Page.cs`, `PageKit.cs`) and `Program.cs`, are warnings. | Legacy page code written before the analyzers. The web host stays as a client of the API (ADR-0004), so the pages are to be brought up to the analyzers rather than retired. Every type in it is documented and regioned, and its API-client code (`WebEndpoints`, the middleware, `CsvExport`) builds without findings. | Pages brought up to the analyzers, at the latest 2027-06-30 |
 | StyleCop SA1309 | Off. | The higher-priority house rule wins: clean-code-naming and the C# skills name fields `_camelCase` (`_logger`). | Review when an organizational `.editorconfig` is adopted, at the latest 2027-06-30 |
 | StyleCop SA1514 | Off. | The higher-priority house rule wins: `csharp-regions` forbids a blank line directly after `#region`, where the first member's documentation starts. | Review when an organizational `.editorconfig` is adopted, at the latest 2027-06-30 |
 | StyleCop SA1642 | Off. | The higher-priority house rule wins: `csharp-xml-documentation` has constructors read "Initialises a new …". | Review when an organizational `.editorconfig` is adopted, at the latest 2027-06-30 |
@@ -52,6 +51,9 @@ We accept these deviations:
 | R9, R12–R19 | No CI format check, SonarCloud project or quality gate yet. | A single-user personal project without CI. Add them when the Android app is published. | First published release of the Android app |
 | R25 (Aspire ASPIRE010) | Off in the AppHost (`NoWarn` in `src/Containers/Aspire/Hosting/KbcTracker.AppHost/KbcTracker.AppHost.csproj`), added 2026-11-11. | The AppHost takes the dashboard and orchestrator from NuGet (`AspireUseCliBundle=false`, ADR-0005) so `dotnet run` and Visual Studio start it without installing the Aspire CLI; ASPIRE010 only reports that choice and has no code fix. | Review when the Aspire CLI is installed on the PC or the app moves to Docker Compose, at the latest 2027-06-30 |
 | Docs quality gates R5, R6, R12, R23, R24; Documentation as Code R18 | No Markdownlint, link check or docs pipeline, and no published docs site. Markdown is checked by hand (line length, links). | No CI yet; the docs are read in the repository. Add the docs gates with the CI above. | First published release of the Android app |
+
+The web host's deviation from R6 (warnings not treated as errors in its page classes) was lifted on 2026-11-12,
+when the pages were brought up to the analyzers; every project now builds with warnings as errors.
 
 These suppressions sit at the point of use, with a justification (R22):
 
@@ -73,7 +75,8 @@ These suppressions sit at the point of use, with a justification (R22):
 
 - Three more build-time packages, and a slower build.
 - Analyzer updates can add new findings that block the build; versions are bumped deliberately.
-- The web host keeps about 200 warnings until it is retired, which hides any new warning there.
+- The web host's pages needed a clean-up before warnings could be errors there too. Until it was done
+  (2026-11-12) they were a waived deviation (R6), and their warnings hid any new one.
 - Without CI and SonarCloud, the rules are only enforced on the developer's machine.
 
 ## Alternatives considered

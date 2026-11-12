@@ -109,9 +109,9 @@ public static class TransactionsPage
 	/// <returns>The complete HTML page.</returns>
 	public static string Render(Analysis a, string month, SessionInfo? s, string? cat, string? q, string? notice)
 	{
-		var items = a.Items.Where(i => i.Month == month).ToList();
+		var items = a.Items.Where(i => string.Equals(i.Month, month, StringComparison.Ordinal)).ToList();
 		var sb = new StringBuilder("<div class=filters>");
-		sb.Append($"<input id=q placeholder='Search name, text or amount…' value='{Html(q)}' style='flex:1;min-width:200px'>");
+		sb.Append(CultureInfo.InvariantCulture, $"<input id=q placeholder='Search name, text or amount…' value='{Html(q)}' style='flex:1;min-width:200px'>");
 		sb.Append("<select id=type><option value=spend>Spending</option><option value=income>Income</option><option value=save>Savings</option><option value=own>Own transfers</option><option value=all>Everything</option></select>");
 		sb.Append("<select id=cat><option value=''>All categories</option>");
 		AppendCategoryOptions(sb, a, items, cat);
@@ -122,8 +122,13 @@ public static class TransactionsPage
 		{
 			AppendRow(sb, a, month, i);
 		}
+
 		sb.Append("</table>");
-		if (items.Count == 0) sb.Append("<div class=empty>No transactions in this month.</div>");
+		if (items.Count == 0)
+		{
+			sb.Append("<div class=empty>No transactions in this month.</div>");
+		}
+
 		sb.Append("</div><div class=muted style='margin-top:10px;display:flex;justify-content:space-between'><span id=count></span><b id=total></b></div></div>");
 		sb.Append(SplitDialog);
 
@@ -138,38 +143,90 @@ public static class TransactionsPage
 	/// </summary>
 	private static void AppendRow(StringBuilder sb, Analysis a, string month, TxnInfo i)
 	{
-		var type = i.IsOwnMove ? "own" : i.IsSaving ? "save" : i.T.Amount > 0 ? "income" : "spend";
+		var type = RowType(i);
 		var search = $"{i.Name} {i.T.Description} {string.Join(' ', i.Parts.Select(p => p.Label))} {Math.Abs(i.T.Amount).ToString("0.00", Be)}".ToLowerInvariant();
 		var ctx = JsonAttribute(new { key = i.SeriesKey, id = i.T.Id.Value, name = i.Name });
 		var cats = string.Join(' ', i.Parts.SelectMany(p => CategoryAndAncestors(a, p.Category)).Distinct(StringComparer.Ordinal));
 		var confirmed = i.CategoryConfirmed ? 1 : 0;
 		sb.Append(CultureInfo.InvariantCulture, $"<tr data-type={type} data-cats='{Html(cats)}' data-conf={confirmed} data-s='{Html(search)}' data-a='{(-i.T.Amount).ToString(CultureInfo.InvariantCulture)}'");
-		if (i.IsSplit) sb.Append($" data-p='{JsonAttribute(RolledParts(a, i))}'");
+		if (i.IsSplit)
+		{
+			sb.Append(CultureInfo.InvariantCulture, $" data-p='{JsonAttribute(RolledParts(a, i))}'");
+		}
+
 		sb.Append('>');
-		sb.Append($"<td class=muted style='width:1%'>{i.T.Date:dd/MM}</td>");
-		sb.Append($"<td><b>{Html(i.Name)}</b><div class='muted ell' title='{Html(i.T.Description)}'>{Html(i.T.Description)}</div></td>");
+		sb.Append(CultureInfo.CurrentCulture, $"<td class=muted style='width:1%'>{i.T.Date:dd/MM}</td>");
+		sb.Append(CultureInfo.InvariantCulture, $"<td><b>{Html(i.Name)}</b><div class='muted ell' title='{Html(i.T.Description)}'>{Html(i.T.Description)}</div></td>");
 		sb.Append("<td>");
 		if (i.IsSplit)
 		{
 			foreach (var p in i.Parts)
-				sb.Append($"<span class=tag style='margin:1px 4px 1px 0' title='{Html(string.Join(" › ", a.Tree.Path(p.Category.Id.Value).Select(c => c.Name)))}'>{Dot(p.Category)}{Html(p.Label ?? p.Category.Name)} {Money(Math.Abs(p.Amount))}</span>");
+			{
+				sb.Append(CultureInfo.InvariantCulture, $"<span class=tag style='margin:1px 4px 1px 0' title='{Html(string.Join(" › ", a.Tree.Path(p.Category.Id.Value).Select(c => c.Name)))}'>{Dot(p.Category)}{Html(p.Label ?? p.Category.Name)} {Money(Math.Abs(p.Amount))}</span>");
+			}
 		}
 		else
 		{
 			sb.Append("<span style='white-space:nowrap'>").Append(CategorySelect(a, i.Category, i.CategoryConfirmed, $"setCat({ctx},this)"));
-			if (!i.CategoryConfirmed) sb.Append($"<button class=icon title='Confirm this category for {Html(i.Name)}' onclick=\"api({JsonAttribute(new { action = "confirm", key = i.SeriesKey })})\">✓</button>");
+			if (!i.CategoryConfirmed)
+			{
+				sb.Append(CultureInfo.InvariantCulture, $"<button class=icon title='Confirm this category for {Html(i.Name)}' onclick=\"api({JsonAttribute(new { action = "confirm", key = i.SeriesKey })})\">✓</button>");
+			}
+
 			sb.Append("</span>");
 		}
 
 		if (i.EffectiveType == CategoryType.Expense)
-			sb.Append($"<button class=icon title='{(i.IsSplit ? "Edit the split" : "Split this payment into parts")}' onclick=\"openSplit({JsonAttribute(SplitContext(i))})\">✂</button>");
+		{
+			sb.Append(CultureInfo.InvariantCulture, $"<button class=icon title='{(i.IsSplit ? "Edit the split" : "Split this payment into parts")}' onclick=\"openSplit({JsonAttribute(SplitContext(i))})\">✂</button>");
+		}
+
 		sb.Append("</td>");
-		sb.Append($"<td class=num style='color:{(i.T.Amount > 0 ? "var(--inc)" : "inherit")}'>{Money(i.T.Amount)}</td>");
-		sb.Append(i.T.Amount >= 0 || i.IsOwnMove ? "<td></td>"
-			: i.Recurring is not null
-				? $"<td style='width:1%'><a class='icon on' title='Fixed payment: {Html(i.Recurring.Name)}' href='/fixed?m={month}' style='text-decoration:none'>★</a></td>"
-				: $"<td style='width:1%'><button class=icon title='Mark {Html(i.Name)} as a fixed payment' onclick=\"api({JsonAttribute(new { action = "mark", key = i.SeriesKey })})\">☆</button></td>");
+		sb.Append(CultureInfo.InvariantCulture, $"<td class=num style='color:{(i.T.Amount > 0 ? "var(--inc)" : "inherit")}'>{Money(i.T.Amount)}</td>");
+		sb.Append(FixedCell(i, month));
 		sb.Append("</tr>");
+	}
+
+	/// <summary>
+	/// Names the kind of a payment for the type filter: own transfer, saving, income or spending.
+	/// </summary>
+	/// <param name="i">The payment.</param>
+	/// <returns>The filter value of the payment's kind.</returns>
+	private static string RowType(TxnInfo i)
+	{
+		if (i.IsOwnMove)
+		{
+			return "own";
+		}
+
+		if (i.IsSaving)
+		{
+			return "save";
+		}
+
+		return i.T.Amount > 0 ? "income" : "spend";
+	}
+
+	/// <summary>
+	/// Renders the cell that shows a payment's fixed-payment state: nothing for money in and own transfers, a star
+	/// that opens the fixed payment when it is one, and otherwise a button that marks it as one.
+	/// </summary>
+	/// <param name="i">The payment.</param>
+	/// <param name="month">The selected month, kept in the link to the fixed payments.</param>
+	/// <returns>The cell's HTML.</returns>
+	private static string FixedCell(TxnInfo i, string month)
+	{
+		if (i.T.Amount >= 0 || i.IsOwnMove)
+		{
+			return "<td></td>";
+		}
+
+		if (i.Recurring is not null)
+		{
+			return $"<td style='width:1%'><a class='icon on' title='Fixed payment: {Html(i.Recurring.Name)}' href='/fixed?m={month}' style='text-decoration:none'>★</a></td>";
+		}
+
+		return $"<td style='width:1%'><button class=icon title='Mark {Html(i.Name)} as a fixed payment' onclick=\"api({JsonAttribute(new { action = "mark", key = i.SeriesKey })})\">☆</button></td>";
 	}
 
 	/// <summary>
@@ -199,7 +256,9 @@ public static class TransactionsPage
 		foreach (var p in i.Parts)
 		{
 			foreach (var id in CategoryAndAncestors(a, p.Category))
+			{
 				totals[id] = totals.GetValueOrDefault(id) - p.Amount;
+			}
 		}
 
 		return totals;

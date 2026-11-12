@@ -104,37 +104,16 @@ internal static class PageKit
 		sb.Append($"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>My expenses</title><style>{Css}</style>");
 		sb.Append("<script src='https://cdn.jsdelivr.net/npm/chart.js@4'></script></head><body><header><div class=top>");
 		sb.Append("<div class=brand><i></i>My expenses</div><div class=sync>");
-		if (s is null) sb.Append("Not connected");
-		else
-		{
-			var left = (int)(s.ValidUntil - DateTimeOffset.UtcNow).TotalDays;
-			sb.Append($"Synced {s.LastSync?.ToLocalTime():dd/MM HH:mm}");
-			if (a.Items.Count > 0) sb.Append($" · history since {a.Items.Min(i => i.T.Date):dd/MM/yyyy}");
-			if (left < 15) sb.Append($" · <b style='color:var(--bad)'>bank access ends in {left} days</b>");
-		}
+		AppendSyncStatus(sb, a, s);
 		sb.Append("</div>");
 		if (tab is not ("settings" or "review"))
 		{
-			var i = a.AvailableMonths.IndexOf(month);
-			var older = i >= 0 && i < a.AvailableMonths.Count - 1 ? a.AvailableMonths[i + 1] : null;
-			var newer = i > 0 ? a.AvailableMonths[i - 1] : null;
-			sb.Append("<div class=month>");
-			sb.Append(older is null ? "<a style='opacity:.3'>‹</a>" : $"<a href='?m={older}' title='Previous month'>‹</a>");
-			sb.Append("<select onchange=\"location.search='?m='+this.value\">");
-			foreach (var m in a.AvailableMonths) sb.Append($"<option value={m}{(m == month ? " selected" : "")}>{MonthName(m)}</option>");
-			sb.Append("</select>");
-			sb.Append(newer is null ? "<a style='opacity:.3'>›</a>" : $"<a href='?m={newer}' title='Next month'>›</a>");
-			sb.Append("</div>");
+			AppendMonthSelector(sb, a, month);
 		}
+
 		sb.Append(s is null ? "<a class=btn href=/banks>Connect bank</a>" : $"<form method=post action='/sync?back=/{tab}?m={month}'><button class=btn>↻ Sync</button></form>");
 		sb.Append("</div><nav>");
-		var tabs = new (string Id, string Label, int Badge)[]
-		{
-			("overview", "Overview", 0), ("fixed", "Fixed payments", a.Suggestions.Count), ("transactions", "Transactions", 0),
-			("review", "To review", a.Review.Count), ("categories", "Categories", 0), ("settings", "Settings", 0)
-		};
-		foreach (var (id, label, badge) in tabs)
-			sb.Append($"<a class='{(id == tab ? "on" : "")}' href='/{id}?m={month}'>{label}{(badge > 0 ? $"<b>{badge}</b>" : "")}</a>");
+		AppendTabs(sb, a, tab, month);
 		sb.Append("</nav></header><main>");
 		sb.Append(FailureNotice(notice));
 		AppendSyncNotices(sb, s);
@@ -154,7 +133,11 @@ internal static class PageKit
 			const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 			</script>
 			""");
-		if (script is not null) sb.Append("<script>").Append(script).Append("</script>");
+		if (script is not null)
+		{
+			sb.Append("<script>").Append(script).Append("</script>");
+		}
+
 		sb.Append("</body></html>");
 		return sb.ToString();
 	}
@@ -180,6 +163,8 @@ internal static class PageKit
 	/// <summary>
 	/// Renders an empty-state card with a message.
 	/// </summary>
+	/// <param name="text">The message, as HTML; the caller encodes anything that comes from outside.</param>
+	/// <returns>The card's HTML.</returns>
 	internal static string Empty(string text) => $"<div class=card><div class=empty>{text}</div></div>";
 
 	/// <summary>
@@ -265,6 +250,9 @@ internal static class PageKit
 	/// <summary>
 	/// Renders the status of a fixed payment in the month as a coloured pill.
 	/// </summary>
+	/// <param name="st">The status in the month, the amount paid and the date paid or expected.</param>
+	/// <param name="f">The fixed payment, whose usual amount is shown when the paid amount differs.</param>
+	/// <returns>The pill's HTML.</returns>
 	internal static string StatusPill((FixedStatus Status, decimal Paid, DateOnly? Date) st, FixedRow f) => st.Status switch
 	{
 		FixedStatus.Paid => $"<span class='pill ok'>paid {st.Date:dd/MM}</span>",
@@ -276,9 +264,83 @@ internal static class PageKit
 	};
 
 	/// <summary>
+	/// Adds the header's sync status: when the bank was last read, since when history goes back and, when it is
+	/// close, that the bank access ends.
+	/// </summary>
+	/// <param name="sb">The page being built.</param>
+	/// <param name="a">The analysis that holds the transactions the history starts from.</param>
+	/// <param name="s">The bank session, or <see langword="null"/> when not connected.</param>
+	private static void AppendSyncStatus(StringBuilder sb, Analysis a, SessionInfo? s)
+	{
+		if (s is null)
+		{
+			sb.Append("Not connected");
+			return;
+		}
+
+		var left = (int)(s.ValidUntil - DateTimeOffset.UtcNow).TotalDays;
+		sb.Append(CultureInfo.CurrentCulture, $"Synced {s.LastSync?.ToLocalTime():dd/MM HH:mm}");
+		if (a.Items.Count > 0)
+		{
+			sb.Append(CultureInfo.CurrentCulture, $" · history since {a.Items.Min(i => i.T.Date):dd/MM/yyyy}");
+		}
+
+		if (left < 15)
+		{
+			sb.Append(CultureInfo.CurrentCulture, $" · <b style='color:var(--bad)'>bank access ends in {left} days</b>");
+		}
+	}
+
+	/// <summary>
+	/// Adds the month selector: the previous and next month links around a drop-down of every available month.
+	/// </summary>
+	/// <param name="sb">The page being built.</param>
+	/// <param name="a">The analysis that lists the available months, newest first.</param>
+	/// <param name="month">The selected month, as <c>yyyy-MM</c>.</param>
+	private static void AppendMonthSelector(StringBuilder sb, Analysis a, string month)
+	{
+		var i = a.AvailableMonths.IndexOf(month);
+		var older = i >= 0 && i < a.AvailableMonths.Count - 1 ? a.AvailableMonths[i + 1] : null;
+		var newer = i > 0 ? a.AvailableMonths[i - 1] : null;
+		sb.Append("<div class=month>");
+		sb.Append(older is null ? "<a style='opacity:.3'>‹</a>" : $"<a href='?m={older}' title='Previous month'>‹</a>");
+		sb.Append("<select onchange=\"location.search='?m='+this.value\">");
+		foreach (var m in a.AvailableMonths)
+		{
+			sb.Append(CultureInfo.InvariantCulture, $"<option value={m}{(string.Equals(m, month, StringComparison.Ordinal) ? " selected" : "")}>{MonthName(m)}</option>");
+		}
+
+		sb.Append("</select>");
+		sb.Append(newer is null ? "<a style='opacity:.3'>›</a>" : $"<a href='?m={newer}' title='Next month'>›</a>");
+		sb.Append("</div>");
+	}
+
+	/// <summary>
+	/// Adds the tab links, with the number of open items as a badge on the tabs that have one.
+	/// </summary>
+	/// <param name="sb">The page being built.</param>
+	/// <param name="a">The analysis that counts the suggestions and the payments to review.</param>
+	/// <param name="tab">The id of the active tab.</param>
+	/// <param name="month">The selected month, kept in every link.</param>
+	private static void AppendTabs(StringBuilder sb, Analysis a, string tab, string month)
+	{
+		var tabs = new (string Id, string Label, int Badge)[]
+		{
+			("overview", "Overview", 0), ("fixed", "Fixed payments", a.Suggestions.Count), ("transactions", "Transactions", 0),
+			("review", "To review", a.Review.Count), ("categories", "Categories", 0), ("settings", "Settings", 0)
+		};
+		foreach (var (id, label, badge) in tabs)
+		{
+			sb.Append(CultureInfo.CurrentCulture, $"<a class='{(string.Equals(id, tab, StringComparison.Ordinal) ? "on" : "")}' href='/{id}?m={month}'>{label}{(badge > 0 ? $"<b>{badge}</b>" : "")}</a>");
+		}
+	}
+
+	/// <summary>
 	/// Adds the banner of a failed sync, or, after a successful one, the number of transactions the bank sent that
 	/// could not be read, with a link to sync the whole history again once that is fixed.
 	/// </summary>
+	/// <param name="sb">The page being built.</param>
+	/// <param name="s">The bank session, or <see langword="null"/> when not connected.</param>
 	private static void AppendSyncNotices(StringBuilder sb, SessionInfo? s)
 	{
 		if (s?.LastError is not null)
@@ -296,37 +358,51 @@ internal static class PageKit
 	/// <summary>
 	/// HTML-encodes text; <see langword="null"/> becomes empty.
 	/// </summary>
+	/// <param name="s">The text, or <see langword="null"/>.</param>
+	/// <returns>The encoded text.</returns>
 	internal static string Html(string? s) => WebUtility.HtmlEncode(s ?? "");
 
 	/// <summary>
 	/// Formats an amount of money with cents.
 	/// </summary>
+	/// <param name="d">The amount in euro.</param>
+	/// <returns>The amount in Belgian formatting, followed by the euro sign.</returns>
 	internal static string Money(decimal d) => d.ToString("#,##0.00", Be) + " €";
 
 	/// <summary>
 	/// Formats an amount of money without cents.
 	/// </summary>
+	/// <param name="d">The amount in euro.</param>
+	/// <returns>The rounded amount in Belgian formatting, followed by the euro sign.</returns>
 	internal static string WholeMoney(decimal d) => d.ToString("#,##0", Be) + " €";
 
 	/// <summary>
 	/// Formats a <c>yyyy-MM</c> month as its English name and year.
 	/// </summary>
+	/// <param name="m">The month, as <c>yyyy-MM</c>.</param>
+	/// <returns>The month name and year, such as <c>March 2026</c>.</returns>
 	internal static string MonthName(string m) =>
 		DateTime.ParseExact(m + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture).ToString("MMMM yyyy", CultureInfo.GetCultureInfo("en-GB"));
 
 	/// <summary>
 	/// Serialises a value to JSON for inline scripts.
 	/// </summary>
+	/// <param name="o">The value to serialise.</param>
+	/// <returns>The JSON text.</returns>
 	internal static string Js(object? o) => JsonSerializer.Serialize(o);
 
 	/// <summary>
 	/// Serialises a value to JSON that is safe inside an HTML attribute.
 	/// </summary>
+	/// <param name="o">The value to serialise.</param>
+	/// <returns>The HTML-encoded JSON text.</returns>
 	internal static string JsonAttribute(object? o) => Html(Js(o));
 
 	/// <summary>
 	/// Renders a category's colour dot.
 	/// </summary>
+	/// <param name="c">The category whose colour is shown.</param>
+	/// <returns>The dot's HTML.</returns>
 	internal static string Dot(Category c) => $"<i class=dot style='background:{Html(c.Color)}'></i>";
 	#endregion
 }

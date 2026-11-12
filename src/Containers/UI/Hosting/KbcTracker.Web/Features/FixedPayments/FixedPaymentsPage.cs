@@ -31,49 +31,37 @@ public static class FixedPaymentsPage
 
 		if (a.Suggestions.Count > 0)
 		{
-			sb.Append($"<div class=card style='margin-bottom:12px'><h2>Possible fixed payments — please check <span class=muted style='text-transform:none'>accept to start tracking them</span></h2><div class='grid c3'>");
-			foreach (var g in a.Suggestions)
-			{
-				var cat = a.CategoryById(g.CategoryId);
-				sb.Append($"""
-					<div class='card sug'>
-					  <div style='display:flex;justify-content:space-between;gap:8px'><b>{Html(g.Name)}</b>{(g.HighConfidence ? "" : "<span class='pill nil' title='Only 2 payments seen so far'>maybe</span>")}</div>
-					  <div class=amt>{Money(g.Amount)} <span class=muted>{g.Cadence.ToLowerInvariant()}</span></div>
-					  <div class=muted>{Html(g.Reason)} · <span class=tag style='margin:0'>{Dot(cat)}{Html(cat.Name)}</span></div>
-					  <div class=chips>{string.Concat(g.Items.TakeLast(6).Select(i => $"<span title='{Html(i.T.Description)}'>{i.T.Date:dd/MM} · {Money(-i.T.Amount)}</span>"))}</div>
-					  <div style='display:flex;gap:6px'>
-					    <button class='btn sm okb' onclick="api({JsonAttribute(new { action = "accept", key = g.Signature })})">✓ Fixed payment</button>
-					    <button class='btn sm ghost' onclick="api({JsonAttribute(new { action = "dismiss", key = g.Signature })})">✕ Not fixed</button>
-					  </div>
-					</div>
-					""");
-			}
-			sb.Append("</div></div>");
+			AppendSuggestions(sb, a);
 		}
 
-		var rows = a.Fixed.Select(f => (f, st: f.StatusIn(month, today))).Where(x => x.st.Status != FixedStatus.NotStarted).ToList();
-		var monthly = rows.Where(x => x.st.Status != FixedStatus.NotThisMonth || x.st.Paid > 0).ToList();
+		var rows = a.Fixed.Select(f => (f, State: f.StatusIn(month, today))).Where(x => x.State.Status != FixedStatus.NotStarted).ToList();
+		var monthly = rows.Where(x => x.State.Status != FixedStatus.NotThisMonth || x.State.Paid > 0).ToList();
 		sb.Append("<div class=card style='margin-bottom:12px'><div class=stat>");
-		sb.Append($"<div><span class=muted>Expected in {MonthName(month)}</span><b>{Money(monthly.Sum(x => x.st.Paid > 0 ? x.st.Paid : x.f.Def.Amount))}</b></div>");
-		sb.Append($"<div><span class=muted>Paid</span><b style='color:var(--inc)'>{Money(monthly.Sum(x => x.st.Paid))}</b></div>");
-		sb.Append($"<div><span class=muted>Still to come</span><b style='color:var(--warn)'>{Money(monthly.Where(x => x.st.Status is FixedStatus.Due or FixedStatus.Late).Sum(x => x.f.Def.Amount))}</b></div>");
-		sb.Append($"<div><span class=muted>Fixed payments</span><b>{a.Fixed.Count}</b></div></div></div>");
+		sb.Append(CultureInfo.InvariantCulture, $"<div><span class=muted>Expected in {MonthName(month)}</span><b>{Money(monthly.Sum(x => x.State.Paid > 0 ? x.State.Paid : x.f.Def.Amount))}</b></div>");
+		sb.Append(CultureInfo.InvariantCulture, $"<div><span class=muted>Paid</span><b style='color:var(--inc)'>{Money(monthly.Sum(x => x.State.Paid))}</b></div>");
+		sb.Append(CultureInfo.InvariantCulture, $"<div><span class=muted>Still to come</span><b style='color:var(--warn)'>{Money(monthly.Where(x => x.State.Status is FixedStatus.Due or FixedStatus.Late).Sum(x => x.f.Def.Amount))}</b></div>");
+		sb.Append(CultureInfo.CurrentCulture, $"<div><span class=muted>Fixed payments</span><b>{a.Fixed.Count}</b></div></div></div>");
 
 		sb.Append("<div class=card><div class=scroll><table><tr><th class=num>Day</th><th>Payment</th><th>Category</th><th class=num>Amount</th><th>This month</th><th></th></tr>");
 		foreach (var (f, st) in rows.OrderBy(x => x.f.UsualDay))
 		{
 			var edit = new { Id = f.Def.Id.Value, f.Def.Name, f.Def.Amount, Cadence = f.Def.CadenceDays, CategoryId = f.Category.Id.Value };
-			sb.Append($"""
+			sb.Append(CultureInfo.CurrentCulture, $"""
 				<tr><td class=num>{f.UsualDay}</td>
 				<td><b>{Html(f.Def.Name)}</b><div class=muted>{Analysis.CadenceName(f.Def.CadenceDays)} · {f.Payments.Count} payment(s) · last {f.LastPaid:dd/MM/yy}</div></td>
 				<td><span class=tag style='margin:0'>{Dot(f.Category)}{Html(f.Category.Name)}</span></td><td class=num>{Money(f.Def.Amount)}</td><td>{StatusPill(st, f)}</td>
 				<td class=num><button class=icon title='Edit' onclick="editFixed({JsonAttribute(edit)})">✎</button><button class=icon title='Stop tracking' onclick="if(confirm('Stop tracking this fixed payment?'))api({JsonAttribute(new { action = "removeFixed", id = f.Def.Id.Value })})">✕</button></td></tr>
 				""");
 		}
-		if (rows.Count == 0) sb.Append("<tr><td colspan=6 class=empty>No confirmed fixed payments yet. Accept the suggestions above, or click ☆ next to a payment in Transactions.</td></tr>");
+
+		if (rows.Count == 0)
+		{
+			sb.Append("<tr><td colspan=6 class=empty>No confirmed fixed payments yet. Accept the suggestions above, or click ☆ next to a payment in Transactions.</td></tr>");
+		}
+
 		sb.Append("</table></div><div class=muted style='margin-top:10px'>Missing one? In <b>Transactions</b> click ☆ next to it.</div></div>");
 
-		sb.Append($"""
+		sb.Append(CultureInfo.InvariantCulture, $"""
 			<dialog id=fx><form method=dialog onsubmit="saveFixed();return false">
 			  <h3 style='margin:0'>Edit fixed payment</h3>
 			  <label>Name</label><input id=fxName required>
@@ -89,6 +77,37 @@ public static class FixedPaymentsPage
 			function saveFixed(){api({action:'updateFixed',id:fxId,name:fxName.value,categoryId:fxCat.value,amount:parseFloat(fxAmount.value),cadence:parseInt(fxCad.value)})}
 			""";
 		return Layout("fixed", month, a, s, sb.ToString(), script, notice);
+	}
+	#endregion
+
+	#region Private Helpers
+	/// <summary>
+	/// Adds the card of suggested fixed payments, each with the payments it was found from and the buttons to accept
+	/// or dismiss it.
+	/// </summary>
+	/// <param name="sb">The page being built.</param>
+	/// <param name="a">The analysis that holds the suggestions.</param>
+	private static void AppendSuggestions(StringBuilder sb, Analysis a)
+	{
+		sb.Append("<div class=card style='margin-bottom:12px'><h2>Possible fixed payments — please check <span class=muted style='text-transform:none'>accept to start tracking them</span></h2><div class='grid c3'>");
+		foreach (var g in a.Suggestions)
+		{
+			var cat = a.CategoryById(g.CategoryId);
+			sb.Append(CultureInfo.InvariantCulture, $"""
+				<div class='card sug'>
+				  <div style='display:flex;justify-content:space-between;gap:8px'><b>{Html(g.Name)}</b>{(g.HighConfidence ? "" : "<span class='pill nil' title='Only 2 payments seen so far'>maybe</span>")}</div>
+				  <div class=amt>{Money(g.Amount)} <span class=muted>{g.Cadence.ToLowerInvariant()}</span></div>
+				  <div class=muted>{Html(g.Reason)} · <span class=tag style='margin:0'>{Dot(cat)}{Html(cat.Name)}</span></div>
+				  <div class=chips>{string.Concat(g.Items.TakeLast(6).Select(i => $"<span title='{Html(i.T.Description)}'>{i.T.Date:dd/MM} · {Money(-i.T.Amount)}</span>"))}</div>
+				  <div style='display:flex;gap:6px'>
+				    <button class='btn sm okb' onclick="api({JsonAttribute(new { action = "accept", key = g.Signature })})">✓ Fixed payment</button>
+				    <button class='btn sm ghost' onclick="api({JsonAttribute(new { action = "dismiss", key = g.Signature })})">✕ Not fixed</button>
+				  </div>
+				</div>
+				""");
+		}
+
+		sb.Append("</div></div>");
 	}
 	#endregion
 }

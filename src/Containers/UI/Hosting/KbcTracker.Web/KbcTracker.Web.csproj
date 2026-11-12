@@ -7,9 +7,6 @@
   -->
   <PropertyGroup>
     <RootNamespace>KbcTracker.Web</RootNamespace>
-    <!-- Waiver (ADR-0002, R6): analyzer findings in the legacy pages stay warnings until the pages are brought up to
-         the analyzers, at the latest 2027-06-30. New and changed code in it must still build without warnings. -->
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
