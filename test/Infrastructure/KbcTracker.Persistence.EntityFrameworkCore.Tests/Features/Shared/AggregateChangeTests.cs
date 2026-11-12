@@ -37,7 +37,7 @@ public sealed class AggregateChangeTests(PostgreSqlFixture fixture) : DatabaseTe
 		await AddAsync(Samples.Groceries());
 
 		var result = await SaveAsync(async db => (await db.Categories.SingleAsync().ConfigureAwait(false))
-			.Update("Food", CategoryType.Expense, "#123456", ["COLRUYT", "AD "]).IsSuccess.Should().BeTrue());
+			.Update("Food", CategoryType.Expense, "#123456", ["COLRUYT", "AD "], null).IsSuccess.Should().BeTrue());
 		var read = await ReadAsync(db => db.Categories.SingleAsync());
 
 		result.IsSuccess.Should().BeTrue();
@@ -89,8 +89,8 @@ public sealed class AggregateChangeTests(PostgreSqlFixture fixture) : DatabaseTe
 		var stale = await staleScope.ServiceProvider.GetRequiredService<KbcTrackerDbContext>().Categories.SingleAsync();
 
 		var first = await SaveAsync(async db => (await db.Categories.SingleAsync().ConfigureAwait(false))
-			.Update("First", CategoryType.Expense, "#111111", []).IsSuccess.Should().BeTrue());
-		stale.Update("Second", CategoryType.Expense, "#222222", []).IsSuccess.Should().BeTrue();
+			.Update("First", CategoryType.Expense, "#111111", [], null).IsSuccess.Should().BeTrue());
+		stale.Update("Second", CategoryType.Expense, "#222222", [], null).IsSuccess.Should().BeTrue();
 		var second = await staleScope.ServiceProvider.GetRequiredService<Pivot.Framework.Domain.Repositories.IUnitOfWork>().SaveChangesAsync();
 
 		first.IsSuccess.Should().BeTrue();

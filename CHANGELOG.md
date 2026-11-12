@@ -19,6 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Categories are now a tree based on the COICOP 2018 household-spending classification, up to four levels deep
+  (for example Transport, Running own vehicles, Car, Fuel & charging), classified by purpose and seeded by default,
+  with keywords for global brands in four languages and, for Belgium (`EnableBanking:Country`, `BE` by default),
+  Belgian shops and utilities. A sub-category has the type of its top-level category; deleting a category moves its
+  payments, payee rules and fixed payments to its parent (to Other for a top-level one) and its sub-categories up one
+  level (payee rules that fall back to Other show up in To review); built-in categories can no longer be deleted, moved or
+  given another type (renaming and recolouring stay); choosing an unknown category in a decision is refused. An
+  existing flat category list is upgraded once, on the next start, keeping your own categories and edits: the old
+  Transport & fuel, Subscriptions and Utilities & telecom defaults are merged, and what pointed to them moves to the
+  node whose keyword matches (otherwise to Transport, Streaming & subscriptions or Unsorted direct debits), with payee
+  rules to confirm again in To review. The API's
+  category contracts gain optional `parentId` and `coicop`, and `saveCategory` accepts `parentId`.
+  In the web app the Overview chart drills down from the top-level categories with a breadcrumb, the category pickers
+  and the Categories tab show the tree (with "+ sub-category" and a parent choice), and filtering Transactions on a
+  category includes its sub-categories.
+
 - One start runs the whole app: the Aspire AppHost `KbcTracker.AppHost` starts PostgreSQL in Docker, applies the
   migrations, then starts the backend and the web app, with a dashboard at <https://localhost:17180> for their
   state, logs and traces ([ADR-0005](docs/adr/0005-run-the-app-on-the-pc-with-aspire.md), proposed). On the first

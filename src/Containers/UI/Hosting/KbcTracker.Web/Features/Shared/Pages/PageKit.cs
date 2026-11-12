@@ -151,6 +151,7 @@ internal static class PageKit
 			const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 			if(window.Chart){Chart.defaults.color=css('--muted');Chart.defaults.borderColor=css('--line');Chart.defaults.font.family='system-ui'}
 			const eur=v=>v.toLocaleString('fr-BE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+			const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 			</script>
 			""");
 		if (script is not null) sb.Append("<script>").Append(script).Append("</script>");
@@ -182,19 +183,84 @@ internal static class PageKit
 	internal static string Empty(string text) => $"<div class=card><div class=empty>{text}</div></div>";
 
 	/// <summary>
-	/// Renders a category drop-down grouped by category type; an unconfirmed category is shown dashed.
+	/// Renders a category drop-down grouped by the type of the top-level categories, with the categories in tree
+	/// order (a parent before its children, siblings by name) and indented by depth; an unconfirmed category is shown
+	/// dashed.
 	/// </summary>
+	/// <param name="a">The analysis that holds the category tree.</param>
+	/// <param name="current">The category to select.</param>
+	/// <param name="confirmed">Whether the category is confirmed; an unconfirmed one is shown dashed.</param>
+	/// <param name="onchange">The script to run when another category is chosen.</param>
+	/// <returns>The <c>select</c> element's HTML.</returns>
 	internal static string CategorySelect(Analysis a, Category current, bool confirmed, string onchange)
 	{
-		var sb = new StringBuilder($"<select class='{(confirmed ? "" : "auto")}' title='{(confirmed ? "Confirmed" : "Automatic — not confirmed yet")}' onchange=\"{onchange}\">");
-		foreach (var g in a.CategoryList.GroupBy(c => c.Type).OrderBy(g => g.Key))
+		var inv = CultureInfo.InvariantCulture;
+		var sb = new StringBuilder();
+		sb.Append(inv, $"<select class='{(confirmed ? "" : "auto")}' title='{(confirmed ? "Confirmed" : "Automatic — not confirmed yet")}' onchange=\"{onchange}\">");
+		foreach (var g in TreeOrder(a, ByName).GroupBy(x => x.Category.Type).OrderBy(g => g.Key))
 		{
-			sb.Append($"<optgroup label='{g.Key}'>");
-			foreach (var c in g.OrderBy(c => c.Name)) sb.Append($"<option value='{Html(c.Id.Value)}'{(c.Id == current.Id ? " selected" : "")}>{Html(c.Name)}</option>");
+			sb.Append(inv, $"<optgroup label='{TypeLabel(g.Key)}'>");
+			foreach (var (c, depth) in g)
+			{
+				sb.Append(inv, $"<option value='{Html(c.Id.Value)}'{(c.Id == current.Id ? " selected" : "")}>{Indent(depth)}{Html(c.Name)}</option>");
+			}
+
 			sb.Append("</optgroup>");
 		}
+
 		return sb.Append("</select>").ToString();
 	}
+
+	/// <summary>
+	/// Orders categories by name; the sibling order of the pickers.
+	/// </summary>
+	/// <param name="categories">The categories to order.</param>
+	/// <returns>The categories by name.</returns>
+	internal static IEnumerable<Category> ByName(IEnumerable<Category> categories) => categories.OrderBy(c => c.Name, StringComparer.CurrentCulture);
+
+	/// <summary>
+	/// Lists categories in tree order: the top-level categories, each followed by its sub-categories, level by level.
+	/// </summary>
+	/// <param name="a">The analysis that holds the category tree.</param>
+	/// <param name="order">Orders the categories that share a parent (and the top-level ones).</param>
+	/// <param name="include">Keeps only the categories it accepts, or <see langword="null"/> for all; a category that
+	/// is left out takes its sub-categories with it, so include a category's ancestors too.</param>
+	/// <returns>Each category with its level, one for a top-level category.</returns>
+	internal static IReadOnlyList<(Category Category, int Depth)> TreeOrder(Analysis a, Func<IEnumerable<Category>, IEnumerable<Category>> order, Func<Category, bool>? include = null)
+	{
+		var result = new List<(Category, int)>();
+		Walk(order(a.Tree.Roots()), 1);
+		return result;
+
+		void Walk(IEnumerable<Category> siblings, int depth)
+		{
+			foreach (var c in siblings.Where(c => include is null || include(c)))
+			{
+				result.Add((c, depth));
+				Walk(order(a.Tree.Children(c.Id.Value)), depth + 1);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Renders the indent of a category's level: "— " per level below the top.
+	/// </summary>
+	/// <param name="depth">The level, one for a top-level category.</param>
+	/// <returns>The indent; empty for a top-level category.</returns>
+	internal static string Indent(int depth) => string.Concat(Enumerable.Repeat("— ", depth - 1));
+
+	/// <summary>
+	/// Gets the heading of a category type.
+	/// </summary>
+	/// <param name="type">The category type.</param>
+	/// <returns>The heading shown to the user.</returns>
+	internal static string TypeLabel(CategoryType type) => type switch
+	{
+		CategoryType.Expense => "Spending",
+		CategoryType.Income => "Income",
+		CategoryType.Savings => "Savings",
+		_ => "Transfer"
+	};
 
 	/// <summary>
 	/// Renders the status of a fixed payment in the month as a coloured pill.

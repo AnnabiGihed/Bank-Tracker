@@ -37,11 +37,11 @@ public sealed class WorkspacePersistenceTests(PostgreSqlFixture fixture) : Datab
 		(await ReadAsync(db => db.UserData.CountAsync())).Should().Be(0);
 	}
 
-	/// <summary>Verifies an initialised database without categories gets the built-ins in the same save as the first
+	/// <summary>Verifies an initialised database without categories gets the default category tree in the same save as the first
 	/// decision.</summary>
 	/// <returns>A task that completes when verified.</returns>
 	[Fact]
-	public async Task Workspace_InitialisedWithoutCategories_FirstDecisionAddsBuiltIns()
+	public async Task Workspace_InitialisedWithoutCategories_FirstDecisionAddsDefaultTree()
 	{
 		await AddAsync(UserData.Empty());
 		var scope = Services.CreateAsyncScope();
@@ -59,7 +59,7 @@ public sealed class WorkspacePersistenceTests(PostgreSqlFixture fixture) : Datab
 			}
 		}
 
-		(await ReadAsync(db => db.Categories.CountAsync())).Should().Be(10);
+		(await ReadAsync(db => db.Categories.CountAsync())).Should().Be(KbcTracker.Domain.Features.Categories.Services.CategoryDefaults.CreateDefaults("BE").Count);
 		var stored = await ReadAsync(db => db.UserData.SingleAsync());
 		stored.DismissedSuggestions.Should().Contain("dismissed-in-first-decision");
 	}

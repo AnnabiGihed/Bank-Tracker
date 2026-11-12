@@ -145,6 +145,63 @@ public sealed class AnalysisTests
 	}
 	#endregion
 
+	#region Category Tree Tests
+	/// <summary>
+	/// Verifies that when two keywords are equally long the deeper category wins, whatever the list order.
+	/// </summary>
+	/// <param name="parentFirst">Whether the parent comes first in the category list.</param>
+	[Theory]
+	[InlineData(true)]
+	[InlineData(false)]
+	public void KeywordCategory_EqualKeywordsInParentAndChild_DeeperCategoryWins(bool parentFirst)
+	{
+		var other = Category.Create(CategoryId.Other, "Other", CategoryType.Expense, "#123456", [], builtIn: true).Value;
+		var parent = Category.Create(new CategoryId("parent"), "Parent", CategoryType.Expense, "#123456", ["SHOPPY"], builtIn: false).Value;
+		var child = Category.Create(new CategoryId("child"), "Child", CategoryType.Expense, "#123456", ["SHOPPY"], builtIn: false, new CategoryId("parent")).Value;
+		IEnumerable<Category> categories = parentFirst ? [other, parent, child] : [other, child, parent];
+
+		var analysis = new Analysis([BankJson.Card("2026-10-10", 5m, "SHOPPY BE1000 Bruxelles")], categories, UserData.Empty(), Today);
+
+		analysis.Items.Single().Category.Id.Value.Should().Be("child");
+	}
+
+	/// <summary>
+	/// Verifies that a STIB payment lands on "Public and paid transport", not on a mode the payment does not name.
+	/// </summary>
+	[Fact]
+	public void KeywordCategory_Stib_PublicTransportNotALeaf()
+	{
+		var analysis = new Analysis([BankJson.Card("2026-10-10", 2.5m, "STIB BE1000 Bruxelles")], CategoryDefaults.CreateDefaults("BE"), UserData.Empty(), Today);
+
+		analysis.Items.Single().Category.Id.Value.Should().Be("transport-public");
+		analysis.Tree.Children("transport-public").Should().NotBeEmpty();
+	}
+
+	/// <summary>
+	/// Verifies that the month's per-category amounts stay per assigned node and that rolling them up through the
+	/// tree gives each root the sum of its descendants, adding up to the month's spending.
+	/// </summary>
+	[Fact]
+	public void BuildMonth_ByCategoryAndRollUp_Consistent()
+	{
+		var analysis = new Analysis(
+		[
+			BankJson.Card("2026-10-10", 2.5m, "STIB BE1000 Bruxelles"),
+			BankJson.Card("2026-10-11", 40m, "SHELL BE1000 Bruxelles"),
+			BankJson.Card("2026-10-12", 7m, "LIDL BE1000 Bruxelles"),
+		], CategoryDefaults.CreateDefaults("BE"), UserData.Empty(), Today);
+
+		var october = analysis.MonthData("2026-10");
+		var rolled = analysis.Tree.RollUp(october.ByCategory);
+
+		october.ByCategory["transport-public"].Should().Be(2.5m);
+		october.ByCategory["car-fuel"].Should().Be(40m);
+		rolled["transport"].Should().Be(42.5m);
+		rolled["car"].Should().Be(40m);
+		analysis.Tree.Roots().Where(r => rolled.ContainsKey(r.Id.Value)).Sum(r => rolled[r.Id.Value]).Should().Be(october.ByCategory.Values.Sum());
+	}
+	#endregion
+
 	#region Suggestion Tests
 	/// <summary>
 	/// Verifies that the three fixed payments the user accepted in real life are suggested from three months of

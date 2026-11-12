@@ -5,38 +5,23 @@ namespace KbcTracker.Domain.Features.Categories.Services;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
-/// Purpose     : Creates the first-run category list: the built-in categories the analysis relies on, plus the
-///              user's own categories built from a name → keywords seed.
+/// Purpose     : Creates the first-run category list: the default COICOP tree of <see cref="CategoryTreeSeed"/>
+///              with the keywords of the worldwide core and, for Belgium, the Belgian pack; and, for tests and
+///              imports, a flat list built from a name → keywords seed.
 ///
-///              Shared by every store implementation so the web host and the Android app start with the same
-///              categories. The default seed lives here, in code, because it is written once into an empty database
-///              and then belongs to the user, who edits it on the Categories tab; it is not a setting.
+///              The default tree lives here, in code, because it is written once into an empty database and then
+///              belongs to the user, who edits it on the Categories tab; it is not a setting.
 /// </summary>
 public static class CategoryDefaults
 {
-	#region Static Instances
+	#region Constants
 	/// <summary>
-	/// The first-run seed: category names with the keywords looked for in payee and shop names. The order sets the
-	/// colours and the trailing spaces in <c>"AD "</c> and <c>"CM "</c> are deliberate: they stop the keyword from
-	/// matching words that only start with it, such as ADIDAS or CMS.
+	/// The country whose keyword pack is loaded when the configuration names none.
 	/// </summary>
-	private static readonly Dictionary<string, string[]> DefaultSeed = new(StringComparer.Ordinal)
-	{
-		["Own transfers"] = ["REVOLUT", "WISE", "N26"],
-		["Car"] = ["AUTOMOBILE", "TOYOTA", "GARAGE", "CARWASH", "FITWASH", "D'IETEREN", "VROOM"],
-		["Groceries"] = ["DELHAIZE", "COLRUYT", "CARREFOUR", "ALDI", "LIDL", "AD ", "OKAY", "SPAR", "INTERMARCHE", "ALBERT HEIJN", "CORA", "MATCH", "PROXY"],
-		["Restaurants & cafes"] = ["RESTAURANT", "CAFE", "MCDONALD", "QUICK", "BURGER", "PIZZA", "DELIVEROO", "UBER EATS", "UBER *EATS", "TAKEAWAY", "FEDOREST", "EXKI", "PAUL"],
-		["Transport & fuel"] = ["STIB", "MIVB", "SNCB", "NMBS", "DE LIJN", "TEC", "EUROSTAR", "SNCF", "OUIGO", "RATP", "FLIXBUS", "TOTAL", "Q8", "SHELL", "ESSO", "LUKOIL", "UBER", "BOLT", "PARKING", "INDIGO", "INTERPARKING"],
-		["Shopping"] = ["AMAZON", "AMZN", "BOL.COM", "ZALANDO", "COOLBLUE", "MEDIA MARKT", "MEDIAMARKT", "IKEA", "ACTION", "HEMA", "PRIMARK", "DECATHLON", "FNAC", "KRUIDVAT"],
-		["Health"] = ["PHARMACIE", "APOTHEEK", "MUTUALITE", "MUTUALITEIT", "PARTENA", "HELAN", "SOLIDARIS", "CM ", "DOKTER", "DOCTEUR"],
-		["Utilities & telecom"] = ["ENGIE", "ELECTRABEL", "LUMINUS", "TOTALENERGIES", "VIVAQUA", "SIBELGA", "PROXIMUS", "ORANGE", "TELENET", "BASE", "VOO", "SCARLET", "MOBILE VIKINGS"],
-		["Subscriptions"] = ["NETFLIX", "SPOTIFY", "DISNEY", "APPLE.COM", "GOOGLE", "YOUTUBE", "MICROSOFT", "AMAZON PRIME", "GITHUB", "OVH"],
-		["Cash"] = ["GELDOPNAME", "RETRAIT", "CASH", "ATM", "BANCONTACT GELDAUTOMAAT"],
-		["Housing"] = ["RENT", "LOYER", "HUUR", "SYNDIC", "IMMO"],
-		["Insurance"] = ["VERZEKERING", "ASSURANCE", "INSURANCE", "AXA", "ETHIAS", "BALOISE", "P&V", "DKV"],
-		["Bank & fees"] = ["KOSTEN", "FRAIS BANCAIRES"],
-	};
+	public const string DefaultCountry = "BE";
+	#endregion
 
+	#region Static Instances
 	/// <summary>
 	/// Colours given in turn to seeded categories that have no built-in colour.
 	/// </summary>
@@ -46,13 +31,36 @@ public static class CategoryDefaults
 
 	#region Factory Methods
 	/// <summary>
-	/// Creates the categories a new database starts with: the built-in ones plus the default seed.
+	/// Creates the categories a new database starts with: the default tree with the worldwide keywords and, for
+	/// Belgium, the Belgian pack.
 	/// </summary>
-	/// <returns>The new category list; the built-in <c>other</c> category is always included.</returns>
-	public static IList<Category> CreateDefaults() => Create(DefaultSeed);
+	/// <param name="country">The ISO country code of the bank's country; the country pack is loaded only for
+	/// <c>BE</c> (any case), any other value gets the worldwide core alone.</param>
+	/// <returns>The category list in tree order; it contains every built-in category, <c>other</c> included.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="country"/> is <see langword="null"/>.</exception>
+	public static IList<Category> CreateDefaults(string country)
+	{
+		ArgumentNullException.ThrowIfNull(country);
+		var belgium = string.Equals(country.Trim(), DefaultCountry, StringComparison.OrdinalIgnoreCase);
+		var colours = CategoryTreeSeed.Nodes.Where(n => n.ParentId is null).ToDictionary(n => n.Id, n => (n.Type!.Value, n.Color!), StringComparer.Ordinal);
+		var byId = CategoryTreeSeed.Nodes.ToDictionary(n => n.Id, StringComparer.Ordinal);
+		return [.. CategoryTreeSeed.Nodes.Select(node =>
+		{
+			var root = node;
+			while (root.ParentId is not null)
+			{
+				root = byId[root.ParentId];
+			}
+
+			var (type, color) = colours[root.Id];
+			string[] keywords = belgium ? [.. node.CoreKeywords, .. node.BelgiumKeywords] : node.CoreKeywords;
+			return Category.Create(new CategoryId(node.Id), node.Name, node.Type ?? type, node.Color ?? color, keywords,
+				node.BuiltIn, node.ParentId is null ? null : new CategoryId(node.ParentId), node.Coicop).Value;
+		})];
+	}
 
 	/// <summary>
-	/// Creates the built-in categories and adds one category per seed entry. A seed entry whose name or slug
+	/// Creates a flat list: the built-in categories and one top-level category per seed entry. A seed entry whose name or slug
 	/// matches a built-in category adds its keywords to that category instead; one whose name has no letter or digit
 	/// is skipped.
 	/// </summary>

@@ -743,6 +743,14 @@
           },
           "builtIn": {
             "type": "boolean"
+          },
+          "parentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "coicop": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -774,6 +782,14 @@
             "items": {
               "type": "string"
             }
+          },
+          "parentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "coicop": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -887,6 +903,10 @@
           },
           "restore": {
             "$ref": "#/components/schemas/PayeeAssignmentSnapshot"
+          },
+          "parentId": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false

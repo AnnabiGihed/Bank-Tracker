@@ -19,7 +19,7 @@ internal sealed class ListCategoriesQueryHandler(ICategoryRepository categories)
 	{
 		ArgumentNullException.ThrowIfNull(request);
 		var stored = await categories.ListAsync(cancellationToken).ConfigureAwait(false);
-		IReadOnlyList<CategorySummary> result = [.. stored.Select(c => new CategorySummary(c.Id.Value, c.Name, c.Type.ToString(), c.Color, [.. c.Keywords]))];
+		IReadOnlyList<CategorySummary> result = [.. stored.Select(c => new CategorySummary(c.Id.Value, c.Name, c.Type.ToString(), c.Color, [.. c.Keywords], c.ParentId?.Value, c.Coicop))];
 		return Result.Success(result);
 	}
 	#endregion

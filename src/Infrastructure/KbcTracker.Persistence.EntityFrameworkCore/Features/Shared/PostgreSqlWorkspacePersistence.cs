@@ -99,7 +99,7 @@ public sealed class PostgreSqlWorkspacePersistence(KbcTrackerDbContext db, IUnit
 	/// <summary>Builds the fallback definition required by the domain analysis.</summary>
 	private static Category OtherCategory() => Category.Rehydrate(CategoryId.Other, "Other", CategoryType.Expense, Category.DefaultColor, [], builtIn: true);
 
-	/// <summary>Uses the canonical built-ins for an otherwise empty workspace.</summary>
-	private static IEnumerable<Category> DefaultCategories() => CategoryDefaults.Create(new Dictionary<string, string[]>(StringComparer.Ordinal));
+	/// <summary>Uses the default category tree for an otherwise empty workspace.</summary>
+	private static IEnumerable<Category> DefaultCategories() => CategoryDefaults.CreateDefaults(CategoryDefaults.DefaultCountry);
 	#endregion
 }

@@ -56,6 +56,7 @@ public sealed partial class Analysis
 	#region Fields
 	private readonly Dictionary<string, Category> _categories;
 	private readonly DateOnly _today;
+	private readonly CategoryKeywordMatcher _matcher;
 	#endregion
 
 	#region Constructors
@@ -73,6 +74,8 @@ public sealed partial class Analysis
 		_today = today ?? DateOnly.FromDateTime(DateTime.Today);
 		CategoryList = [.. categories];
 		_categories = CategoryList.ToDictionary(c => c.Id.Value, StringComparer.Ordinal);
+		Tree = new CategoryTree(CategoryList);
+		_matcher = new CategoryKeywordMatcher(CategoryList, Tree);
 
 		var parsed = txns.Select(t => (Txn: t, Fields: BankFields.From(t))).ToList();
 		HolderName = parsed.Where(p => p.Txn.Amount < 0).Select(p => p.Fields.DebtorName).OfType<string>()
@@ -109,6 +112,8 @@ public sealed partial class Analysis
 		Items = state.Items;
 		CategoryList = state.Categories;
 		_categories = state.Categories.ToDictionary(c => c.Id.Value, StringComparer.Ordinal);
+		Tree = new CategoryTree(state.Categories);
+		_matcher = new CategoryKeywordMatcher(state.Categories, Tree);
 		Fixed = state.Fixed;
 		Suggestions = state.Suggestions;
 		Review = state.Review;
@@ -165,6 +170,12 @@ public sealed partial class Analysis
 	/// Gets the category definitions the analysis used.
 	/// </summary>
 	public IReadOnlyList<Category> CategoryList { get; }
+
+	/// <summary>
+	/// Gets the category tree built from <see cref="CategoryList"/>. <see cref="MonthSummary.ByCategory"/> holds the
+	/// amount of each category itself; the totals through the tree come from <see cref="CategoryTree.RollUp"/>.
+	/// </summary>
+	public CategoryTree Tree { get; }
 
 	/// <summary>
 	/// Gets the account holder's normalised name: the most common debtor of money out. Transfers to or from it are
@@ -421,40 +432,10 @@ public sealed partial class Analysis
 			&& Math.Abs(amount - d.Amount) <= Math.Max(0.5m, d.Amount * d.TolerancePct / 100));
 
 	/// <summary>
-	/// Finds the category of the longest keyword that starts a word of <paramref name="text"/> ("AUTOMOBILE" beats
-	/// "CARREFOUR").
+	/// Finds the category of the longest keyword that starts a word of <paramref name="text"/> (see
+	/// <see cref="CategoryKeywordMatcher"/>).
 	/// </summary>
-	private string? KeywordCategory(string text, CategoryType? only)
-	{
-		var padded = " " + text.ToUpperInvariant() + " ";
-		return CategoryList.Where(c => only is null || c.Type == only)
-			.SelectMany(c => c.Keywords.Select(keyword => (CategoryId: c.Id.Value, Word: keyword.ToUpperInvariant())))
-			.Where(x => x.Word.Trim().Length > 0 && StartsAtWord(padded, x.Word))
-			.OrderByDescending(x => x.Word.Trim().Length)
-			.Select(x => x.CategoryId).FirstOrDefault();
-	}
-
-	/// <summary>
-	/// Determines whether <paramref name="word"/> occurs in <paramref name="text"/> at the start of a word,
-	/// so "AD " matches "AD DELHAIZE" but not "AZAD " or "RAD HUY". <paramref name="word"/> must not be empty.
-	/// </summary>
-	private static bool StartsAtWord(string text, string word)
-	{
-		var startsWithLetter = char.IsLetterOrDigit(word[0]);
-		var index = text.IndexOf(word, StringComparison.Ordinal);
-		while (index >= 0)
-		{
-			var isWordStart = index == 0 || !startsWithLetter || !char.IsLetterOrDigit(text[index - 1]);
-			if (isWordStart)
-			{
-				return true;
-			}
-
-			index = text.IndexOf(word, index + 1, StringComparison.Ordinal);
-		}
-
-		return false;
-	}
+	private string? KeywordCategory(string text, CategoryType? only) => _matcher.Find(text, only);
 
 	/// <summary>
 	/// Gets a category by id, falling back to <c>other</c> (or a stand-in when even that is missing).

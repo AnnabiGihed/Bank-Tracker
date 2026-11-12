@@ -37,9 +37,26 @@ Automatic categories come from the bank code when it makes them certain, and nee
 - cash.
 
 Otherwise a keyword decides: a keyword matches only at the start of a word, and
-the longest matching keyword wins ("AUTOMOBILE" beats "CARREFOUR"). For card payments only the shop name is
-searched, because the rest of the label contains words such as "Google Pay" or "KBC". Keyword categories wait on
-the **To review** tab until you confirm them.
+the longest matching keyword wins ("AUTOMOBILE" beats "CARREFOUR"); on a tie, the deeper category wins. For card
+payments only the shop name is searched, because the rest of the label contains words such as "Google Pay" or "KBC".
+Keyword categories wait on the **To review** tab until you confirm them.
+
+## The category tree
+
+Categories form a tree of at most four levels, based on COICOP 2018, the United Nations classification of household
+spending by purpose ([ADR-0006](../adr/0006-classify-spending-in-a-coicop-category-tree.md)). Its thirteen divisions
+are the spending roots, such as Food & non-alcoholic drinks, Transport and Health; roots outside COICOP hold what is
+not spending, such as Income, Savings & investments and Own transfers.
+
+- **By purpose, not by shop.** Shampoo is Personal care and car insurance is Insurance, wherever they were bought.
+- **A child has its root's type**, so its payments count as spending, income, savings or a transfer like its root.
+- **A payment stays on the deepest category that is known.** A STIB payment lands on Public & paid transport,
+  because it does not say whether it was a bus, a tram or the metro. It shows as "not specified" under that category
+  until you move it or set a category for the payee.
+- **Totals roll up**: a category counts its own payments and those of all its sub-categories.
+- **Keywords come in layers.** A worldwide core (global brands, and shop words in French, Dutch, English and German)
+  is always seeded; a country pack, Belgium for now, adds local chains, transport operators and utilities. KBC sends
+  no merchant category code, so the shop is recognised by its name.
 
 ## Fixed-payment suggestions
 
