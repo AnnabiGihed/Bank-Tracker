@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The backend can split one payment into categorised parts ([ADR-0007](docs/adr/0007-split-a-payment-into-categorised-parts.md),
+  proposed): the decisions `split` (a payment and two to a hundred parts, each an amount, a spending category and an
+  optional label, adding up exactly to the payment) and `unsplit`. A split counts as spending and as confirmed, wins over
+  every other category of the payment, and feeds the totals by category part by part; the payment's own category, and
+  so the payee's rules and suggestions, are not changed by it. Deleting a category moves the parts that use it to its
+  parent. The API's workspace gains `parts` on a transaction and `decisions` gains `parts`
+  ([docs/api/openapi.json](docs/api/openapi.json)); the database gains the column `TxnSplits` (migration
+  `PaymentSplits`).
 - Categories are now a tree based on the COICOP 2018 household-spending classification, up to four levels deep
   (for example Transport, Running own vehicles, Car, Fuel & charging), classified by purpose and seeded by default,
   with keywords for global brands in four languages and, for Belgium (`EnableBanking:Country`, `BE` by default),

@@ -87,7 +87,8 @@ public static class CategoriesPage
 		var rolled = RolledTotals(a, a.Items.Where(i => string.Equals(i.Month, month, StringComparison.Ordinal)));
 		var previous = a.AvailableMonths.Where(m => string.CompareOrdinal(m, month) < 0).Take(3)
 			.Select(m => RolledTotals(a, a.Items.Where(i => string.Equals(i.Month, m, StringComparison.Ordinal)))).ToList();
-		var counts = a.Items.GroupBy(i => i.Category.Id.Value, StringComparer.Ordinal).ToDictionary(g => g.Key, g => (decimal)g.Count(), StringComparer.Ordinal);
+		var counts = a.Items.SelectMany(i => i.Parts.Select(p => p.Category.Id.Value).Distinct(StringComparer.Ordinal))
+			.GroupBy(id => id, StringComparer.Ordinal).ToDictionary(g => g.Key, g => (decimal)g.Count(), StringComparer.Ordinal);
 		var payments = a.Tree.RollUp(counts);
 		var ordered = TreeOrder(a, siblings => siblings.OrderByDescending(c => rolled.GetValueOrDefault(c.Id.Value)).ThenBy(c => c.Name, StringComparer.CurrentCulture));
 
@@ -109,12 +110,12 @@ public static class CategoriesPage
 	#region Private Helpers
 	/// <summary>
 	/// Adds up what the given transactions amount to per category, including everything below it: spending and savings
-	/// as positive amounts, income as positive income.
+	/// as positive amounts, income as positive income. A split payment counts each part in its own category.
 	/// </summary>
 	private static IReadOnlyDictionary<string, decimal> RolledTotals(Analysis a, IEnumerable<TxnInfo> items) =>
-		a.Tree.RollUp(items.GroupBy(i => i.Category.Id.Value, StringComparer.Ordinal).ToDictionary(
+		a.Tree.RollUp(items.SelectMany(i => i.Parts).GroupBy(p => p.Category.Id.Value, StringComparer.Ordinal).ToDictionary(
 			g => g.Key,
-			g => g.Sum(i => i.Category.Type == CategoryType.Income ? i.T.Amount : -i.T.Amount),
+			g => g.Sum(p => p.Category.Type == CategoryType.Income ? p.Amount : -p.Amount),
 			StringComparer.Ordinal));
 
 	/// <summary>

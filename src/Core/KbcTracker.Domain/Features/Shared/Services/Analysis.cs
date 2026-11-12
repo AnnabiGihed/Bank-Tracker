@@ -13,6 +13,9 @@ namespace KbcTracker.Domain.Features.Shared.Services;
 ///              Immutable once built: every page or sync builds a new one from the stored data. Categories resolve
 ///              in this order: the transaction's own > the payee's > the fixed payment's > automatic (bank code or
 ///              keyword). Fixed payments are only ever suggested, never accepted on the user's behalf.
+///
+///              A split payment (ADR-0007) keeps that category for payee logic, but its money is carried by its
+///              parts, which every total by category adds up.
 /// </summary>
 public sealed partial class Analysis
 {
@@ -293,7 +296,33 @@ public sealed partial class Analysis
 			(categoryId, confirmed) = (automatic, IsBankCertain(kind));
 		}
 
-		return new TxnInfo(txn, kind, key, recurring?.Name ?? name, tokens, Cat(categoryId), confirmed, recurring);
+		var category = Cat(categoryId);
+		var parts = SplitParts(txn, category, user);
+		return new TxnInfo(txn, kind, key, recurring?.Name ?? name, tokens, category, confirmed || parts is not null, recurring, parts);
+	}
+
+	/// <summary>
+	/// Turns the user's split of a payment into parts signed like the payment. A split that no longer adds up to the
+	/// payment gets one more "Difference" part on the payment's own category (or <c>other</c> when that is no longer a
+	/// spending category), so totals always match the bank.
+	/// </summary>
+	/// <returns>The parts, or <see langword="null"/> when the payment is not split.</returns>
+	private List<TxnPart>? SplitParts(Txn txn, Category category, UserData user)
+	{
+		if (!user.Splits.TryGetValue(txn.Id, out var split))
+		{
+			return null;
+		}
+
+		var sign = Math.Sign(txn.Amount);
+		var parts = split.Lines.Select(l => new TxnPart(Cat(l.CategoryId.Value), l.Amount * sign, l.Label)).ToList();
+		var gap = txn.Amount - parts.Sum(p => p.Amount);
+		if (gap != 0)
+		{
+			parts.Add(new TxnPart(category.Type == CategoryType.Expense ? category : Cat(CategoryId.Other.Value), gap, "Difference"));
+		}
+
+		return parts;
 	}
 
 	/// <summary>
@@ -640,18 +669,19 @@ public sealed partial class Analysis
 			.OrderByDescending(r => Math.Abs(r.Total)).ToList();
 
 	/// <summary>
-	/// Computes the totals of one month. Credits in an expense category (refunds) reduce spending.
+	/// Computes the totals of one month. Credits in an expense category (refunds) reduce spending. A split payment is
+	/// spending as a whole and its parts feed the totals by category.
 	/// </summary>
 	private MonthSummary BuildMonth(string month)
 	{
 		var inMonth = Items.Where(i => string.Equals(i.Month, month, StringComparison.Ordinal)).ToList();
-		var spend = inMonth.Where(i => i.Category.Type == CategoryType.Expense).ToList();
+		var spend = inMonth.Where(i => i.EffectiveType == CategoryType.Expense).ToList();
 		return new MonthSummary(month,
 			inMonth.Where(i => i.IsIncome).Sum(i => i.T.Amount),
 			spend.Where(i => i.Recurring is not null).Sum(i => -i.T.Amount),
 			spend.Where(i => i.Recurring is null).Sum(i => -i.T.Amount),
 			inMonth.Where(i => i.IsSaving).Sum(i => -i.T.Amount),
-			spend.GroupBy(i => i.Category.Id.Value, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Sum(i => -i.T.Amount), StringComparer.Ordinal));
+			spend.SelectMany(i => i.Parts).GroupBy(p => p.Category.Id.Value, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Sum(p => -p.Amount), StringComparer.Ordinal));
 	}
 	#endregion
 

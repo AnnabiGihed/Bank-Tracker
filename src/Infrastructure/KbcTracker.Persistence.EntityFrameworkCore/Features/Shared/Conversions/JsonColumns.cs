@@ -8,7 +8,7 @@ namespace KbcTracker.Persistence.EntityFrameworkCore.Features.Shared.Conversions
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Converters and comparers for the user's decisions stored as <c>jsonb</c>: payee categories,
-///              transaction categories, payee names and dismissed suggestions.
+///              transaction categories, splits of payments, payee names and dismissed suggestions.
 ///
 ///              Each comparer compares and snapshots through the JSON text. Without a deep comparer EF Core would
 ///              see the same dictionary instance after an in-place change and never save it. Rebuilt dictionaries and
@@ -40,6 +40,18 @@ internal static class JsonColumns
 	/// </summary>
 	public static readonly ValueComparer<Dictionary<TxnId, CategoryId>> TxnCategoriesComparer =
 		new((a, b) => WriteTxnCategories(a!) == WriteTxnCategories(b!), v => WriteTxnCategories(v).GetHashCode(StringComparison.Ordinal), v => ReadTxnCategories(WriteTxnCategories(v)));
+
+	/// <summary>
+	/// Converts the splits of payments.
+	/// </summary>
+	public static readonly ValueConverter<Dictionary<TxnId, PaymentSplit>, string> SplitsConverter =
+		new(value => WriteSplits(value), json => ReadSplits(json));
+
+	/// <summary>
+	/// Compares the splits by content.
+	/// </summary>
+	public static readonly ValueComparer<Dictionary<TxnId, PaymentSplit>> SplitsComparer =
+		new((a, b) => WriteSplits(a!) == WriteSplits(b!), v => WriteSplits(v).GetHashCode(StringComparison.Ordinal), v => ReadSplits(WriteSplits(v)));
 
 	/// <summary>
 	/// Converts the payee names.
@@ -91,6 +103,22 @@ internal static class JsonColumns
 	/// </summary>
 	private static Dictionary<TxnId, CategoryId> ReadTxnCategories(string json) =>
 		(JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? []).ToDictionary(kv => new TxnId(kv.Key), kv => new CategoryId(kv.Value));
+
+	/// <summary>
+	/// Writes the splits as JSON, keyed by transaction id.
+	/// </summary>
+	private static string WriteSplits(Dictionary<TxnId, PaymentSplit> value) =>
+		JsonSerializer.Serialize(value.ToDictionary(
+			kv => kv.Key.Value,
+			kv => kv.Value.Lines.Select(l => new StoredSplitLine(l.Amount, l.CategoryId.Value, l.Label)).ToList(),
+			StringComparer.Ordinal));
+
+	/// <summary>
+	/// Reads the splits from JSON.
+	/// </summary>
+	private static Dictionary<TxnId, PaymentSplit> ReadSplits(string json) =>
+		(JsonSerializer.Deserialize<Dictionary<string, List<StoredSplitLine>>>(json) ?? [])
+			.ToDictionary(kv => new TxnId(kv.Key), kv => PaymentSplit.Rehydrate(kv.Value.Select(l => new SplitLine(l.Amount, new CategoryId(l.CategoryId), l.Label))));
 
 	/// <summary>
 	/// Writes the payee names as JSON.

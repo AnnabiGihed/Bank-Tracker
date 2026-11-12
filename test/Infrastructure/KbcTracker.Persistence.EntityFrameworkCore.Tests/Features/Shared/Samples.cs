@@ -45,7 +45,7 @@ internal static class Samples
 		SessionInfo.Rehydrate(new BankSessionId("session-1"), ["current", "savings"], BrusselsMorning, BrusselsMorning.AddDays(180), BrusselsMorning, lastError: null, skippedTransactions: 2);
 
 	/// <summary>
-	/// Decisions with one accepted fixed payment and one of each kind of choice.
+	/// Decisions with one accepted fixed payment, one of each kind of choice and a split payment.
 	/// </summary>
 	/// <returns>The decisions.</returns>
 	public static UserData Decisions()
@@ -63,7 +63,8 @@ internal static class Samples
 			["CARD:OLD SHOP"],
 			[KeyValuePair.Create("CARD:SHOP ONE", new PayeeAssignment(new CategoryId("groceries"), Confirmed: true))],
 			[KeyValuePair.Create(new TxnId("t1"), new CategoryId("car"))],
-			[KeyValuePair.Create("CARD:SHOP ONE", "Shop One")]);
+			[KeyValuePair.Create("CARD:SHOP ONE", "Shop One")],
+			[KeyValuePair.Create(new TxnId("t2"), PaymentSplit.Rehydrate([new SplitLine(50m, new CategoryId("groceries"), "Meat"), new SplitLine(34.30m, new CategoryId("car"), null)]))]);
 	}
 	#endregion
 }

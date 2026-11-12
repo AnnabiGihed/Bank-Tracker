@@ -80,7 +80,12 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
   totals roll up. Keyword tie → deeper node. Keywords: worldwide core + country pack (`EnableBanking:Country`, BE).
   Built-in ids (income, refunds, savings, own-transfers, loan, bills, bank-fees, cash, transfers, other) can't be
   deleted; deleting a node moves its payments to its parent. KBC sends no merchant category code (field empty).
-- Later, in order: split one payment into parts; the Android app; instant payment detection from Google Wallet /
+- A payment can be split into categorised parts (ADR-0007): a user decision in `UserData` (never on the bank's `Txn`),
+  2–100 lines of amount (> 0, 2 decimals) + expense category + optional label, adding up exactly to the payment. A
+  split wins over every other category and counts as spending and as confirmed, but `TxnInfo.Category` stays the
+  unsplit category (payee logic never learns a part); money by category always comes from `TxnInfo.Parts`. A stored
+  split that no longer adds up gets a "Difference" part, so totals match the bank. Actions `split`/`unsplit`.
+- Later, in order: the Android app; instant payment detection from Google Wallet /
   KBC Mobile notifications (other wallets and banks later); receipts read and matched to payments.
 - The user wants: clear UI, little scrolling, no manual exports/imports, everything user-correctable.
 

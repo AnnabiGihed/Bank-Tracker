@@ -6,7 +6,7 @@ namespace KbcTracker.Domain.Features.Shared.Aggregates;
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Everything the user decided in the UI: accepted fixed payments, dismissed suggestions, categories
-///              per payee and per transaction, and payee names.
+///              per payee and per transaction, splits of payments and payee names.
 ///
 ///              Kept apart from the transactions so a re-sync never overwrites a decision. The single instance
 ///              (<see cref="UserDataId.Current"/>) owns the fixed payments; keys are compared ordinally, as they are
@@ -36,6 +36,11 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 	private readonly Dictionary<TxnId, CategoryId> _txnCategories = [];
 
 	/// <summary>
+	/// How single payments are divided into categorised parts.
+	/// </summary>
+	private readonly Dictionary<TxnId, PaymentSplit> _splits = [];
+
+	/// <summary>
 	/// The names the user gave to payees, by series key.
 	/// </summary>
 	private readonly Dictionary<string, string> _payeeNames = new(StringComparer.Ordinal);
@@ -61,6 +66,11 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 	/// Gets the category of single transactions; it overrides the payee's category.
 	/// </summary>
 	public IReadOnlyDictionary<TxnId, CategoryId> TxnCategories => _txnCategories.AsReadOnly();
+
+	/// <summary>
+	/// Gets how single payments are divided into parts; a split wins over every other category of the payment.
+	/// </summary>
+	public IReadOnlyDictionary<TxnId, PaymentSplit> Splits => _splits.AsReadOnly();
 
 	/// <summary>
 	/// Gets the names the user gave to payees, by series key.
@@ -93,6 +103,7 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 	/// <param name="payees">The category per payee series key.</param>
 	/// <param name="txnCategories">The category of single transactions.</param>
 	/// <param name="payeeNames">The names given to payees.</param>
+	/// <param name="splits">How single payments are divided into parts.</param>
 	/// <returns>The decisions.</returns>
 	/// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
 	public static UserData Rehydrate(
@@ -100,13 +111,15 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 		IEnumerable<string> dismissedSuggestions,
 		IEnumerable<KeyValuePair<string, PayeeAssignment>> payees,
 		IEnumerable<KeyValuePair<TxnId, CategoryId>> txnCategories,
-		IEnumerable<KeyValuePair<string, string>> payeeNames)
+		IEnumerable<KeyValuePair<string, string>> payeeNames,
+		IEnumerable<KeyValuePair<TxnId, PaymentSplit>> splits)
 	{
 		ArgumentNullException.ThrowIfNull(recurring);
 		ArgumentNullException.ThrowIfNull(dismissedSuggestions);
 		ArgumentNullException.ThrowIfNull(payees);
 		ArgumentNullException.ThrowIfNull(txnCategories);
 		ArgumentNullException.ThrowIfNull(payeeNames);
+		ArgumentNullException.ThrowIfNull(splits);
 
 		var user = new UserData();
 		user._recurring.AddRange(recurring);
@@ -124,6 +137,11 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 		foreach (var (key, name) in payeeNames)
 		{
 			user._payeeNames[key] = name;
+		}
+
+		foreach (var (txnId, split) in splits)
+		{
+			user._splits[txnId] = split;
 		}
 
 		return user;
@@ -295,10 +313,65 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 			_txnCategories[txnId] = to;
 		}
 
+		foreach (var (txnId, split) in _splits.ToList())
+		{
+			_splits[txnId] = split.ReassignCategory(from, to);
+		}
+
 		foreach (var payment in _recurring.Where(p => p.CategoryId == from))
 		{
 			payment.ReassignCategory(to);
 		}
+	}
+	#endregion
+
+	#region Splits
+	/// <summary>
+	/// Divides one payment into categorised parts, replacing an earlier split of it. The payment's own category is kept,
+	/// so removing the split brings it back.
+	/// </summary>
+	/// <param name="txnId">The transaction.</param>
+	/// <param name="split">The parts, already checked against the payment's amount.</param>
+	/// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
+	public void SplitPayment(TxnId txnId, PaymentSplit split)
+	{
+		ArgumentNullException.ThrowIfNull(txnId);
+		ArgumentNullException.ThrowIfNull(split);
+		_splits[txnId] = split;
+	}
+
+	/// <summary>
+	/// Moves the lines of one payment's split from one category to another, for instance when a category is merged
+	/// into the default tree and each payment finds its own heir. Does nothing when the payment is not split.
+	/// </summary>
+	/// <param name="txnId">The transaction.</param>
+	/// <param name="from">The category being replaced.</param>
+	/// <param name="to">The category that takes over.</param>
+	/// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
+	public void ReassignSplitLines(TxnId txnId, CategoryId from, CategoryId to)
+	{
+		ArgumentNullException.ThrowIfNull(txnId);
+		ArgumentNullException.ThrowIfNull(from);
+		ArgumentNullException.ThrowIfNull(to);
+		if (_splits.TryGetValue(txnId, out var split))
+		{
+			_splits[txnId] = split.ReassignCategory(from, to);
+		}
+	}
+
+	/// <summary>
+	/// Removes the split of a payment, which falls back to its normal category.
+	/// </summary>
+	/// <param name="txnId">The transaction.</param>
+	/// <returns>Success, or <see cref="PaymentSplitErrors.NotFound"/> as a <see cref="ResultExceptionType.NotFound"/>
+	/// failure when the payment is not split.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="txnId"/> is <see langword="null"/>.</exception>
+	public Result RemoveSplit(TxnId txnId)
+	{
+		ArgumentNullException.ThrowIfNull(txnId);
+		return _splits.Remove(txnId)
+			? Result.Success()
+			: Result.Failure(PaymentSplitErrors.NotFound, ResultExceptionType.NotFound);
 	}
 	#endregion
 

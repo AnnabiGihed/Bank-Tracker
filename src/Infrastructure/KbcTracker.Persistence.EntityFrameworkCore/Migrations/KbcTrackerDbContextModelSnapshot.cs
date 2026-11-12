@@ -139,6 +139,11 @@ namespace KbcTracker.Persistence.EntityFrameworkCore.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("Payees");
 
+                    b.Property<string>("_splits")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("TxnSplits");
+
                     b.Property<string>("_txnCategories")
                         .IsRequired()
                         .HasColumnType("jsonb")

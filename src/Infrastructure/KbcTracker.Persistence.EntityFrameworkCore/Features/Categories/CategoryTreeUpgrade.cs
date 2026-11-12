@@ -146,7 +146,7 @@ public sealed class CategoryTreeUpgrade(KbcTrackerDbContext dbContext, IUnitOfWo
 	}
 
 	/// <summary>
-	/// Moves every payee rule, payment choice and fixed payment that points to a merged category to the category
+	/// Moves every payee rule, payment choice, split line and fixed payment that points to a merged category to the category
 	/// whose keyword matches its payee, or to the merged category's fallback node.
 	/// </summary>
 	private static void Rehome(UserData user, HashSet<string> mergedIds, List<Category> remaining, List<Txn> transactions)
@@ -169,6 +169,15 @@ public sealed class CategoryTreeUpgrade(KbcTrackerDbContext dbContext, IUnitOfWo
 		{
 			var texts = new[] { itemsById.TryGetValue(txnId, out var item) ? item.Name : "" };
 			user.AssignTransactionCategory(txnId, new CategoryId(Target(categoryId.Value, texts)));
+		}
+
+		foreach (var (txnId, split) in user.Splits.ToList())
+		{
+			var texts = new[] { itemsById.TryGetValue(txnId, out var item) ? item.Name : "" };
+			foreach (var oldId in split.Lines.Select(l => l.CategoryId).Where(id => mergedIds.Contains(id.Value)).Distinct().ToList())
+			{
+				user.ReassignSplitLines(txnId, oldId, new CategoryId(Target(oldId.Value, texts)));
+			}
 		}
 
 		foreach (var payment in user.Recurring.Where(p => p.CategoryId is { } id && mergedIds.Contains(id.Value)).ToList())

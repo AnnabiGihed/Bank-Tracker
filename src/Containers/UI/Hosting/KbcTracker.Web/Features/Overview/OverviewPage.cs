@@ -69,7 +69,7 @@ public static class OverviewPage
 
 		sb.Append($"<div class=card><h2>Biggest expenses <a class=muted href='/transactions?m={month}'>all transactions →</a></h2><table>");
 		foreach (var i in a.Items.Where(i => i.Month == month && i.IsSpending).OrderBy(i => i.T.Amount).Take(6))
-			sb.Append($"<tr><td class=muted style='width:1%'>{i.T.Date:dd/MM}</td><td>{Html(i.Name)}<span class=tag>{Dot(i.Category)}{Html(i.Category.Name)}</span></td><td class=num>{Money(-i.T.Amount)}</td></tr>");
+			sb.Append($"<tr><td class=muted style='width:1%'>{i.T.Date:dd/MM}</td><td>{Html(i.Name)}{CategoryTag(i)}</td><td class=num>{Money(-i.T.Amount)}</td></tr>");
 		sb.Append("</table></div></div>");
 
 		var script = ChartScript(a, cur, month);
@@ -78,6 +78,13 @@ public static class OverviewPage
 	#endregion
 
 	#region Private Helpers
+	/// <summary>
+	/// Renders the tag that names a payment's category, or the number of parts of a split payment.
+	/// </summary>
+	private static string CategoryTag(TxnInfo i) => i.IsSplit
+		? $"<span class=tag>Split into {i.Parts.Count} parts</span>"
+		: $"<span class=tag>{Dot(i.Category)}{Html(i.Category.Name)}</span>";
+
 	/// <summary>
 	/// Builds the script of the two charts: the last months as stacked bars, and the doughnut of where the month's
 	/// money went, which starts at the top-level categories and drills down to a category's sub-categories.

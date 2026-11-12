@@ -4,7 +4,7 @@ namespace KbcTracker.Persistence.EntityFrameworkCore.Features.Shared.Configurati
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Maps the user's decisions to the single-row <c>UserData</c> table, with the accepted fixed payments
-///              it owns in <c>RecurringPayments</c>. Payee categories, transaction categories, payee names and
+///              it owns in <c>RecurringPayments</c>. Payee categories, transaction categories, splits, payee names and
 ///              dismissed suggestions are <c>jsonb</c> columns read and written through the aggregate's private
 ///              fields. The row version makes a concurrent save fail instead of losing a decision.
 /// </summary>
@@ -24,6 +24,7 @@ internal sealed class UserDataConfiguration : IEntityTypeConfiguration<UserData>
 		builder.Ignore(u => u.DismissedSuggestions);
 		builder.Ignore(u => u.Payees);
 		builder.Ignore(u => u.TxnCategories);
+		builder.Ignore(u => u.Splits);
 		builder.Ignore(u => u.PayeeNames);
 
 		builder.Property<HashSet<string>>("_dismissedSuggestions").HasColumnName("DismissedSuggestions").HasColumnType("jsonb")
@@ -32,6 +33,8 @@ internal sealed class UserDataConfiguration : IEntityTypeConfiguration<UserData>
 			.HasConversion(JsonColumns.PayeesConverter, JsonColumns.PayeesComparer);
 		builder.Property<Dictionary<TxnId, CategoryId>>("_txnCategories").HasColumnName("TxnCategories").HasColumnType("jsonb")
 			.HasConversion(JsonColumns.TxnCategoriesConverter, JsonColumns.TxnCategoriesComparer);
+		builder.Property<Dictionary<TxnId, PaymentSplit>>("_splits").HasColumnName("TxnSplits").HasColumnType("jsonb")
+			.HasConversion(JsonColumns.SplitsConverter, JsonColumns.SplitsComparer);
 		builder.Property<Dictionary<string, string>>("_payeeNames").HasColumnName("PayeeNames").HasColumnType("jsonb")
 			.HasConversion(JsonColumns.NamesConverter, JsonColumns.NamesComparer);
 

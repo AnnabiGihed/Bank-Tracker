@@ -18,6 +18,8 @@
     <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Shared.Errors" />
     <Using Include="KbcTracker.Domain.Features.Shared.Services" />
+    <Using Include="KbcTracker.Domain.Features.Splits.Errors" />
+    <Using Include="KbcTracker.Domain.Features.Splits.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Transactions.Errors" />
     <Using Include="KbcTracker.Domain.Features.Transactions.ValueObjects" />

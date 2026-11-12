@@ -4,6 +4,7 @@ using KbcTracker.Application.Features.Workspace.Contracts;
 using KbcTracker.Domain.Features.Categories.Errors;
 using KbcTracker.Domain.Features.Categories.Services;
 using KbcTracker.Domain.Features.Categories.ValueObjects;
+using KbcTracker.Domain.Features.Splits.Errors;
 using Pivot.Framework.Domain.Shared;
 
 namespace KbcTracker.Application.Features.Workspace.Commands;
@@ -40,6 +41,11 @@ internal static class CategoryDecisions
 		var parent = parentId is null ? null : new CategoryId(parentId);
 		if (existing is not null)
 		{
+			if (existing.Type != type && UsedBySplit(data, tree, existing))
+			{
+				return Result.Failure<DecisionResponse>(PaymentSplitErrors.CategoryUsedBySplit);
+			}
+
 			var changed = existing.Update(name, type, request.Color ?? existing.Color, keywords, parent);
 			if (changed.IsFailure)
 			{
@@ -112,6 +118,14 @@ internal static class CategoryDecisions
 		var parsed = Enum.TryParse<CategoryType>(requested, out var type) ? type : (CategoryType?)null;
 		var inherited = parentId is null ? null : tree.Root(parentId)?.Type;
 		return parsed ?? inherited ?? CategoryType.Expense;
+	}
+
+	/// <summary>Tells whether a part of a split payment uses the category or one of its sub-categories; their type
+	/// must then stay spending.</summary>
+	private static bool UsedBySplit(WorkspaceData data, CategoryTree tree, Category category)
+	{
+		var ids = tree.Descendants(category.Id.Value).Select(d => d.Id).Append(category.Id).ToHashSet();
+		return data.User.Splits.Values.Any(s => s.Lines.Any(l => ids.Contains(l.CategoryId)));
 	}
 
 	/// <summary>Gives every sub-category of a category the category's type, which they must share; stops at the first

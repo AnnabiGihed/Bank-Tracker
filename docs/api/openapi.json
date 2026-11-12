@@ -907,6 +907,13 @@
           "parentId": {
             "type": "string",
             "nullable": true
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SplitPartRequest"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -1163,6 +1170,27 @@
         },
         "additionalProperties": false
       },
+      "SplitPartRequest": {
+        "required": [
+          "amount",
+          "categoryId"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "SuggestionSnapshot": {
         "required": [
           "amount",
@@ -1300,6 +1328,13 @@
           "recurringId": {
             "type": "string",
             "nullable": true
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TxnPartSnapshot"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -1334,6 +1369,27 @@
           },
           "description": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TxnPartSnapshot": {
+        "required": [
+          "amount",
+          "categoryId"
+        ],
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false

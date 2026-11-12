@@ -29,6 +29,8 @@ public sealed class UserDataChangeTests(PostgreSqlFixture fixture) : DatabaseTes
 			user.AssignPayeeCategory("CARD:OTHER", new CategoryId("cash"));
 			user.AssignTransactionCategory(new TxnId("t2"), new CategoryId("bills"));
 			user.RenamePayee("CARD:SHOP ONE", "Corner shop");
+			user.SplitPayment(new TxnId("t3"), PaymentSplit.Rehydrate([new SplitLine(1m, new CategoryId("cash"), null), new SplitLine(2m, new CategoryId("bills"), null)]));
+			user.ReassignSplitLines(new TxnId("t2"), new CategoryId("car"), new CategoryId("cash"));
 			user.DismissSuggestion("CARD:NEW");
 			user.RemoveFixedPayment(new RecurringPaymentId("rent"));
 			user.AcceptFixedPayment(youTube);
@@ -38,6 +40,8 @@ public sealed class UserDataChangeTests(PostgreSqlFixture fixture) : DatabaseTes
 		result.IsSuccess.Should().BeTrue(result.IsFailure ? result.Error.Message : "");
 		read.Payees.Keys.Should().BeEquivalentTo("CARD:SHOP ONE", "CARD:OTHER");
 		read.TxnCategories.Should().HaveCount(2);
+		read.Splits.Keys.Should().BeEquivalentTo([new TxnId("t2"), new TxnId("t3")]);
+		read.Splits[new TxnId("t2")].Lines.Select(l => l.CategoryId.Value).Should().Equal("groceries", "cash");
 		read.PayeeNames["CARD:SHOP ONE"].Should().Be("Corner shop");
 		read.DismissedSuggestions.Should().BeEquivalentTo("CARD:OLD SHOP", "CARD:NEW", "TO:BE00111122223333");
 		read.Recurring.Select(r => r.Id.Value).Should().Equal("youtube");

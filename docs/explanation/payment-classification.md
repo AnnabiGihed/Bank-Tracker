@@ -41,6 +41,26 @@ the longest matching keyword wins ("AUTOMOBILE" beats "CARREFOUR"); on a tie, th
 payments only the shop name is searched, because the rest of the label contains words such as "Google Pay" or "KBC".
 Keyword categories wait on the **To review** tab until you confirm them.
 
+## Split payments
+
+You can split one payment into parts, for example a supermarket receipt into meat, bread and toiletries
+([ADR-0007](../adr/0007-split-a-payment-into-categorised-parts.md)). A split is your decision, kept apart from the
+bank's transaction, so a new sync never removes it.
+
+- **A split beats every other category.** The category of the payment itself, of its payee and of its fixed payment
+  stay what they would be without the split, so splitting one visit never teaches the app that a shop is "Meat".
+  Removing the split brings the payment's category back.
+- **Parts carry the money.** Every total by category adds up parts, not payments: a payment that is not split has
+  one part with its whole amount. A split payment counts as spending and as confirmed, so it leaves **To review**.
+- **Parts must add up.** A split has 2 to 100 parts, each an amount above zero with at most two decimals, in a spending
+  category, adding up exactly to the payment. Only a spending payment or a refund (a payment in a spending category)
+  can be split, and a refund's parts reduce spending.
+- **A split that no longer adds up** (the bank changed the amount) keeps its parts and gets one more part,
+  "Difference", on the payment's own category (or Other when that is no longer spending), so totals always match the
+  bank.
+- **Deleting a category** moves the parts that use it to its parent, as for your other decisions. A category used by
+  parts (or whose sub-category is) cannot stop counting as spending until those parts are moved.
+
 ## The category tree
 
 Categories form a tree of at most four levels, based on COICOP 2018, the United Nations classification of household
