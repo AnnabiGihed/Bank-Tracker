@@ -16,6 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The handlers are internal; their unit tests reach them directly. -->
+    <InternalsVisibleTo Include="KbcTracker.Application.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\KbcTracker.Domain\KbcTracker.Domain.csproj" />
   </ItemGroup>
 

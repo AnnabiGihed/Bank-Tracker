@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using KbcTracker.Application.Features.Workspace.Abstractions;
 using KbcTracker.Application.Features.Workspace.Contracts;
 using KbcTracker.Domain.Features.Shared.Services;
 using KbcTracker.Domain.Features.Transactions.Aggregates;
@@ -161,6 +162,41 @@ public sealed class WorkspaceTests(ApiFixture fixture) : IClassFixture<ApiFixtur
 		missing.StatusCode.Should().Be(HttpStatusCode.NotFound);
 		using var protectedCategory = await client.PostAsJsonAsync(new Uri("/api/v1/decisions", UriKind.Relative), new DecisionRequest("deleteCategory", Id: "other"));
 		protectedCategory.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+	}
+
+	/// <summary>Verifies two decisions sent while another writer holds the lease both wait for it and are both stored,
+	/// instead of failing with a conflict.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Decisions_SimultaneousWhileLeaseHeld_BothStored()
+	{
+		using var client = fixture.CreateClient();
+		Task<DecisionResponse> first;
+		Task<DecisionResponse> second;
+		using var factory = fixture.CreateFactory("Development");
+		var scope = factory.Services.CreateAsyncScope();
+		await using (scope)
+		{
+			var lease = await scope.ServiceProvider.GetRequiredService<IWorkspacePersistence>().TryAcquireWriteAsync(CancellationToken.None)
+				?? throw new InvalidOperationException("The test must hold the write lease.");
+			await using (lease)
+			{
+				first = ApplyAsync(client, new("dismiss", Key: "simultaneous-first"));
+				second = ApplyAsync(client, new("dismiss", Key: "simultaneous-second"));
+				await Task.Delay(TimeSpan.FromMilliseconds(300));
+				first.IsCompleted.Should().BeFalse();
+				second.IsCompleted.Should().BeFalse();
+			}
+		}
+
+		await Task.WhenAll(first, second);
+
+		var verifyScope = factory.Services.CreateAsyncScope();
+		await using (verifyScope)
+		{
+			var user = await verifyScope.ServiceProvider.GetRequiredService<KbcTrackerDbContext>().UserData.AsNoTracking().SingleAsync();
+			user.DismissedSuggestions.Should().Contain(["simultaneous-first", "simultaneous-second"]);
+		}
 	}
 	#endregion
 
