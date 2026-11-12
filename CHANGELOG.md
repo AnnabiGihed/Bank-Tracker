@@ -69,6 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Two decisions made at the same moment, such as a double-click or two quick edits, are now both saved: the second
+  waits up to five seconds for the first instead of failing at once. It still fails with `409 Conflict`, and the
+  message "Another change is still being saved. Try again in a moment.", only when that wait runs out.
 - The app now needs .NET 10, and is organised in the Pivot.Framework structure, the first step towards the
   Android app ([ADR-0003](docs/adr/0003-build-on-pivot-framework-running-on-the-phone.md)): `src/Core`
   (Domain, Application), `src/Infrastructure` and `src/Containers`, with feature folders, and a `test/` tree with

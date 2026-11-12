@@ -109,8 +109,6 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
 ## Open ideas / known gaps
 - Fixed payments and categories set in the version before `34987bb` (`user-rules.json`) are not migrated.
 - Chart.js is loaded from a CDN (fails offline) — could be bundled into `wwwroot`.
-- Two decisions at the same moment: the second gets 409 at once (`ApplyDecisionCommandHandler` uses
-  `TryAcquireWriteAsync`) instead of waiting briefly for the write lease.
 - Car-dealer payments match the keyword AUTOMOBILE and land on Car › Maintenance & repair; a purchase belongs in
   Buying vehicles (the owner sets it on the payee). Built-in roots such as Other and Loan repayments offer no
   "+ sub-category".
