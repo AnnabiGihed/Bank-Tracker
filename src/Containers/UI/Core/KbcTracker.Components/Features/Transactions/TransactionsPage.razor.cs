@@ -3,7 +3,7 @@ namespace KbcTracker.Components.Features.Transactions;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
-/// Purpose     : The Transactions tab (<c>/transactions?m=&amp;cat=&amp;q=</c>): the month's transactions with filters (search,
+/// Purpose     : The Transactions tab (<c>/transactions?m=&amp;cat=&amp;q=&amp;show=</c>): the month's transactions with filters (search,
 ///              kind, category, not confirmed only), an inline category picker that sets the category of the whole payee
 ///              and offers "Only this one" as an undo, confirm, mark as fixed and the split dialog (ADR-0007). The filters
 ///              live in <see cref="TransactionsViewModel"/> and survive a reload after a decision.
@@ -26,6 +26,11 @@ public partial class TransactionsPage : TabPageBase
 	[SupplyParameterFromQuery(Name = "q")]
 	[Parameter]
 	public string? SearchQuery { get; set; }
+
+	/// <summary>Gets or sets the figure of the month to show the payments of, from the <c>show</c> query value (<c>earnings</c>, <c>refunds</c> or <c>loan-received</c>).</summary>
+	[SupplyParameterFromQuery(Name = "show")]
+	[Parameter]
+	public string? ShowQuery { get; set; }
 	#endregion
 
 	#region Fields
@@ -43,6 +48,9 @@ public partial class TransactionsPage : TabPageBase
 
 	/// <summary>The search query the filters were last set from.</summary>
 	private string? _appliedSearch;
+
+	/// <summary>The figure query the filters were last set from.</summary>
+	private string? _appliedFigure;
 	#endregion
 
 	#region Properties
@@ -64,8 +72,7 @@ public partial class TransactionsPage : TabPageBase
 	/// <inheritdoc />
 	protected override void OnParametersSet()
 	{
-		var changed = !string.Equals(_appliedCategory, CategoryQuery, StringComparison.Ordinal) || !string.Equals(_appliedSearch, SearchQuery, StringComparison.Ordinal);
-		EnsureBuilt(force: changed);
+		EnsureBuilt(force: AddressChanged());
 	}
 	#endregion
 
@@ -74,10 +81,11 @@ public partial class TransactionsPage : TabPageBase
 	protected override void Rebuild(Analysis analysis)
 	{
 		var previous = _view;
-		var fromAddress = previous is null || !string.Equals(_appliedCategory, CategoryQuery, StringComparison.Ordinal) || !string.Equals(_appliedSearch, SearchQuery, StringComparison.Ordinal);
+		var fromAddress = previous is null || AddressChanged();
 		_appliedCategory = CategoryQuery;
 		_appliedSearch = SearchQuery;
-		var view = new TransactionsViewModel(analysis, Month, Formats, CategoryQuery, SearchQuery);
+		_appliedFigure = ShowQuery;
+		var view = new TransactionsViewModel(analysis, Month, Formats, CategoryQuery, SearchQuery, MonthFigureNames.Parse(ShowQuery));
 		if (!fromAddress && previous is not null)
 		{
 			view.Search = previous.Search;
@@ -93,6 +101,9 @@ public partial class TransactionsPage : TabPageBase
 	#endregion
 
 	#region Event Handlers
+	/// <summary>Leaves the figure filter by opening the month's transactions without it.</summary>
+	private void ClearFigure() => Navigation.NavigateTo(TabRoutes.Tab("transactions", Month));
+
 	/// <summary>Filters on the text the owner typed.</summary>
 	/// <param name="text">The search text.</param>
 	private void OnSearchChanged(string text)
@@ -162,6 +173,11 @@ public partial class TransactionsPage : TabPageBase
 	#endregion
 
 	#region Private Helpers
+	/// <summary>Determines whether the address asks for other filters than the ones last applied.</summary>
+	private bool AddressChanged() => !string.Equals(_appliedCategory, CategoryQuery, StringComparison.Ordinal)
+		|| !string.Equals(_appliedSearch, SearchQuery, StringComparison.Ordinal)
+		|| !string.Equals(_appliedFigure, ShowQuery, StringComparison.Ordinal);
+
 	/// <summary>Recalculates the rows that pass the filters.</summary>
 	private void ApplyFilters() => _rows = _view!.VisibleRows;
 

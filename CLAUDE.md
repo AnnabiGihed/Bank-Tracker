@@ -85,7 +85,20 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
   start of a word, so "AD " never hits "AZAD"; longest match wins; for card payments only the shop name, never
   the description — it contains "Google Pay", "KBC").
   Automatic categories need user confirmation, except bank-certain kinds (loan, own transfer, fee, plan, cash).
-- Category type decides totals: Expense = spending, Income, Savings (separate), Transfer (ignored).
+- Money in that no bank code decides is told apart in this order (each a suggestion the user confirms, except the
+  bank-certain loan codes `RCDT/CAJT` and ISO domain `LDAS`; own transfers win over all of it): refund words (REMB,
+  REFUND, TERUGBETALING, TERUGSTORTING, RETOUR, STORNO; "REFUS PRET" is a refund) > loan words (LOAN, LENING,
+  KREDIET, PRET/PRÊT) or a payer the account repays a `CSLN` loan to > payroll markers (EMPLOYER and EMPLOYEE,
+  SALARY, SALAIRE, WEDDE, PAYROLL, LOON, PAIE) = `income-salary` > a payer the account paid before (same IBAN or
+  name), at most the largest earlier payment = refund > the same payer crediting 26–35 days apart =
+  `income-salary` > income. Series keys: only card refunds (`CCRD`) use `CARD:`; other refunds and suggested loan
+  payouts keep `FROM:<iban>`; `LOANIN` is for `CAJT`/`LDAS` payouts. User decisions still win. The
+  Overview's Income, Refunds and Loan received figures open Transactions (`?show=earnings|refunds|loan-received`)
+  with exactly the payments behind them (`Analysis.Behind`, the rule `MonthSummary` adds up with).
+- Category type decides totals: Expense = spending, Income, Savings (separate), Transfer (ignored). Income on the
+  Overview is earnings only: everything of type Income except the built-in Refunds sub-tree. Refunds and Loan received
+  are shown as their own figures and count in no total (not income, not reducing spending); left over = earnings −
+  spent − saved.
 - Categories are a tree (ADR-0006): COICOP 2018 divisions as spending roots plus non-spending roots, max depth 4,
   children carry their root's type, classified by purpose (shampoo = Personal care, car insurance = Insurance).
   A payment stays on the deepest node that is known (STIB → Public & paid transport, "not specified" below it);

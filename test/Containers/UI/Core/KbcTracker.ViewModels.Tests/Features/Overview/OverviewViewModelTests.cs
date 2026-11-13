@@ -66,7 +66,45 @@ public sealed class OverviewViewModelTests
 		overview.Kpis[1].Sub.Should().Be($"fixed {Formats.Belgian.WholeMoney(month.Fixed)} · variable {Formats.Belgian.WholeMoney(month.Variable)}");
 		overview.Kpis[2].Sub.Should().Be("none confirmed yet");
 		overview.Kpis[4].Value.Should().Be(Formats.Belgian.Money(month.Net));
-		overview.Kpis[4].Sub.Should().Be("income − spent − saved");
+		overview.Kpis[4].Sub.Should().Be("earnings − spent − saved");
+	}
+
+	/// <summary>Verifies the income figure is earnings only with its salary and other breakdown, and that refunds and loan money
+	/// are separate figures counted in no total.</summary>
+	[Fact]
+	public void Kpis_RefundsAndLoan_ApartFromIncomeAndLeftOver()
+	{
+		var analysis = TestWorkspace.Analyse(
+		[
+			TestWorkspace.Payment("t1", new DateOnly(2026, 10, 1), 2500m, "Acme Payroll", "Salary October"),
+			TestWorkspace.Payment("t2", new DateOnly(2026, 10, 2), 100m, "Friend One"),
+			TestWorkspace.Payment("t3", new DateOnly(2026, 10, 3), 30m, "Shop One"),
+			TestWorkspace.Payment("t4", new DateOnly(2026, 10, 4), 10000m, "Kbc Bank"),
+			TestWorkspace.Payment("t5", new DateOnly(2026, 10, 5), -50m, "Shop Two"),
+		], (user, _) =>
+		{
+			user.AssignTransactionCategory(new TxnId("t1"), new CategoryId("income-salary"));
+			user.AssignTransactionCategory(new TxnId("t2"), new CategoryId("income-other"));
+			user.AssignTransactionCategory(new TxnId("t3"), new CategoryId("refunds"));
+			user.AssignTransactionCategory(new TxnId("t4"), CategoryId.LoanReceived);
+		});
+
+		var overview = new OverviewViewModel(analysis, "2026-10", null, Formats.Belgian, TestWorkspace.Today);
+
+		overview.Kpis[0].Value.Should().Be(Formats.Belgian.Money(2600m));
+		overview.Kpis[0].Sub.Should().Be($"Salary {Formats.Belgian.WholeMoney(2500m)} · Other {Formats.Belgian.WholeMoney(100m)}");
+		overview.Kpis[4].Value.Should().Be(Formats.Belgian.Money(2550m));
+		overview.AsideFigures.Select(k => (k.Label, k.Value)).Should().Equal(("Refunds", Formats.Belgian.Money(30m)), ("Loan received", Formats.Belgian.Money(10000m)));
+		overview.Series.Single(p => string.Equals(p.Month, "2026-10", StringComparison.Ordinal)).Income.Should().Be(2600m);
+	}
+
+	/// <summary>Verifies a month without refunds or loan money has no separate figure.</summary>
+	[Fact]
+	public void AsideFigures_NoRefundsOrLoan_Empty()
+	{
+		var overview = new OverviewViewModel(October(), "2026-10", null, Formats.Belgian, TestWorkspace.Today);
+
+		overview.AsideFigures.Should().BeEmpty();
 	}
 
 	/// <summary>Verifies the attention notice counts the suggestions and the payees to review, and is absent when there are none.</summary>

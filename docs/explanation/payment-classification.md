@@ -15,7 +15,28 @@ transaction (`bank_transaction_code.code/sub_code`). The app trusts it more than
   `WL*GOOGLE YouTube IED02 R296 Dublin` and `GOOGLE *YouTube IEUNKNOWN` both become *Google YouTube*.
 - **Transfers**: grouped by the other party's International Bank Account Number (IBAN).
 - **Loan payouts** (`RCDT/CAJT`) are not income: they go to the built-in Loan received category, which counts
-  neither as income nor as spending.
+  neither as income nor as spending. The Overview shows it as its own figure.
+- **Refunds** (money back, the built-in Refunds category) are not earnings either: the Overview shows them as their own
+  figure and counts them in no total.
+
+Money in that no bank code decides is told apart in this order. Each result is a suggestion you confirm, except the
+loan codes of the bank, and a transfer from your own name is always an own transfer first:
+
+1. **Refund words**: REMB (also REMBOURSEMENT), REFUND, TERUGBETALING, TERUGSTORTING, RETOUR or STORNO at the start
+   of a word in the remittance. They win over loan words, so "REMB … REFUS PRET" is a refund.
+2. **Loan received**: the bank codes `RCDT/CAJT` and the loan domain `LDAS` (certain); otherwise the words LOAN, LENING,
+   KREDIET or PRET/PRÊT, or a payer you repay a loan instalment (`CSLN`) to.
+3. **Payroll markers**: the words EMPLOYER and EMPLOYEE together, or SALARY, SALAIRE, WEDDE, PAYROLL, LOON, PAIE.
+   They win over the refund-by-history rule, so an employer you once paid still pays Salary.
+4. **Refund by history**: the payer is someone you paid before, by IBAN or by name, and the credit is at most the
+   largest earlier payment to them (a payer who pays you more than you ever paid them is no refund).
+   Otherwise the credit is Salary when the same payer credits you 26 to 35 days apart (a keyword of the payer's name
+   comes before the monthly rhythm).
+5. Everything else is income.
+
+What you decided yourself (per payment, per payee or through a fixed payment) always wins over these suggestions.
+The Overview's Income, Refunds and Loan received figures open the Transactions tab with exactly the payments they add
+up.
 
 The account holder is the name that most often pays money out. Transfers to or from that name are own transfers:
 they count neither as spending nor as income.

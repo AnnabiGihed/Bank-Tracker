@@ -39,5 +39,16 @@ public static class TabRoutes
 		ArgumentNullException.ThrowIfNull(categoryId);
 		return $"/transactions?m={Uri.EscapeDataString(month)}&cat={Uri.EscapeDataString(categoryId)}";
 	}
+
+	/// <summary>Builds the address of the Transactions tab limited to the payments behind a figure of the month.</summary>
+	/// <param name="month">The month as <c>yyyy-MM</c>.</param>
+	/// <param name="figure">The figure whose payments to show.</param>
+	/// <returns>The path with the month and <c>show</c> in its query.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="month"/> is <see langword="null"/>.</exception>
+	public static string TransactionsBehind(string month, MonthFigure figure)
+	{
+		ArgumentNullException.ThrowIfNull(month);
+		return $"/transactions?m={Uri.EscapeDataString(month)}&show={MonthFigureNames.ToQuery(figure)}";
+	}
 	#endregion
 }

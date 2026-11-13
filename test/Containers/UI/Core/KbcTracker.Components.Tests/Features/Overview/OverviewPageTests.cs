@@ -36,6 +36,30 @@ public sealed class OverviewPageTests : UiTestContext
 		page.FindAll("section[aria-label='Key figures'] .label").Should().HaveCount(5);
 	}
 
+	/// <summary>Verifies refunds and loan money show as their own figures, apart from the five key figures.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Render_RefundAndLoanMoney_ShowsSeparateFigures()
+	{
+		Serve(TestWorkspace.Analyse(
+		[
+			TestWorkspace.Payment("t1", new DateOnly(2026, 11, 3), 30m, "Shop One"),
+			TestWorkspace.Payment("t2", new DateOnly(2026, 11, 4), 5000m, "Kbc Bank"),
+		], (user, _) =>
+		{
+			user.AssignTransactionCategory(new TxnId("t1"), new CategoryId("refunds"));
+			user.AssignTransactionCategory(new TxnId("t2"), CategoryId.LoanReceived);
+		}));
+
+		var page = Render<OverviewPage>();
+
+		await page.WaitForAssertionAsync(() => page.Find("section[aria-label='Not counted in the totals']"));
+		var figures = page.Find("section[aria-label='Not counted in the totals']").TextContent;
+		figures.Should().Contain("Refunds").And.Contain(Formats.Belgian.Money(30m));
+		figures.Should().Contain("Loan received").And.Contain(Formats.Belgian.Money(5000m));
+		page.FindAll("section[aria-label='Key figures'] .label").Should().HaveCount(5);
+	}
+
 	/// <summary>Verifies the attention notice counts the payees whose automatic category waits for the owner.</summary>
 	/// <returns>A task that completes when verified.</returns>
 	[Fact]
@@ -117,6 +141,34 @@ public sealed class OverviewPageTests : UiTestContext
 		await page.Find("button.crumb").ClickAsync();
 
 		page.Find("button.slice").TextContent.Should().Contain("Trips");
+	}
+	#endregion
+
+	#region Click-through Tests
+	/// <summary>Verifies the income, refunds and loan figures are links to the month's Transactions limited to what each adds up.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Figures_IncomeRefundsAndLoan_LinkToTheirPayments()
+	{
+		Serve(TestWorkspace.Analyse(
+		[
+			TestWorkspace.Payment("t1", new DateOnly(2026, 11, 3), 30m, "Shop One"),
+			TestWorkspace.Payment("t2", new DateOnly(2026, 11, 4), 5000m, "Kbc Bank"),
+			TestWorkspace.Payment("t3", new DateOnly(2026, 11, 1), 2500m, "Acme Payroll", "Salary November"),
+		], (user, _) =>
+		{
+			user.AssignTransactionCategory(new TxnId("t1"), new CategoryId("refunds"));
+			user.AssignTransactionCategory(new TxnId("t2"), CategoryId.LoanReceived);
+		}));
+
+		var page = Render<OverviewPage>();
+
+		await page.WaitForAssertionAsync(() => page.FindAll("a.kpi-link").Should().HaveCount(3));
+		page.Find("section[aria-label='Key figures'] a.kpi-link").GetAttribute("href").Should().Be("/transactions?m=2026-11&show=earnings");
+		page.Find("section[aria-label='Key figures'] a.kpi-link").GetAttribute("aria-label").Should().Contain("Income").And.Contain("show the payments");
+		var aside = page.FindAll("section[aria-label='Not counted in the totals'] a.kpi-link").Select(a => a.GetAttribute("href")).ToList();
+		aside.Should().Equal("/transactions?m=2026-11&show=refunds", "/transactions?m=2026-11&show=loan-received");
+		page.FindAll("section[aria-label='Key figures'] .kpi").Should().HaveCount(5);
 	}
 	#endregion
 }
