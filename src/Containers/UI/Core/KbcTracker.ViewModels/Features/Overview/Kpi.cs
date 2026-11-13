@@ -9,5 +9,5 @@ namespace KbcTracker.ViewModels.Features.Overview;
 /// <param name="Label">The figure's name.</param>
 /// <param name="Value">The amount, formatted.</param>
 /// <param name="Sub">The explanation under the figure.</param>
-/// <param name="Figure">The figure of the month whose payments the card opens in Transactions, or <see langword="null"/> when the card is no link.</param>
+/// <param name="Figure">The figure of the month whose payments the card opens in Income, or <see langword="null"/> when the card is no link.</param>
 public sealed record Kpi(string Key, string Label, string Value, string Sub, MonthFigure? Figure = null);

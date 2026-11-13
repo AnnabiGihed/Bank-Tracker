@@ -1,0 +1,80 @@
+.block {
+	margin-bottom: 12px;
+}
+
+h2 {
+	margin: 0 0 8px;
+	font-size: 1.05rem;
+}
+
+.suggestions {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+	gap: 12px;
+}
+
+.suggestion {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 10px 12px;
+	border: 1px solid var(--kt-line);
+	border-radius: 8px;
+}
+
+.suggestion header {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.amount {
+	font-size: 1.2rem;
+	font-weight: 600;
+}
+
+.maybe {
+	padding: 0 8px;
+	border: 1px solid var(--kt-line);
+	border-radius: 999px;
+	color: var(--kt-muted);
+	font-size: 0.8rem;
+}
+
+.chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.chips li {
+	padding: 1px 8px;
+	border-radius: 999px;
+	background: var(--kt-bg);
+	font-size: 0.8rem;
+}
+
+.buttons {
+	display: flex;
+	gap: 6px;
+}
+
+.summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 32px;
+	margin: 0;
+}
+
+.summary dt {
+	color: var(--kt-muted);
+}
+
+.summary dd {
+	margin: 0;
+	font-size: 1.2rem;
+	font-weight: 600;
+}

@@ -47,8 +47,9 @@ public sealed class ShellViewModelTests
 
 		var shell = new ShellViewModel(analysis, null, "2026-11", Formats.Belgian, Now);
 
-		shell.Tabs.Select(t => t.Id).Should().Equal("overview", "fixed", "transactions", "review", "categories", "settings");
-		shell.Tabs.Single(t => string.Equals(t.Id, "fixed", StringComparison.Ordinal)).Badge.Should().Be(analysis.Suggestions.Count);
+		shell.Tabs.Select(t => t.Id).Should().Equal("overview", "income", "fixed", "subscriptions", "transactions", "review", "categories", "settings");
+		shell.Tabs.Single(t => string.Equals(t.Id, "fixed", StringComparison.Ordinal)).Badge.Should().Be(analysis.Suggestions.Count(s => !s.IsSubscription));
+		shell.Tabs.Single(t => string.Equals(t.Id, "subscriptions", StringComparison.Ordinal)).Badge.Should().Be(analysis.Suggestions.Count(s => s.IsSubscription));
 		shell.Tabs.Single(t => string.Equals(t.Id, "review", StringComparison.Ordinal)).Badge.Should().Be(analysis.Review.Count);
 		shell.Tabs.Single(t => string.Equals(t.Id, "overview", StringComparison.Ordinal)).Badge.Should().Be(0);
 		ShellViewModel.ShowsMonthSelector("overview").Should().BeTrue();

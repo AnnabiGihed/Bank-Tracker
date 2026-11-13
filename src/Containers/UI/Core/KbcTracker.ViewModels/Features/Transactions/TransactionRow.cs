@@ -27,10 +27,11 @@ namespace KbcTracker.ViewModels.Features.Transactions;
 /// <param name="FixedName">The name of the fixed payment it belongs to, or <see langword="null"/>.</param>
 /// <param name="SplitSeed">The parts the split editor starts from when it is split already, otherwise <see langword="null"/>.</param>
 /// <param name="SplitDefaultCategoryId">The category new parts start with: the payment's own when it is spending, otherwise empty.</param>
+/// <param name="FixedIsSubscription">Whether the fixed payment it belongs to is a subscription, so its star opens the Subscriptions tab.</param>
 public sealed record TransactionRow(string Id, string SeriesKey, string Name, string Description, string DateText, decimal Amount, string AmountText,
 	TransactionTypeFilter Type, IReadOnlyList<string> CategoryIds, bool Confirmed, string SearchText, bool IsSplit, string CategoryId, string CategoryName,
 	IReadOnlyList<PartTag> Parts, IReadOnlyDictionary<string, decimal> PartAmountsOut, bool CanSplit, FixedMark Fixed, string? FixedName,
-	IReadOnlyList<SplitPartSeed>? SplitSeed, string SplitDefaultCategoryId)
+	IReadOnlyList<SplitPartSeed>? SplitSeed, string SplitDefaultCategoryId, bool FixedIsSubscription = false)
 {
 	#region Properties
 	/// <summary>Gets a value indicating whether the amount is money in, which the tab shows in green.</summary>

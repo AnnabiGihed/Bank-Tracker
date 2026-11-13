@@ -1,0 +1,81 @@
+@page "/income"
+@inherits TabPageBase
+
+<PageTitle>Income</PageTitle>
+@if (_view is not null)
+{
+	@foreach (var section in _view.Sections)
+	{
+		<RadzenCard class="block" id="@("income-" + section.Id)">
+			<h2 tabindex="-1" @ref="_headings[section.Id]">@section.Title <span class="total">@section.TotalText</span> <span class="muted">in @_view.MonthLabel</span></h2>
+			@if (section.Groups.Count == 0)
+			{
+				<p class="muted">@section.EmptyText</p>
+			}
+			@foreach (var group in section.Groups)
+			{
+				<h3>@group.Title <span class="total">@group.TotalText</span></h3>
+				<RadzenDataGrid TItem="IncomeRow" Data="@group.Rows" AllowSorting="false" AriaLabel="@($"{section.Title}: {group.Title}")">
+					<Columns>
+						<RadzenDataGridColumn TItem="IncomeRow" Title="Date" Width="80px">
+							<Template Context="row"><span class="muted">@row.DateText</span></Template>
+						</RadzenDataGridColumn>
+						<RadzenDataGridColumn TItem="IncomeRow" Title="Payer">
+							<Template Context="row">
+								<strong>@row.Payer</strong>
+								<div class="muted description" title="@row.Description">@row.Description</div>
+							</Template>
+						</RadzenDataGridColumn>
+						<RadzenDataGridColumn TItem="IncomeRow" Title="Category" MinWidth="300px">
+							<Template Context="row">
+								<div class="category">
+									<CategoryPicker Options="@_categories" Value="@row.CategoryId" ValueChanged="@(id => ChangeCategoryAsync(row, id))"
+										AriaLabel="@($"Category of {row.Payer}")" />
+									@if (!row.Confirmed)
+									{
+										<RadzenButton Text="✓" ButtonStyle="ButtonStyle.Success" Variant="Variant.Text" Size="ButtonSize.Small"
+											title="@($"Confirm this category for {row.Payer}")" aria-label="@($"Confirm the category of {row.Payer}")"
+											Click="@(() => DecideAsync(row.ConfirmRequest))" />
+									}
+								</div>
+							</Template>
+						</RadzenDataGridColumn>
+						<RadzenDataGridColumn TItem="IncomeRow" Title="Amount" TextAlign="TextAlign.Right" Width="120px">
+							<Template Context="row"><span class="income">@row.AmountText</span></Template>
+						</RadzenDataGridColumn>
+					</Columns>
+				</RadzenDataGrid>
+			}
+		</RadzenCard>
+	}
+
+	<div class="charts">
+		<RadzenCard>
+			<h2>Earnings, last 12 months</h2>
+			<EarningsChart Points="@_view.Series" />
+		</RadzenCard>
+		<RadzenCard>
+			<h2>Earnings by payer <span class="muted">last 12 months</span></h2>
+			@if (_view.Payers.Count == 0)
+			{
+				<p class="muted">No earnings yet.</p>
+			}
+			else
+			{
+				<table>
+					<caption class="sr-only">Earnings by payer over the last 12 months</caption>
+					<tbody>
+						@foreach (var payer in _view.Payers)
+						{
+							<tr>
+								<td>@payer.Name</td>
+								<td class="muted">@payer.CountText</td>
+								<td class="num">@payer.TotalText</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			}
+		</RadzenCard>
+	</div>
+}

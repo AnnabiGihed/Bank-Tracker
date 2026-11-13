@@ -1,11 +1,3 @@
-.figure-filter {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	margin-bottom: 12px;
-	color: var(--kt-muted);
-}
-
 .filters {
 	display: flex;
 	flex-wrap: wrap;

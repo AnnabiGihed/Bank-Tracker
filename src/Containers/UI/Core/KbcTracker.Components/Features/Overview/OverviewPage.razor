@@ -14,7 +14,12 @@ else if (_view is not null)
 			<ul>
 				@if (attention.SuggestionText is { } suggestions)
 				{
-					<li>@suggestions <RadzenLink Path="@TabRoutes.Tab("fixed", Month)" Text="Check fixed payments" /></li>
+					<li>@suggestions
+							@foreach (var link in attention.Suggestions.Links)
+							{
+								<RadzenLink Path="@TabRoutes.Tab(link.TabId, Month)" Text="@link.CheckText" />
+							}
+						</li>
 				}
 				@if (attention.ReviewText is { } review)
 				{
@@ -26,7 +31,7 @@ else if (_view is not null)
 	RenderFragment<Kpi> figureCard = kpi => @<RadzenCard class="@("kpi kpi-" + kpi.Key)">
 		@if (kpi.Figure is { } figure)
 		{
-			<a class="kpi-link" href="@TabRoutes.TransactionsBehind(Month, figure)" aria-label="@($"{kpi.Label} {kpi.Value}: show the payments behind it")">
+			<a class="kpi-link" href="@TabRoutes.IncomeBehind(Month, figure)" aria-label="@($"{kpi.Label} {kpi.Value}: show the payments behind it")">
 				<div class="label">@kpi.Label</div>
 				<div class="value">@kpi.Value</div>
 				<div class="sub">@kpi.Sub</div>
@@ -73,9 +78,13 @@ else if (_view is not null)
 			@if (_view.FixedPayments.Count == 0)
 			{
 				<p class="muted">@_view.NoFixedPaymentsText
-					@if (_view.SuggestionsWaitingText is { } waiting)
+					@if (_view.Waiting.Text is not null)
 					{
-						<RadzenLink Path="@TabRoutes.Tab("fixed", Month)" Text="@waiting" />
+						@foreach (var link in _view.Waiting.Links)
+						{
+							<RadzenLink Path="@TabRoutes.Tab(link.TabId, Month)" Text="@link.CountText" />
+						}
+						<span>@WaitingSuggestions.WaitingWord</span>
 					}
 				</p>
 			}

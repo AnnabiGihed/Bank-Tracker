@@ -25,5 +25,10 @@ public sealed record Suggestion(string Signature, string Name, string CategoryId
 	/// Gets the rhythm as a word: Monthly, Quarterly or Yearly.
 	/// </summary>
 	public string Cadence => Analysis.CadenceName(CadenceDays);
+
+	/// <summary>
+	/// Gets a value indicating whether accepting it would make a subscription: card payments only, monthly or yearly (see <see cref="SubscriptionRule"/>).
+	/// </summary>
+	public bool IsSubscription => SubscriptionRule.IsSubscription(CadenceDays, Items.ToList());
 	#endregion
 }

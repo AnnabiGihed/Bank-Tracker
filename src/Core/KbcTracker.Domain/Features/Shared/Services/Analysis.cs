@@ -226,6 +226,19 @@ public sealed partial class Analysis
 		[.. Items.Where(i => string.Equals(i.Month, month, StringComparison.Ordinal) && IsBehind(i, figure))];
 
 	/// <summary>
+	/// Determines whether a payment is part of the earnings of the Salary category (and below it), the part of
+	/// <see cref="MonthSummary.Income"/> that <see cref="MonthSummary.Salary"/> adds up.
+	/// </summary>
+	/// <param name="item">The payment.</param>
+	/// <returns><see langword="true"/> when its category is Salary or below it.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="item"/> is <see langword="null"/>.</exception>
+	public bool IsSalary(TxnInfo item)
+	{
+		ArgumentNullException.ThrowIfNull(item);
+		return IsUnder(item.Category, SalaryId);
+	}
+
+	/// <summary>
 	/// Gets a category by id.
 	/// </summary>
 	/// <param name="id">The category id.</param>

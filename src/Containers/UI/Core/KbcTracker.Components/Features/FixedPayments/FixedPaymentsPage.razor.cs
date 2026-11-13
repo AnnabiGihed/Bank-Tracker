@@ -5,7 +5,7 @@ namespace KbcTracker.Components.Features.FixedPayments;
 /// Date        : 11-2026
 /// Purpose     : The Fixed payments tab (<c>/fixed</c>): suggestions the owner accepts or dismisses, the month's expected,
 ///              paid and still-to-come totals, and the table of confirmed fixed payments with their status, an edit dialog
-///              (name, category, amount, rhythm) and stop tracking. A suggestion is never accepted automatically.
+///              (name, category, amount, rhythm) and stop tracking. Subscriptions have their own tab. A suggestion is never accepted automatically.
 /// </summary>
 public partial class FixedPaymentsPage : TabPageBase
 {

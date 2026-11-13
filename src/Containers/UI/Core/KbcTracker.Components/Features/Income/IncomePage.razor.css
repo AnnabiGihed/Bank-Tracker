@@ -1,0 +1,61 @@
+.block {
+	margin-bottom: 12px;
+}
+
+h2 {
+	margin: 0 0 8px;
+	font-size: 1.05rem;
+}
+
+h3 {
+	margin: 12px 0 6px;
+	font-size: 0.95rem;
+}
+
+h2:focus {
+	outline: none;
+}
+
+.total {
+	margin-left: 8px;
+	color: var(--kt-inc);
+	font-weight: 600;
+}
+
+.charts {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.category {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+
+.description {
+	max-width: 36ch;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.income {
+	color: var(--kt-inc);
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+td {
+	padding: 4px 0;
+}
+
+.num {
+	text-align: right;
+}

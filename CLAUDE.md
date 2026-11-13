@@ -93,8 +93,14 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
   name), at most the largest earlier payment = refund > the same payer crediting 26–35 days apart =
   `income-salary` > income. Series keys: only card refunds (`CCRD`) use `CARD:`; other refunds and suggested loan
   payouts keep `FROM:<iban>`; `LOANIN` is for `CAJT`/`LDAS` payouts. User decisions still win. The
-  Overview's Income, Refunds and Loan received figures open Transactions (`?show=earnings|refunds|loan-received`)
-  with exactly the payments behind them (`Analysis.Behind`, the rule `MonthSummary` adds up with).
+  Overview's Income, Refunds and Loan received figures open the Income tab (`/income?show=earnings|refunds|loan-received`)
+  with exactly the payments behind them (`Analysis.Behind`, the rule `MonthSummary` adds up with); the tab also shows
+  earnings by payer and the last 12 months.
+- Subscriptions (tab `/subscriptions`): an accepted or suggested recurring payment whose payments are all card payments
+  (`Kind.Card`) and that repeats monthly or yearly (`SubscriptionRule`, derived from the detection, no list of brands).
+  A series mixing card with other kinds, a quarterly one, or one with no payment yet is not a subscription and stays on
+  the Fixed payments tab. Subscriptions leave that tab only: they still count as fixed payments in every total
+  (`MonthSummary.Fixed`, the Overview).
 - Category type decides totals: Expense = spending, Income, Savings (separate), Transfer (ignored). Income on the
   Overview is earnings only: everything of type Income except the built-in Refunds sub-tree. Refunds and Loan received
   are shown as their own figures and count in no total (not income, not reducing spending); left over = earnings −
@@ -150,5 +156,5 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
   upgrade runs on the owner's database.
 - Next: the API on a VPS with authentication (a new ADR: login for the API and both apps, domain and TLS, the bank key
   on the server, backups off the server, the bank's redirect URL); then the Android app's SQLite cache.
-  Later: savings account, salary/quarterly/yearly detection, Loan and Salary tabs, notifications.
+  Later: savings account, salary/quarterly/yearly detection, notifications.
   Later ideas: budgets per category.

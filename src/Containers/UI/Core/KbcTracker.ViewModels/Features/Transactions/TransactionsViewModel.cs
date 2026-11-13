@@ -20,11 +20,11 @@ public sealed class TransactionsViewModel
 	/// <summary>Every payment of the month, in the analysis's order.</summary>
 	private readonly IReadOnlyList<TransactionRow> _rows;
 
+	/// <summary>The ids of the accepted fixed payments that are subscriptions, whose star opens the Subscriptions tab.</summary>
+	private readonly HashSet<string> _subscriptionIds;
+
 	/// <summary>The category the filter is on; <see langword="null"/> for all.</summary>
 	private string? _categoryId;
-
-	/// <summary>The ids of the payments behind the figure the list is opened on; <see langword="null"/> without one.</summary>
-	private readonly HashSet<string>? _figureIds;
 	#endregion
 
 	#region Constructors
@@ -35,16 +35,15 @@ public sealed class TransactionsViewModel
 	/// <param name="categoryId">A category to filter on, such as the one a doughnut slice was clicked on, or <see langword="null"/> for all. It
 	/// counts only when the month has payments in it; a filter on a category or a search shows every kind of payment.</param>
 	/// <param name="search">Text to search for, or <see langword="null"/> for none.</param>
-	/// <param name="figure">A figure of the month to show the payments of (the click-through of the Overview), or <see langword="null"/>
-	/// for none. It uses <see cref="Analysis.Behind"/>, the rule the month summary adds up with, and shows every kind of payment.</param>
 	/// <exception cref="ArgumentNullException"><paramref name="analysis"/>, <paramref name="month"/> or <paramref name="formats"/> is <see langword="null"/>.</exception>
-	public TransactionsViewModel(Analysis analysis, string month, Formats formats, string? categoryId = null, string? search = null, MonthFigure? figure = null)
+	public TransactionsViewModel(Analysis analysis, string month, Formats formats, string? categoryId = null, string? search = null)
 	{
 		ArgumentNullException.ThrowIfNull(analysis);
 		ArgumentNullException.ThrowIfNull(month);
 		ArgumentNullException.ThrowIfNull(formats);
 		_analysis = analysis;
 		_formats = formats;
+		_subscriptionIds = analysis.Fixed.Where(f => f.IsSubscription).Select(f => f.Def.Id.Value).ToHashSet(StringComparer.Ordinal);
 		var items = analysis.Items.Where(i => string.Equals(i.Month, month, StringComparison.Ordinal)).ToList();
 		_rows = [.. items.Select(i => ToRow(i, formats))];
 		var withPayments = items.SelectMany(i => i.Parts).SelectMany(p => CategoryOptions.WithAncestors(analysis, p.Category)).ToHashSet(StringComparer.Ordinal);
@@ -52,21 +51,13 @@ public sealed class TransactionsViewModel
 			.Select(x => CategoryOptions.ToOption(x.Category, x.Depth))];
 		_categoryId = categoryId is not null && FilterCategories.Any(c => string.Equals(c.Id, categoryId, StringComparison.Ordinal)) ? categoryId : null;
 		Search = search ?? string.Empty;
-		Figure = figure;
-		_figureIds = figure is { } shown ? analysis.Behind(month, shown).Select(i => i.T.Id.Value).ToHashSet(StringComparer.Ordinal) : null;
-		Type = _categoryId is not null || Search.Length > 0 || figure is not null ? TransactionTypeFilter.Everything : TransactionTypeFilter.Spending;
+		Type = _categoryId is not null || Search.Length > 0 ? TransactionTypeFilter.Everything : TransactionTypeFilter.Spending;
 		CategoryGroups = CategoryOptions.Grouped(analysis, formats);
 		SpendingCategories = CategoryOptions.Spending(analysis, formats);
 	}
 	#endregion
 
 	#region Properties
-	/// <summary>Gets the figure of the month whose payments the list is limited to, or <see langword="null"/> when it is not.</summary>
-	public MonthFigure? Figure { get; }
-
-	/// <summary>Gets the words that name the active figure filter, or <see langword="null"/> without one.</summary>
-	public string? FigureText => Figure is { } figure ? $"Showing {MonthFigureNames.Label(figure)} of the month" : null;
-
 	/// <summary>Gets or sets the text to search for in the name, the description, the part labels and the amount.</summary>
 	public string Search { get; set; }
 
@@ -101,8 +92,7 @@ public sealed class TransactionsViewModel
 		get
 		{
 			var text = Search.Trim().ToLowerInvariant();
-			return [.. _rows.Where(r => (_figureIds is null || _figureIds.Contains(r.Id))
-				&& (Type == TransactionTypeFilter.Everything || r.Type == Type)
+			return [.. _rows.Where(r => (Type == TransactionTypeFilter.Everything || r.Type == Type)
 				&& (_categoryId is null || r.CategoryIds.Contains(_categoryId, StringComparer.Ordinal))
 				&& (text.Length == 0 || r.SearchText.Contains(text, StringComparison.Ordinal))
 				&& (!UnconfirmedOnly || !r.Confirmed))];
@@ -145,7 +135,7 @@ public sealed class TransactionsViewModel
 			categoryIds, item.CategoryConfirmed, search, item.IsSplit, item.Category.Id.Value, item.Category.Name,
 			item.IsSplit ? [.. item.Parts.Select(p => ToTag(p, formats))] : [], item.IsSplit ? RolledParts(item) : new Dictionary<string, decimal>(StringComparer.Ordinal),
 			item.EffectiveType == CategoryType.Expense, FixedMarkOf(item), item.Recurring?.Name, SplitSeedOf(item),
-			item.Category.Type == CategoryType.Expense ? item.Category.Id.Value : string.Empty);
+			item.Category.Type == CategoryType.Expense ? item.Category.Id.Value : string.Empty, item.Recurring is { } recurring && _subscriptionIds.Contains(recurring.Id.Value));
 	}
 
 	/// <summary>Builds the tag of one part of a split payment.</summary>

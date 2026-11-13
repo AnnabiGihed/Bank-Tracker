@@ -45,7 +45,8 @@ public sealed class OverviewViewModel
 		var fixedRows = analysis.Fixed.Select(f => (Payment: f, State: f.StatusIn(month, today)))
 			.Where(x => x.State.Status is not (FixedStatus.NotStarted or FixedStatus.NotThisMonth) || x.State.Paid > 0).ToList();
 		var open = fixedRows.Where(x => x.State.Status is FixedStatus.Due or FixedStatus.Late).ToList();
-		Attention = analysis.Suggestions.Count > 0 || analysis.Review.Count > 0 ? new AttentionNotice(analysis.Suggestions.Count, analysis.Review.Count) : null;
+		var waiting = new WaitingSuggestions(analysis.Suggestions.Count(s => !s.IsSubscription), analysis.Suggestions.Count(s => s.IsSubscription));
+		Attention = waiting.Total > 0 || analysis.Review.Count > 0 ? new AttentionNotice(waiting, analysis.Review.Count) : null;
 		Kpis =
 		[
 			new("income", "Income", formats.Money(current.Income), EarningsBreakdown(current, formats), MonthFigure.Earnings),
@@ -60,14 +61,8 @@ public sealed class OverviewViewModel
 		FixedPayments = [.. fixedRows.OrderBy(x => x.State.Status is FixedStatus.Paid or FixedStatus.PaidChanged).ThenBy(x => x.Payment.UsualDay).Take(CardRows)
 			.Select(x => new FixedSummaryRow(x.Payment.Def.Name, formats.Money(x.State.Paid > 0 ? x.State.Paid : x.Payment.Def.Amount), FixedStatusPill.Of(x.Payment, x.State, formats)))];
 		FixedPaidText = $"{fixedRows.Count(x => x.State.Paid > 0)} of {fixedRows.Count} paid this month";
-		SuggestionsWaiting = analysis.Suggestions.Count;
-		NoFixedPaymentsText = SuggestionsWaiting > 0 ? "No confirmed fixed payments yet —" : "No confirmed fixed payments yet.";
-		SuggestionsWaitingText = SuggestionsWaiting switch
-		{
-			0 => null,
-			1 => "1 suggestion waiting",
-			_ => $"{SuggestionsWaiting} suggestions waiting",
-		};
+		NoFixedPaymentsText = waiting.Total > 0 ? "No confirmed fixed payments yet —" : "No confirmed fixed payments yet.";
+		Waiting = waiting;
 		BiggestExpenses = [.. analysis.Items.Where(i => string.Equals(i.Month, month, StringComparison.Ordinal) && i.IsSpending).OrderBy(i => i.T.Amount).Take(CardRows)
 			.Select(i => new ExpenseRow(formats.Day(i.T.Date), i.Name, i.IsSplit ? null : i.Category.Name, i.IsSplit ? null : i.Category.Color, i.IsSplit ? i.Parts.Count : 0,
 				formats.Money(-i.T.Amount)))];
@@ -84,7 +79,7 @@ public sealed class OverviewViewModel
 	/// <summary>Gets what the empty tab says: to connect a bank, or to sync.</summary>
 	public string EmptyMessage { get; }
 
-	/// <summary>Gets the banner that points to the suggestions and the payees to review, or <see langword="null"/> when there are none.</summary>
+	/// <summary>Gets the banner that points to the fixed payment and subscription suggestions and the payees to review, or <see langword="null"/> when there are none.</summary>
 	public AttentionNotice? Attention { get; }
 
 	/// <summary>Gets the five key figures: income, spent, fixed payments, saved and invested, left over.</summary>
@@ -105,14 +100,11 @@ public sealed class OverviewViewModel
 	/// <summary>Gets the words that tell how many of the month's fixed payments are paid.</summary>
 	public string FixedPaidText { get; } = string.Empty;
 
-	/// <summary>Gets how many fixed payment suggestions wait for the owner.</summary>
-	public int SuggestionsWaiting { get; }
+	/// <summary>Gets the fixed payment and subscription suggestions that wait for the owner.</summary>
+	public WaitingSuggestions Waiting { get; } = new(0, 0);
 
-	/// <summary>Gets what the fixed payments card says when none is confirmed; it ends in a dash when <see cref="SuggestionsWaitingText"/> follows.</summary>
+	/// <summary>Gets what the fixed payments card says when none is confirmed; it ends in a dash when <see cref="Waiting"/> has suggestions to point to.</summary>
 	public string NoFixedPaymentsText { get; } = string.Empty;
-
-	/// <summary>Gets the words that point to the waiting suggestions, or <see langword="null"/> when there are none.</summary>
-	public string? SuggestionsWaitingText { get; }
 
 	/// <summary>Gets the month's biggest expenses, largest first, at most six.</summary>
 	public IReadOnlyList<ExpenseRow> BiggestExpenses { get; } = [];
