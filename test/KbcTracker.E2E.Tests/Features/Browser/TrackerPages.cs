@@ -61,9 +61,9 @@ public sealed class TrackerPages(IPage page)
 	#endregion
 
 	#region Private Helpers
-	/// <summary>Matches an option whose text is the name, ignoring the indentation dashes the picker adds.</summary>
+	/// <summary>Matches an option whose text is the name, ignoring the whitespace around it.</summary>
 	/// <param name="name">The category's name.</param>
 	/// <returns>The pattern.</returns>
-	private static Regex ExactName(string name) => new($@"^[\s—]*{Regex.Escape(name)}\s*$", RegexOptions.None, TimeSpan.FromSeconds(1));
+	private static Regex ExactName(string name) => new($@"^\s*{Regex.Escape(name)}\s*$", RegexOptions.None, TimeSpan.FromSeconds(1));
 	#endregion
 }

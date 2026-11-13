@@ -3,7 +3,7 @@ namespace KbcTracker.ViewModels.Features.Shared;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
-/// Purpose     : One entry of a category picker: a category with its level in the tree, so the picker can indent it.
+/// Purpose     : One entry of a category picker: a category with its level in the tree, so the picker can show top-level categories as headings and indent the rest.
 /// </summary>
 /// <param name="Id">The category id.</param>
 /// <param name="Name">The category name.</param>
@@ -13,7 +13,7 @@ namespace KbcTracker.ViewModels.Features.Shared;
 public sealed record CategoryOption(string Id, string Name, int Depth, CategoryType Type, string Color)
 {
 	#region Properties
-	/// <summary>Gets the name preceded by one "— " per level below the top.</summary>
-	public string Label => CategoryOptions.Indent(Depth) + Name;
+	/// <summary>Gets a value indicating whether the category is top level, which the picker shows as a heading.</summary>
+	public bool IsRoot => Depth <= 1;
 	#endregion
 }

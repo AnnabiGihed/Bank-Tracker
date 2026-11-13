@@ -19,6 +19,16 @@ public static class CategoryDefaults
 	/// The country whose keyword pack is loaded when the configuration names none.
 	/// </summary>
 	public const string DefaultCountry = "BE";
+
+	/// <summary>
+	/// The name of the built-in category of a loan payout.
+	/// </summary>
+	public const string LoanReceivedName = "Loan received";
+
+	/// <summary>
+	/// The colour of the built-in category of a loan payout.
+	/// </summary>
+	public const string LoanReceivedColor = "#8d6e63";
 	#endregion
 
 	#region Static Instances
@@ -30,6 +40,13 @@ public static class CategoryDefaults
 	#endregion
 
 	#region Factory Methods
+	/// <summary>
+	/// Creates the built-in <c>loan-received</c> category, for a database stored before it existed.
+	/// </summary>
+	/// <returns>A top-level, built-in category of type <see cref="CategoryType.Transfer"/> without keywords.</returns>
+	public static Category CreateLoanReceived() =>
+		Category.Rehydrate(CategoryId.LoanReceived, LoanReceivedName, CategoryType.Transfer, LoanReceivedColor, [], builtIn: true);
+
 	/// <summary>
 	/// Creates the categories a new database starts with: the default tree with the worldwide keywords and, for
 	/// Belgium, the Belgian pack.
@@ -74,6 +91,7 @@ public static class CategoryDefaults
 			new("refunds", "Refunds", CategoryType.Income, "#6fcf97", BuiltIn: true),
 			new("savings", Analysis.SavingsName, CategoryType.Savings, "#9b51e0", BuiltIn: true),
 			new("own-transfers", Analysis.OwnTransfersName, CategoryType.Transfer, "#bdbdbd", BuiltIn: true),
+			new(CategoryId.LoanReceived.Value, LoanReceivedName, CategoryType.Transfer, LoanReceivedColor, BuiltIn: true),
 			new("loan", "Loan", CategoryType.Expense, "#c0392b", BuiltIn: true),
 			new("bills", "Bills & direct debits", CategoryType.Expense, "#2d9cdb", BuiltIn: true),
 			new("bank-fees", "Bank & fees", CategoryType.Expense, "#828282", BuiltIn: true),

@@ -62,11 +62,13 @@ public sealed class PostgreSqlWorkspacePersistence(KbcTrackerDbContext db, IUnit
 			categories.AddRange(DefaultCategories());
 			db.Categories.AddRange(categories);
 		}
-		else if (!categories.Exists(c => c.Id == CategoryId.Other))
+		else
 		{
-			var other = OtherCategory();
-			categories.Add(other);
-			db.Categories.Add(other);
+			foreach (var missing in MissingBuiltIns(categories))
+			{
+				categories.Add(missing);
+				db.Categories.Add(missing);
+			}
 		}
 
 		return new(transactions, categories, user, null);
@@ -90,10 +92,28 @@ public sealed class PostgreSqlWorkspacePersistence(KbcTrackerDbContext db, IUnit
 		{
 			categories.AddRange(DefaultCategories());
 		}
-		else if (!categories.Exists(c => c.Id == CategoryId.Other))
+		else
 		{
-			categories.Add(OtherCategory());
+			categories.AddRange(MissingBuiltIns(categories));
 		}
+	}
+
+	/// <summary>Builds the built-in categories that a database stored before they existed lacks, so the analysis
+	/// never falls back to <c>other</c> (spending) for a loan payout.</summary>
+	private static List<Category> MissingBuiltIns(List<Category> categories)
+	{
+		var missing = new List<Category>();
+		if (!categories.Exists(c => c.Id == CategoryId.Other))
+		{
+			missing.Add(OtherCategory());
+		}
+
+		if (!categories.Exists(c => c.Id == CategoryId.LoanReceived))
+		{
+			missing.Add(CategoryDefaults.CreateLoanReceived());
+		}
+
+		return missing;
 	}
 
 	/// <summary>Builds the fallback definition required by the domain analysis.</summary>

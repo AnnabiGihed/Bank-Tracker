@@ -74,13 +74,31 @@ public sealed class CategoryDefaultsTests
 
 		categories.Should().OnlyHaveUniqueItems(c => c.Id);
 		categories.Select(c => c.Id.Value).Should().Contain(
-			["other", "income", "refunds", "savings", "own-transfers", "loan", "bills", "bank-fees", "cash", "transfers", "groceries", "car", "housing", "car-fuel"]);
-		categories.Where(c => c.BuiltIn).Select(c => c.Id.Value).Should().HaveCount(10).And.Contain(
-			["income", "refunds", "savings", "own-transfers", "loan", "bills", "bank-fees", "cash", "transfers", "other"]);
+			["other", "income", "refunds", "savings", "own-transfers", "loan-received", "loan", "bills", "bank-fees", "cash", "transfers", "groceries", "car", "housing", "car-fuel"]);
+		categories.Where(c => c.BuiltIn).Select(c => c.Id.Value).Should().HaveCount(11).And.Contain(
+			["income", "refunds", "savings", "own-transfers", "loan-received", "loan", "bills", "bank-fees", "cash", "transfers", "other"]);
 		categories.Single(c => c.Id == new CategoryId("car-fuel")).ParentId.Should().Be(new CategoryId("car"));
 		categories.Single(c => c.Id == new CategoryId("car-fuel")).Coicop.Should().Be("07.2");
 		categories.Single(c => c.Id == new CategoryId("groceries")).Keywords.Should().Contain("AD ");
 		categories.Single(c => c.Id == new CategoryId("own-transfers")).Type.Should().Be(CategoryType.Transfer);
+		categories.Single(c => c.Id == CategoryId.LoanReceived).Type.Should().Be(CategoryType.Transfer);
+		categories.Single(c => c.Id == CategoryId.LoanReceived).ParentId.Should().BeNull();
+	}
+
+	/// <summary>
+	/// Verifies the stand-in for a database stored before the built-in existed: a protected, top-level Transfer.
+	/// </summary>
+	[Fact]
+	public void CreateLoanReceived_OldTreeWithoutIt_IsProtectedTransfer()
+	{
+		var old = CategoryDefaults.CreateDefaults("BE").Where(c => c.Id != CategoryId.LoanReceived).ToList();
+		var restored = CategoryDefaults.CreateLoanReceived();
+		var tree = new CategoryTree([.. old, restored]);
+
+		restored.Type.Should().Be(CategoryType.Transfer);
+		restored.BuiltIn.Should().BeTrue();
+		tree.Roots().Should().Contain(restored);
+		tree.ValidateDeletion(CategoryId.LoanReceived.Value).IsFailure.Should().BeTrue();
 	}
 
 	/// <summary>

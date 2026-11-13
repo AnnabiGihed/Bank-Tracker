@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A built-in category Loan received (type Transfer) for loan payouts, which used to land in Own transfers. An
+  existing database gets it with the next decision.
 - The Android app `KbcTracker.Mobile` (.NET MAUI Blazor Hybrid, `com.BankTracker.mobile`), built from the same
   components as the web app ([ADR-0008](docs/adr/0008-build-the-front-ends-as-shared-blazor-components.md),
   proposed). It is for development only for now: it runs in the emulator against the backend on your PC and has no
@@ -77,6 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The category pickers show every top-level category as a bold heading you can pick, with its sub-categories
+  indented below it, instead of a flat list with dashes.
 - The web app is rebuilt as a Blazor Web App with Radzen components, with the same tab addresses. The charts
   no longer need the internet, the category pickers are searchable, dialogs and messages look different, and the
   "Only this one" choice after a category change appears as a notification.

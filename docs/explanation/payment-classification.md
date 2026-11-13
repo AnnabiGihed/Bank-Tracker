@@ -14,7 +14,8 @@ transaction (`bank_transaction_code.code/sub_code`). The app trusts it more than
 - **Card payments** (`CCRD`): grouped by shop name, cleaned from the bank label.
   `WL*GOOGLE YouTube IED02 R296 Dublin` and `GOOGLE *YouTube IEUNKNOWN` both become *Google YouTube*.
 - **Transfers**: grouped by the other party's International Bank Account Number (IBAN).
-- **Loan payouts** (`RCDT/CAJT`) are not income.
+- **Loan payouts** (`RCDT/CAJT`) are not income: they go to the built-in Loan received category, which counts
+  neither as income nor as spending.
 
 The account holder is the name that most often pays money out. Transfers to or from that name are own transfers:
 they count neither as spending nor as income.
