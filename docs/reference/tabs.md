@@ -8,7 +8,8 @@ and the Android app show the same tabs; the addresses are the web app's.
 - Edits open in a dialog. Messages, errors and confirmations appear as notifications.
 - After you change a payee's category, a notification offers **Only this one**: select it to undo the change for the
   payee and keep it for this payment only.
-- Category pickers are flat lists with a search box: type part of a name to find it. Sub-categories are indented.
+- Category pickers have a search box: type part of a name to find it. Every top-level category is a bold heading
+  you can pick, with its sub-categories indented below it.
 - Charts work offline. Each chart has a table of the same numbers for keyboard and screen-reader use.
 
 ## The tabs

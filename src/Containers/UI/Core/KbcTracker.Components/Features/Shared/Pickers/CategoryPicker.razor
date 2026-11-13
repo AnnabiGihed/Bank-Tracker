@@ -1,5 +1,10 @@
 <div class="picker">
-	<RadzenDropDown TValue="string" Data="@Options" TextProperty="Label" ValueProperty="Id" Value="@Value" Change="@OnChangeAsync"
+	<RadzenDropDown TValue="string" Data="@Options" TextProperty="Name" ValueProperty="Id" Value="@Value" Change="@OnChangeAsync"
 		AllowClear="@AllowClear" Placeholder="@Placeholder" AllowFiltering="true" FilterOperator="StringFilterOperator.Contains" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" InputAttributes="@_inputAttributes" class="picker-input"
-		data-testid="@TestId" />
+		data-testid="@TestId">
+		<Template Context="item">
+			@{ var option = (CategoryOption)item; }
+			<span class="@ItemClass(option)" style="@ItemStyle(option)">@option.Name</span>
+		</Template>
+	</RadzenDropDown>
 </div>

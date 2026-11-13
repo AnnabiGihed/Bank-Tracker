@@ -111,6 +111,9 @@ public sealed class AnalysisTests
 
 		item.Kind.Should().Be(Kind.LoanReceived);
 		item.IsIncome.Should().BeFalse();
+		item.Category.Id.Should().Be(CategoryId.LoanReceived);
+		item.Category.Type.Should().Be(CategoryType.Transfer);
+		item.IsSpending.Should().BeFalse();
 	}
 	#endregion
 

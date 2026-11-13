@@ -1,9 +1,11 @@
+using System.Globalization;
+
 namespace KbcTracker.Components.Features.Shared.Pickers;
 
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
-/// Purpose     : A searchable drop-down over category options in tree order, indented by level, used wherever the owner
+/// Purpose     : A searchable drop-down over category options in tree order, top-level categories as bold headings and the others indented by level, used wherever the owner
 ///              picks a category: a transaction, a payee to review, a fixed payment, a split part, a parent category.
 ///              The accessible name is required because the drop-down has no visible label of its own in a table row.
 /// </summary>
@@ -48,6 +50,18 @@ public partial class CategoryPicker : ComponentBase
 	/// <inheritdoc />
 	protected override void OnParametersSet() =>
 		_inputAttributes = new Dictionary<string, object>(StringComparer.Ordinal) { ["aria-label"] = AriaLabel };
+	#endregion
+
+	#region Private Helpers
+	/// <summary>Gets the style class of an option: a heading for a top-level category, an indented entry otherwise.</summary>
+	/// <param name="option">The option.</param>
+	/// <returns>The class name.</returns>
+	private static string ItemClass(CategoryOption option) => option.IsRoot ? "picker-root" : "picker-child";
+
+	/// <summary>Gives the stylesheet the level of an option, so it can indent by level.</summary>
+	/// <param name="option">The option.</param>
+	/// <returns>The inline custom property.</returns>
+	private static string ItemStyle(CategoryOption option) => string.Create(CultureInfo.InvariantCulture, $"--depth: {option.Depth}");
 	#endregion
 
 	#region Event Handlers

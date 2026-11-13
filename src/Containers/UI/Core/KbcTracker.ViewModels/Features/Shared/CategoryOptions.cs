@@ -4,7 +4,7 @@ namespace KbcTracker.ViewModels.Features.Shared;
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Lists categories for pickers and trees: in tree order (the top-level categories, each followed by its
-///              sub-categories, level by level), grouped by type, indented by level. Moved from the old page kit.
+///              sub-categories, level by level), grouped by type, each with its level. Moved from the old page kit.
 /// </summary>
 public static class CategoryOptions
 {
@@ -84,11 +84,6 @@ public static class CategoryOptions
 		ArgumentNullException.ThrowIfNull(category);
 		return new(category.Id.Value, category.Name, depth, category.Type, category.Color);
 	}
-
-	/// <summary>Gives the indent of a category's level: "— " per level below the top.</summary>
-	/// <param name="depth">The level, one for a top-level category.</param>
-	/// <returns>The indent; empty for a top-level category.</returns>
-	public static string Indent(int depth) => string.Concat(Enumerable.Repeat("— ", Math.Max(0, depth - 1)));
 
 	/// <summary>Gets the heading of a category type.</summary>
 	/// <param name="type">The category type.</param>

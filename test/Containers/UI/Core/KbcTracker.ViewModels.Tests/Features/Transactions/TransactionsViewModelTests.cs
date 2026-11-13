@@ -55,8 +55,9 @@ public sealed class TransactionsViewModelTests
 		transactions.CategoryId.Should().Be("trav");
 		transactions.Type.Should().Be(TransactionTypeFilter.Everything);
 		transactions.VisibleRows.Select(r => r.Id).Should().Equal("t1");
-		var labels = transactions.FilterCategories.Select(c => c.Label).ToList();
-		labels.IndexOf("— Rail trips").Should().Be(labels.IndexOf("Trips") + 1);
+		var names = transactions.FilterCategories.Select(c => c.Name).ToList();
+		names.IndexOf("Rail trips").Should().Be(names.IndexOf("Trips") + 1);
+		transactions.FilterCategories.Single(c => string.Equals(c.Name, "Rail trips", StringComparison.Ordinal)).Depth.Should().Be(2);
 		transactions.FilterCategories.Select(c => c.Id).Should().NotContain("cash");
 	}
 

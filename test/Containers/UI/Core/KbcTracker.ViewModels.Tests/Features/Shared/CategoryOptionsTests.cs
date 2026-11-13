@@ -9,7 +9,7 @@ namespace KbcTracker.ViewModels.Tests.Features.Shared;
 public sealed class CategoryOptionsTests
 {
 	#region Picker Tests
-	/// <summary>Verifies the grouped picker lists a parent before its child, the child indented with "— ", and the groups by type.</summary>
+	/// <summary>Verifies the grouped picker lists a parent (a heading) before its child (one level deeper), and the groups by type.</summary>
 	[Fact]
 	public void Grouped_ParentBeforeChildIndented_ByType()
 	{
@@ -19,9 +19,13 @@ public sealed class CategoryOptionsTests
 
 		groups.Select(g => g.Type).Should().BeInAscendingOrder();
 		groups.Select(g => g.Label).Should().Contain(["Spending", "Income"]);
-		var labels = groups.Single(g => g.Type == CategoryType.Expense).Options.Select(o => o.Label).ToList();
-		labels.IndexOf("Trips").Should().BeGreaterThanOrEqualTo(0);
-		labels.IndexOf("— Rail trips").Should().Be(labels.IndexOf("Trips") + 1);
+		var options = groups.Single(g => g.Type == CategoryType.Expense).Options;
+		var trips = options.Single(o => string.Equals(o.Name, "Trips", StringComparison.Ordinal));
+		var rail = options.Single(o => string.Equals(o.Name, "Rail trips", StringComparison.Ordinal));
+		trips.IsRoot.Should().BeTrue();
+		rail.IsRoot.Should().BeFalse();
+		rail.Depth.Should().Be(2);
+		options.ToList().IndexOf(rail).Should().Be(options.ToList().IndexOf(trips) + 1);
 	}
 
 	/// <summary>Verifies the split editor's list holds spending categories only.</summary>
@@ -36,15 +40,13 @@ public sealed class CategoryOptionsTests
 		options.Select(o => o.Id).Should().Contain(["trav", "trav-train", "bills"]);
 	}
 
-	/// <summary>Verifies a category's ancestors are listed after its own id, and the indent grows by level.</summary>
+	/// <summary>Verifies a category's ancestors are listed after its own id.</summary>
 	[Fact]
-	public void WithAncestorsAndIndent_ChildListsParent()
+	public void WithAncestors_ChildListsParent()
 	{
 		var analysis = TestWorkspace.Analyse([]);
 
 		CategoryOptions.WithAncestors(analysis, analysis.CategoryById("trav-train")).Should().Equal("trav-train", "trav");
-		CategoryOptions.Indent(1).Should().BeEmpty();
-		CategoryOptions.Indent(3).Should().Be("— — ");
 	}
 	#endregion
 }

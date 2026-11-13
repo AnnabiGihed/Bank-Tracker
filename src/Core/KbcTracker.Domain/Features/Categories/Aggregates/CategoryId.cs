@@ -15,5 +15,10 @@ public sealed record CategoryId(string Value) : StronglyTypedStringId<CategoryId
 	/// The built-in fallback category, which cannot be deleted.
 	/// </summary>
 	public static readonly CategoryId Other = new("other");
+
+	/// <summary>
+	/// The built-in category of a loan payout: money in that is neither income nor spending.
+	/// </summary>
+	public static readonly CategoryId LoanReceived = new("loan-received");
 	#endregion
 }

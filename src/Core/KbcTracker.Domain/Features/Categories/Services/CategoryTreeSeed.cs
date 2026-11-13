@@ -142,6 +142,7 @@ internal static class CategoryTreeSeed
 		Child("income-other", "income", "Other income", null, [], []),
 		Root("savings", Analysis.SavingsName, null, "#9b51e0", [], [], CategoryType.Savings, builtIn: true),
 		Root("own-transfers", Analysis.OwnTransfersName, null, "#bdbdbd", ["REVOLUT", "WISE", "N26"], [], CategoryType.Transfer, builtIn: true),
+		Root("loan-received", CategoryDefaults.LoanReceivedName, null, CategoryDefaults.LoanReceivedColor, [], [], CategoryType.Transfer, builtIn: true),
 		Root("loan", "Loan repayments", null, "#c0392b", [], [], builtIn: true),
 		Root("taxes", "Taxes & government", null, "#636e72", [], []),
 		Child("taxes-income", "taxes", "Income tax", null, [], ["SPF FINANCES", "FOD FINANCIEN"]),

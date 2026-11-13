@@ -1,4 +1,5 @@
 using KbcTracker.Application.Features.Workspace.Abstractions;
+using KbcTracker.Domain.Features.Categories.Services;
 
 namespace KbcTracker.Persistence.EntityFrameworkCore.Tests.Features.Shared;
 
@@ -59,9 +60,39 @@ public sealed class WorkspacePersistenceTests(PostgreSqlFixture fixture) : Datab
 			}
 		}
 
-		(await ReadAsync(db => db.Categories.CountAsync())).Should().Be(KbcTracker.Domain.Features.Categories.Services.CategoryDefaults.CreateDefaults("BE").Count);
+		(await ReadAsync(db => db.Categories.CountAsync())).Should().Be(CategoryDefaults.CreateDefaults("BE").Count);
 		var stored = await ReadAsync(db => db.UserData.SingleAsync());
 		stored.DismissedSuggestions.Should().Contain("dismissed-in-first-decision");
+	}
+
+	/// <summary>Verifies a database stored before the built-in <c>loan-received</c> category existed gets it with the next
+	/// decision, and shows it on a read, without touching the other categories.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Workspace_OldTreeWithoutLoanReceived_ReadShowsItAndDecisionAddsIt()
+	{
+		var old = CategoryDefaults.CreateDefaults("BE")
+			.Where(c => c.Id != CategoryId.LoanReceived).ToList();
+		await AddAsync([UserData.Empty(), .. old]);
+		var scope = Services.CreateAsyncScope();
+		await using (scope)
+		{
+			var persistence = scope.ServiceProvider.GetRequiredService<IWorkspacePersistence>();
+			var read = await persistence.ReadAsync(CancellationToken.None);
+			read.Categories.Should().Contain(c => c.Id == CategoryId.LoanReceived && c.Type == CategoryType.Transfer);
+			var lease = await persistence.TryAcquireWriteAsync(CancellationToken.None)
+				?? throw new InvalidOperationException("The first writer must acquire the lease.");
+			await using (lease)
+			{
+				var data = await persistence.LoadForUpdateAsync(CancellationToken.None)
+					?? throw new InvalidOperationException("An initialised database must load.");
+				data.User.DismissSuggestion("dismissed");
+				(await persistence.SaveAsync(CancellationToken.None)).IsSuccess.Should().BeTrue();
+			}
+		}
+
+		(await ReadAsync(db => db.Categories.CountAsync())).Should().Be(old.Count + 1);
+		(await ReadAsync(db => db.Categories.SingleAsync(c => c.Id == CategoryId.LoanReceived))).BuiltIn.Should().BeTrue();
 	}
 
 	/// <summary>Verifies independent backend scopes cannot overwrite user decisions simultaneously.</summary>

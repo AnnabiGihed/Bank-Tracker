@@ -90,8 +90,11 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
   children carry their root's type, classified by purpose (shampoo = Personal care, car insurance = Insurance).
   A payment stays on the deepest node that is known (STIB → Public & paid transport, "not specified" below it);
   totals roll up. Keyword tie → deeper node. Keywords: worldwide core + country pack (`EnableBanking:Country`, BE).
-  Built-in ids (income, refunds, savings, own-transfers, loan, bills, bank-fees, cash, transfers, other) can't be
-  deleted; deleting a node moves its payments to its parent. KBC sends no merchant category code (field empty).
+  Built-in ids (income, refunds, savings, own-transfers, loan-received, loan, bills, bank-fees, cash, transfers,
+  other) can't be deleted; loan payouts (`RCDT/CAJT`) land in `loan-received` (Transfer type, bank-certain), and a
+  stored tree without it gets it from `PostgreSqlWorkspacePersistence` like `other`; deleting a node moves its payments
+  to its parent. KBC sends no merchant category code (field
+  empty).
 - A payment can be split into categorised parts (ADR-0007): a user decision in `UserData` (never on the bank's `Txn`),
   2–100 lines of amount (> 0, 2 decimals) + expense category + optional label, adding up exactly to the payment. A
   split wins over every other category and counts as spending and as confirmed, but `TxnInfo.Category` stays the
@@ -126,7 +129,6 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
 - The Android app has no production backend until the API moves to a VPS with authentication (a later ADR); it only
   works in the emulator against the PC.
 - Bank connect and reconnect are web-only; the Android app tells you to use the web app on the PC.
-- The category pickers are flat searchable lists: they show no group headings per type.
 - Car-dealer payments match the keyword AUTOMOBILE and land on Car › Maintenance & repair; a purchase belongs in
   Buying vehicles (the owner sets it on the payee). Built-in roots such as Other and Loan repayments offer no
   "+ sub-category".

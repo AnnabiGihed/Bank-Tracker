@@ -6,3 +6,15 @@
 .picker ::deep .picker-input {
 	width: 100%;
 }
+
+/* The drop-down list only: the chosen value shown in the input stays plain. */
+.picker ::deep .rz-dropdown-item .picker-root {
+	display: block;
+	font-weight: 700;
+	margin-block-start: 0.25rem;
+}
+
+.picker ::deep .rz-dropdown-item .picker-child {
+	display: block;
+	padding-inline-start: calc((var(--depth) - 1) * 1rem);
+}
