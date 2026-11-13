@@ -1,4 +1,5 @@
 using System.Net;
+using KbcTracker.Shared.Features.Backend;
 
 namespace KbcTracker.Web.Features.Shared.Api;
 
@@ -14,7 +15,7 @@ public sealed class WebAccessMiddleware(RequestDelegate next, IWebHostEnvironmen
 {
 	#region Constants
 	/// <summary>The identity supplied by Tailscale Serve.</summary>
-	public const string IdentityHeader = "Tailscale-User-Login";
+	public const string IdentityHeader = BackendOptions.OwnerHeader;
 	#endregion
 
 	#region Public Methods
@@ -51,11 +52,15 @@ public sealed class WebAccessMiddleware(RequestDelegate next, IWebHostEnvironmen
 	/// <summary>Protects mutations while allowing the state-validated bank callback navigation. A browser's
 	/// <c>Sec-Fetch-Site</c> decides when present: only this site's own pages (<c>same-origin</c>) or the owner typing
 	/// the address (<c>none</c>) may write. <c>Origin</c> is not enough on its own: the pages send
-	/// <c>Referrer-Policy: no-referrer</c>, under which browsers send <c>Origin: null</c> for the app's own form posts.
-	/// Clients without <c>Sec-Fetch-Site</c> fall back to the <c>Origin</c> check.</summary>
+	/// <c>Referrer-Policy: no-referrer</c>, under which browsers can send <c>Origin: null</c> for the app's own requests.
+	/// The only writes today are the Blazor circuit's WebSocket and its negotiate POST; the bank callback is a GET.
+	/// Clients without <c>Sec-Fetch-Site</c> fall back to the <c>Origin</c> check. A WebSocket upgrade counts as a
+	/// write although it is a GET: every change the pages make travels over the Blazor circuit's socket, and a page on
+	/// another site could otherwise open one.</summary>
 	private static bool IsCrossOriginWrite(HttpRequest request)
 	{
-		if (HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method) || HttpMethods.IsOptions(request.Method))
+		var safeMethod = HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method) || HttpMethods.IsOptions(request.Method);
+		if (safeMethod && !IsWebSocketUpgrade(request))
 		{
 			return false;
 		}
@@ -70,5 +75,12 @@ public sealed class WebAccessMiddleware(RequestDelegate next, IWebHostEnvironmen
 		return !string.IsNullOrEmpty(origin) && (!Uri.TryCreate(origin, UriKind.Absolute, out var address)
 			|| !string.Equals(address.Authority, request.Host.Value, StringComparison.OrdinalIgnoreCase));
 	}
+
+	/// <summary>Recognises a WebSocket handshake by its headers, which every server sees, rather than by the server's
+	/// WebSocket feature, which a test host may not offer.</summary>
+	/// <param name="request">The incoming request.</param>
+	/// <returns><see langword="true"/> when the request asks to upgrade to a WebSocket.</returns>
+	private static bool IsWebSocketUpgrade(HttpRequest request) =>
+		string.Equals(request.Headers.Upgrade.ToString(), "websocket", StringComparison.OrdinalIgnoreCase);
 	#endregion
 }

@@ -1,0 +1,35 @@
+<div class="form">
+	<label for="category-name">Name</label>
+	<RadzenTextBox Value="@Edit.Name" ValueChanged="@(name => Edit.Name = name)" Immediate="true" id="category-name" />
+
+	@if (Edit.ShowParent)
+	{
+		<span>Parent category</span>
+		<CategoryPicker Options="@Edit.ParentOptions" Value="@Edit.ParentId" ValueChanged="@(id => Edit.ParentId = id)" AllowClear="true"
+			Placeholder="None (top level)" AriaLabel="Parent category" />
+	}
+
+	@if (Edit.ShowType)
+	{
+		<span>Counts as</span>
+		<RadzenDropDown TValue="CategoryType" Data="@TypeChoices" TextProperty="Label" ValueProperty="Value" Value="@Edit.Type"
+			ValueChanged="@(type => Edit.Type = type)" InputAttributes="@TypeInputAttributes" />
+	}
+
+	<label for="category-colour">Colour</label>
+	<input id="category-colour" type="color" value="@Edit.Color" @onchange="@OnColorChanged" />
+
+	<label for="category-keywords">Keywords — payments whose shop or payee name contains one of these get this category automatically (comma separated)</label>
+	<RadzenTextArea Value="@Edit.Keywords" ValueChanged="@(keywords => Edit.Keywords = keywords)" Rows="3" Placeholder="e.g. DELHAIZE, COLRUYT, ALDI"
+		id="category-keywords" />
+
+	<div class="actions">
+		@if (Edit.CanDelete)
+		{
+			<RadzenButton Text="Delete" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Click="@DeleteAsync" />
+		}
+		<span class="spacer"></span>
+		<RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" />
+		<RadzenButton Text="Save" Disabled="@(!Edit.IsValid)" Click="@Save" />
+	</div>
+</div>

@@ -1,0 +1,31 @@
+@page "/banks"
+
+<PageTitle>Choose your bank</PageTitle>
+<h2>Choose your bank</h2>
+<BackendStatus Problem="@_problem" OnRetry="@LoadAsync" />
+@if (!Launcher.CanLaunch)
+{
+	<p class="muted" role="status">@Launcher.UnavailableMessage</p>
+}
+
+@if (_picker is not null)
+{
+	<RadzenCard>
+		<table>
+			<caption class="sr-only">Banks you can connect</caption>
+			<tbody>
+				@foreach (var bank in _picker.Banks)
+				{
+					<tr @key="bank">
+						<td>@bank.Name <span class="muted">@bank.Country</span></td>
+						<td class="num">
+							<RadzenButton Text="Connect" Disabled="@(!Launcher.CanLaunch || _connecting is not null)" IsBusy="@(_connecting == bank)"
+								aria-label="@($"Connect {bank.Name}")" Click="@(() => ConnectAsync(bank))" />
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</RadzenCard>
+}
+<p><RadzenLink Path="@TabRoutes.Overview" Text="← back" /></p>

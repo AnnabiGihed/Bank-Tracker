@@ -1,0 +1,40 @@
+.hint {
+	margin-top: 0;
+	color: var(--kt-muted);
+}
+
+.part {
+	display: grid;
+	grid-template-columns: 1fr 1.3fr 7rem 2.5rem;
+	gap: 6px;
+	align-items: center;
+	margin-top: 8px;
+}
+
+.part ::deep .amount {
+	text-align: right;
+}
+
+.remainder,
+.actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.remainder {
+	justify-content: space-between;
+}
+
+.spacer {
+	flex: 1;
+}
+
+.balanced {
+	color: var(--kt-ok);
+}
+
+.unbalanced {
+	color: var(--kt-bad);
+}

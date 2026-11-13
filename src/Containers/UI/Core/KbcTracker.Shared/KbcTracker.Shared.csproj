@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    What the user interfaces share (ADR-0004): the typed client of the backend's API. It references the application
+    What the user interfaces share (ADR-0004): the typed client of the backend's API and its registration. It references the application
     project only for the API contracts, never for storage or the bank. Build settings come from Directory.Build.props.
   -->
   <PropertyGroup>
@@ -11,6 +11,11 @@
 
   <ItemGroup>
     <ProjectReference Include="../../../../Core/KbcTracker.Application/KbcTracker.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- AddHttpClient for the typed backend client (ADR-0008). -->
+    <PackageReference Include="Microsoft.Extensions.Http" />
   </ItemGroup>
 
   <ItemGroup>

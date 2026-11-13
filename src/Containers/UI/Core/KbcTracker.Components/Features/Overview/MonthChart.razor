@@ -1,0 +1,29 @@
+<figure class="figure" aria-label="Income, fixed, variable and saved money of the last months">
+	<RadzenChart class="chart">
+		<RadzenStackedColumnSeries Data="@Points" CategoryProperty="Label" ValueProperty="Fixed" Title="Fixed" Fill="var(--kt-fixed)" />
+		<RadzenStackedColumnSeries Data="@Points" CategoryProperty="Label" ValueProperty="Variable" Title="Variable" Fill="var(--kt-var)" />
+		<RadzenStackedColumnSeries Data="@Points" CategoryProperty="Label" ValueProperty="Saved" Title="Saved" Fill="var(--kt-save)" />
+		<RadzenLineSeries Data="@Points" CategoryProperty="Label" ValueProperty="Income" Title="Income" Stroke="var(--kt-inc)" />
+		<RadzenCategoryAxis />
+		<RadzenValueAxis Formatter="@FormatAxis" />
+		<RadzenLegend Position="LegendPosition.Bottom" />
+	</RadzenChart>
+	<table class="sr-only">
+		<caption>Last months in numbers</caption>
+		<thead>
+			<tr><th scope="col">Month</th><th scope="col">Income</th><th scope="col">Fixed</th><th scope="col">Variable</th><th scope="col">Saved</th></tr>
+		</thead>
+		<tbody>
+			@foreach (var point in Points)
+			{
+				<tr>
+					<th scope="row">@point.Label</th>
+					<td>@Format(point.Income)</td>
+					<td>@Format(point.Fixed)</td>
+					<td>@Format(point.Variable)</td>
+					<td>@Format(point.Saved)</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+</figure>

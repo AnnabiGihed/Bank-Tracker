@@ -1,0 +1,10 @@
+@if (Problem is not null)
+{
+	<div class="status" role="alert">
+		<div>
+			<strong>@Problem.Title</strong>
+			<span>@Problem.Detail</span>
+		</div>
+		<RadzenButton Text="Try again" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@OnRetry" />
+	</div>
+}

@@ -1,0 +1,63 @@
+@page "/settings"
+@inherits TabPageBase
+
+<PageTitle>Settings</PageTitle>
+@if (_view is not null)
+{
+	<div class="columns">
+		<RadzenCard>
+			<h2>Bank connection</h2>
+			@if (!_view.IsConnected)
+			{
+				<p>Not connected.</p>
+			}
+			else
+			{
+				<dl>
+					<dt>Accounts</dt>
+					<dd>@Formats.Number(_view.AccountCount)</dd>
+					<dt>Bank access valid until</dt>
+					<dd>@_view.ValidUntilText <span class="muted">(then click Reconnect)</span></dd>
+					<dt>Last sync</dt>
+					<dd>
+						@_view.LastSyncText
+						@if (_view.LastSyncFailed)
+						{
+							<span class="failed">failed</span>
+						}
+					</dd>
+				</dl>
+				<div class="buttons">
+					<RadzenButton Text="↻ Sync now" Click="@(() => SyncAsync(full: false))" IsBusy="@_syncing" />
+					<RadzenButton Text="Sync full history" ButtonStyle="ButtonStyle.Light" Click="@(() => SyncAsync(full: true))" IsBusy="@_syncing" />
+				</div>
+			}
+			<div class="buttons">
+				<RadzenButton Text="@(_view.IsConnected ? "Reconnect / add account" : "Connect KBC Brussels")" ButtonStyle="ButtonStyle.Light"
+					Click="@GoToBanks" Disabled="@(!Launcher.CanLaunch)" />
+			</div>
+			@if (!Launcher.CanLaunch)
+			{
+				<p class="muted" role="status">@Launcher.UnavailableMessage</p>
+			}
+		</RadzenCard>
+		<RadzenCard>
+			<h2>Your history</h2>
+			<dl>
+				<dt>Stored</dt>
+				<dd>@_view.StoredRangeText</dd>
+				<dt>Transactions</dt>
+				<dd>@Formats.Number(_view.TransactionCount)</dd>
+				<dt>Fixed payments</dt>
+				<dd>@Formats.Number(_view.FixedPaymentCount)</dd>
+				<dt>Storage</dt>
+				<dd>@SettingsViewModel.StorageText</dd>
+			</dl>
+			<p class="muted">@SettingsViewModel.HistoryNote</p>
+			@if (Options.ExportCsvPath is { Length: > 0 } exportPath)
+			{
+				<RadzenLink Path="@exportPath" Text="Export CSV" target="_blank" download="transactions.csv" />
+			}
+		</RadzenCard>
+	</div>
+}

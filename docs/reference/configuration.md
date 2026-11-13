@@ -1,9 +1,9 @@
 # Configuration
 
-KbcTracker has two programs, each with its own `appsettings.json`, and the Aspire AppHost that starts them. Any
-key can also be given on the command line (`--AutoSyncHours=0`) or as an environment variable (`AutoSyncHours=0`, nested keys with `__`). In Development
-the backend also reads .NET user secrets; keep secrets there or in environment variables, never in a committed
-file.
+KbcTracker has a backend, a web app and an Android app, each with its own `appsettings.json`, and the Aspire AppHost
+that starts the first two. Any key can also be given on the command line (`--AutoSyncHours=0`) or as an
+environment variable (`AutoSyncHours=0`, nested keys with `__`). In Development the backend also reads .NET user
+secrets; keep secrets there or in environment variables, never in a committed file.
 
 ## Backend
 
@@ -34,6 +34,18 @@ The web app reads `src/Containers/UI/Hosting/KbcTracker.Web/appsettings.json`.
 | `AllowedHosts` | `localhost;127.0.0.1;[::1]` | The host names requests may use. |
 | `Backend:BaseUrl` | `http://127.0.0.1:5080/` | The backend's address, ending in a slash. |
 | `Backend:OwnerLogin` | empty | Outside Development, the only `Tailscale-User-Login` value allowed in; it is also sent to the backend. |
+
+## Android app
+
+The Android app embeds `src/Containers/UI/Hosting/KbcTracker.Mobile/appsettings.json` and, in Debug builds only,
+`appsettings.Development.json`. The settings are compiled into the app; you change them by rebuilding.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `Backend:BaseUrl` | empty; `http://10.0.2.2:5080/` in Debug | The backend's address, ending in a slash. `10.0.2.2` is your PC's loopback as the emulator sees it. A Release build needs an address. |
+
+The app sends no owner header. The backend accepts that because it runs in Development. See
+[Run the Android app](../how-to/run-the-android-app.md).
 
 ## Aspire AppHost
 

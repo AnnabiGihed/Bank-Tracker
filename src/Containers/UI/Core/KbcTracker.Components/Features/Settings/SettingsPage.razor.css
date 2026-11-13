@@ -1,0 +1,38 @@
+.columns {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+	gap: 12px;
+}
+
+h2 {
+	margin: 0 0 8px;
+	font-size: 1.05rem;
+}
+
+dl {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: 4px 16px;
+	margin: 0 0 12px;
+}
+
+dt,
+
+dd {
+	margin: 0;
+}
+
+.failed {
+	padding: 1px 10px;
+	border: 1px solid var(--kt-bad);
+	border-radius: 999px;
+	color: var(--kt-bad);
+	font-size: 0.85rem;
+}
+
+.buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 8px;
+}

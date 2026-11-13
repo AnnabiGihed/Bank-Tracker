@@ -2,13 +2,15 @@
 
 Personal expense tracker for a KBC Brussels current account. .NET 10, single user, personal use only.
 Built on **Pivot.Framework** as one PostgreSQL backend + API on the home PC (`KbcTracker.ApiService`, loopback
-`http://127.0.0.1:5080`) used by the web app (server-rendered HTML, no Razor/Blazor, Chart.js from CDN,
-`https://localhost:5001`, an API client that stores nothing) and later a MAUI Android app (SQLite cache later): see
-`docs/adr/0004-…` (Proposed), which supersedes ADR-0003. No login: outside Development both hosts require a
+`http://127.0.0.1:5080`) used by the web app (a Blazor Web App in Interactive Server mode on shared Radzen components,
+`https://localhost:5001`, an API client that stores nothing) and the MAUI Blazor Hybrid Android app (same components,
+calls the API directly, from the emulator at `http://10.0.2.2:5080`; development only, SQLite cache later): see
+`docs/adr/0004-…` (Proposed), which supersedes ADR-0003, and `docs/adr/0008-…` (Proposed) for the shared components.
+No login: outside Development both hosts require a
 loopback peer plus a `Tailscale-User-Login` equal to the configured owner. The Aspire AppHost
 (`src/Containers/Aspire/Hosting/KbcTracker.AppHost`, ADR-0005) starts PostgreSQL (container + volume
-`kbctracker-postgres`), `--migrate`, the API and the web app. Docker Compose, Tailscale Serve and backups are not
-built yet.
+`kbctracker-postgres`), `--migrate`, the API and the web app. Production hosting is planned on a VPS with real
+authentication (no tailnet); it is not built yet.
 
 ## How data gets in
 - Bank access via **Enable Banking** (PSD2 aggregator), free "restricted mode": only accounts linked in their
@@ -28,7 +30,8 @@ built yet.
 - **KBC only returns ~90 days** (confirmed: earliest = today − 89 days). That's why history is persisted forever.
 
 ## Files
-Solution `KbcTracker.slnx` in the Pivot canonical layout: `src/Core`, `src/Infrastructure`, `src/Containers`; every
+Solution `KbcTracker.slnx` (and `KbcTracker.Core.slnf`, the same without the Android app) in the Pivot canonical
+layout: `src/Core`, `src/Infrastructure`, `src/Containers`; every
 project organised as `Features/<Feature>/…` (`Features/Shared/` for cross-feature pieces); `test/` mirrors `src/`.
 Namespaces follow folders; each project file lists its feature namespaces as global usings. Tabs, one type per file.
 Each project's `README.md` maps its types; read it before working in that project.
@@ -46,12 +49,21 @@ Each project's `README.md` maps its types; read it before working in that projec
 - `src/Containers/API/KbcTracker.ApiService` — the backend: controllers, `AutomaticBankSync`, maintenance commands,
   `TailnetAccessMiddleware`. Contract: `docs/api/openapi.json`.
 - `src/Containers/UI/Core/KbcTracker.Shared` — `BackendClient`, the typed API client.
-- `src/Containers/UI/Hosting/KbcTracker.Web` — server-rendered tabs over `BackendClient`; stores nothing.
+- `src/Containers/UI/Core/KbcTracker.ViewModels` — workspace store, one view model per tab, formats, CSV export and
+  backend-problem texts; plain .NET, shared by both front ends (ADR-0008).
+- `src/Containers/UI/Core/KbcTracker.Components` — Razor components (Radzen) of every tab, with `.razor.cs`
+  code-behind; shared by both front ends.
+- `src/Containers/UI/Hosting/KbcTracker.Web` — Blazor Web App (Interactive Server) hosting the components over
+  `BackendClient`, plus `/callback` and `/export.csv`; stores nothing.
+- `src/Containers/UI/Hosting/KbcTracker.Mobile` — MAUI Blazor Hybrid Android app (`com.BankTracker.mobile`) hosting
+  the same components; bank connect and CSV export stay in the web app.
 - `src/Containers/Aspire/Hosting/KbcTracker.AppHost` — Aspire AppHost (ADR-0005); `Aspire/Defaults/KbcTracker.ServiceDefaults`
   — OpenTelemetry for both hosts (no health endpoints, no HTTP retries: they would replay the bank's one-time code).
 
 Tests (xUnit + AwesomeAssertions + NSubstitute) mirror `src/`, plus `test/KbcTracker.E2E.Tests` (web + API in
-memory). Persistence, API and E2E tests use Testcontainers PostgreSQL (Docker required); `RealDataTests` in the
+memory, and one Playwright browser test, `Category=Browser`). The view models have unit tests and the components bUnit
+tests (`test/Containers/UI/Core/KbcTracker.ViewModels.Tests`, `…Components.Tests`).
+Persistence, API and E2E tests use Testcontainers PostgreSQL (Docker required); `RealDataTests` in the
 domain tests are skipped without the local data. Decisions: `docs/adr/`. User docs: `docs/index.md`.
 
 ## Domain rules (decided with the user — keep them)
@@ -85,7 +97,7 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
   split wins over every other category and counts as spending and as confirmed, but `TxnInfo.Category` stays the
   unsplit category (payee logic never learns a part); money by category always comes from `TxnInfo.Parts`. A stored
   split that no longer adds up gets a "Difference" part, so totals match the bank. Actions `split`/`unsplit`.
-- Later, in order: the Android app; instant payment detection from Google Wallet /
+- Later, in order: the Android app in production; instant payment detection from Google Wallet /
   KBC Mobile notifications (other wallets and banks later); receipts read and matched to payments.
 - The user wants: clear UI, little scrolling, no manual exports/imports, everything user-correctable.
 
@@ -95,7 +107,11 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
 - Backend: `dotnet run --project src/Containers/API/KbcTracker.ApiService` (add `-- --migrate`, `-- --sync`…);
   then the web app: `dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web` (needs
   `dotnet dev-certs https --trust` once). See `docs/how-to/run-the-backend.md`. `dotnet build` / `dotnet test` at the
-  root use `KbcTracker.slnx`.
+  root use `KbcTracker.slnx`, which includes the Android app and so needs the Android workload, a JDK and the Android
+  SDK; `dotnet build KbcTracker.Core.slnf` / `dotnet test KbcTracker.Core.slnf` skip Android.
+- Android app: start the backend, start an emulator, then
+  `dotnet build src/Containers/UI/Hosting/KbcTracker.Mobile -t:Run -f net10.0-android`. When NETSDK1147 appears (the
+  Android workload needs matching Mono packs), run `dotnet workload update`. See `docs/how-to/run-the-android-app.md`.
 - Packages: versions in `Directory.Packages.props`, reasons in ADR-0002/0004. `Pivot.Framework.*` (2.1.0) come from
   the private feed in `nuget.config`; restoring them needs `PIVOT_PACKAGES_USER`/`PIVOT_PACKAGES_TOKEN` (GitHub token
   with `read:packages`, e.g. `gh auth token`). Never write the token into a file.
@@ -107,14 +123,17 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
 
 ## Open ideas / known gaps
 - Fixed payments and categories set in the version before `34987bb` (`user-rules.json`) are not migrated.
-- Chart.js is loaded from a CDN (fails offline) — could be bundled into `wwwroot`.
+- The Android app has no production backend until the API moves to a VPS with authentication (a later ADR); it only
+  works in the emulator against the PC.
+- Bank connect and reconnect are web-only; the Android app tells you to use the web app on the PC.
+- The category pickers are flat searchable lists: they show no group headings per type.
 - Car-dealer payments match the keyword AUTOMOBILE and land on Car › Maintenance & repair; a purchase belongs in
   Buying vehicles (the owner sets it on the payee). Built-in roots such as Other and Loan repayments offer no
   "+ sub-category".
 - Running app locks `bin/`: build and test with `python .agent-kit/verify.py --artifacts-path <temp dir>` (or
   `dotnet test KbcTracker.slnx --artifacts-path <dir>`) instead of stopping it. Back up with `pg_dump -Fc` before a data
   upgrade runs on the owner's database.
-- Next: Docker Compose, Tailscale Serve and backups (unverified: loopback-only port publishing, the Host header
-  Serve passes, Enable Banking accepting a `*.ts.net` redirect); then MAUI and its SQLite cache.
+- Next: the API on a VPS with authentication (a new ADR: login for the API and both apps, domain and TLS, the bank key
+  on the server, backups off the server, the bank's redirect URL); then the Android app's SQLite cache.
   Later: savings account, salary/quarterly/yearly detection, Loan and Salary tabs, notifications.
   Later ideas: budgets per category.

@@ -1,0 +1,33 @@
+<div class="split">
+	<p class="hint">
+		Give each part its own category; the parts must add up to the payment (@Editor.TotalText). The first part takes what is left.
+	</p>
+	@for (var index = 0; index < Editor.Parts.Count; index++)
+	{
+		var part = Editor.Parts[index];
+		var number = index + 1;
+		<div class="part" @key="part">
+			<RadzenTextBox Value="@part.Label" ValueChanged="@(label => part.Label = label)" MaxLength="100" Placeholder="Label (optional)"
+				aria-label="@($"Label of part {number}")" />
+			<CategoryPicker Options="@Editor.SpendingCategories" Value="@part.CategoryId" ValueChanged="@(id => part.CategoryId = id)"
+				AriaLabel="@($"Category of part {number}")" />
+			<RadzenTextBox Value="@part.AmountText" ValueChanged="@(text => Editor.SetAmount(part, text))" Immediate="true" Placeholder="Amount"
+				aria-label="@($"Amount of part {number}")" class="amount" inputmode="decimal" />
+			<RadzenButton Text="✕" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small" Disabled="@(Editor.Parts.Count <= 2)"
+				title="Remove this part" aria-label="@($"Remove part {number}")" Click="@(() => Editor.RemovePart(part))" />
+		</div>
+	}
+	<div class="remainder">
+		<RadzenButton Text="+ Add part" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Disabled="@(!Editor.CanAddPart)" Click="@AddPart" />
+		<strong class="@(Editor.IsBalanced ? "balanced" : "unbalanced")" role="status">@Editor.LeftText</strong>
+	</div>
+	<div class="actions">
+		@if (Editor.IsSplitAlready)
+		{
+			<RadzenButton Text="Remove split" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Click="@Unsplit" />
+		}
+		<span class="spacer"></span>
+		<RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" />
+		<RadzenButton Text="Save" Disabled="@(!Editor.IsValid)" Click="@Save" />
+	</div>
+</div>

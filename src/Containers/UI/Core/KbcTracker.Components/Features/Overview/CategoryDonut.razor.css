@@ -1,0 +1,51 @@
+.crumbs {
+	margin: 0 0 6px;
+	color: var(--kt-muted);
+}
+
+.crumb,
+.slice {
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+}
+
+.crumb {
+	padding: 0;
+	color: var(--kt-focus);
+	text-decoration: underline;
+}
+
+.crumb:focus-visible,
+.slice:focus-visible {
+	outline: 2px solid var(--kt-focus);
+	outline-offset: 2px;
+}
+
+.slices {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+	gap: 2px 12px;
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.slice {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+	width: 100%;
+	padding: 4px 6px;
+	text-align: left;
+}
+
+.slice:hover {
+	background: var(--kt-bg);
+}
+
+.donut ::deep .chart {
+	height: 260px;
+}

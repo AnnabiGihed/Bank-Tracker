@@ -1,0 +1,44 @@
+.filters {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+	margin-bottom: 12px;
+}
+
+.check {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--kt-muted);
+}
+
+.category {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+
+.description {
+	max-width: 36ch;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.income {
+	color: var(--kt-inc);
+}
+
+.totals {
+	display: flex;
+	justify-content: space-between;
+	margin-top: 10px;
+	color: var(--kt-muted);
+}
+
+.filters ::deep .search {
+	flex: 1;
+	min-width: 200px;
+}

@@ -1,0 +1,106 @@
+@page "/overview"
+@inherits TabPageBase
+
+<PageTitle>Overview</PageTitle>
+@if (_view is { HasTransactions: false })
+{
+	<p class="empty">@_view.EmptyMessage</p>
+}
+else if (_view is not null)
+{
+	@if (_view.Attention is { } attention)
+	{
+		<div class="notice" role="status">
+			<ul>
+				@if (attention.SuggestionText is { } suggestions)
+				{
+					<li>@suggestions <RadzenLink Path="@TabRoutes.Tab("fixed", Month)" Text="Check fixed payments" /></li>
+				}
+				@if (attention.ReviewText is { } review)
+				{
+					<li>@review <RadzenLink Path="@TabRoutes.Tab("review", Month)" Text="Review categories" /></li>
+				}
+			</ul>
+		</div>
+	}
+	<section class="kpis" aria-label="Key figures">
+		@foreach (var kpi in _view.Kpis)
+		{
+			<RadzenCard class="@("kpi kpi-" + kpi.Key)">
+				<div class="label">@kpi.Label</div>
+				<div class="value">@kpi.Value</div>
+				<div class="sub">@kpi.Sub</div>
+			</RadzenCard>
+		}
+	</section>
+	<div class="charts">
+		<RadzenCard>
+			<h2>Last months</h2>
+			<MonthChart Points="@_view.Series" />
+		</RadzenCard>
+		<RadzenCard>
+			<h2>Where it went</h2>
+			@if (_view.DrillDown is { } drillDown)
+			{
+				<CategoryDonut DrillDown="@drillDown" Month="@Month" />
+			}
+		</RadzenCard>
+	</div>
+	<div class="tables">
+		<RadzenCard>
+			<h2>Fixed payments <RadzenLink Path="@TabRoutes.Tab("fixed", Month)" Text="see all →" /></h2>
+			@if (_view.FixedPayments.Count == 0)
+			{
+				<p class="muted">@_view.NoFixedPaymentsText
+					@if (_view.SuggestionsWaitingText is { } waiting)
+					{
+						<RadzenLink Path="@TabRoutes.Tab("fixed", Month)" Text="@waiting" />
+					}
+				</p>
+			}
+			else
+			{
+				<table>
+					<caption class="sr-only">Fixed payments this month</caption>
+					<tbody>
+						@foreach (var row in _view.FixedPayments)
+						{
+							<tr>
+								<td>@row.Name</td>
+								<td class="num">@row.AmountText</td>
+								<td><StatusPill Pill="@row.Status" /></td>
+							</tr>
+						}
+					</tbody>
+				</table>
+				<p class="muted">@_view.FixedPaidText</p>
+			}
+		</RadzenCard>
+		<RadzenCard>
+			<h2>Biggest expenses <RadzenLink Path="@TabRoutes.Tab("transactions", Month)" Text="all transactions →" /></h2>
+			<table>
+				<caption class="sr-only">Biggest expenses this month</caption>
+				<tbody>
+					@foreach (var expense in _view.BiggestExpenses)
+					{
+						<tr>
+							<td class="muted">@expense.DateText</td>
+							<td>
+								@expense.Name
+								@if (expense.IsSplit)
+								{
+									<CategoryTag Text="@expense.TagText" />
+								}
+								else
+								{
+									<CategoryTag Text="@expense.TagText" Color="@expense.CategoryColor" />
+								}
+							</td>
+							<td class="num">@expense.AmountText</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</RadzenCard>
+	</div>
+}

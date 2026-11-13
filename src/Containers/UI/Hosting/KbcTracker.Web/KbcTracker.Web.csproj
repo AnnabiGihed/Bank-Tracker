@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <!--
-    The web UI (ADR-0004): server-rendered pages that read and change everything through the backend's API. It stores
-    no data and holds no bank key.
+    The web UI (ADR-0004, ADR-0008): a Blazor Web App (Interactive Server) that hosts the shared components, which read
+    and change everything through the backend's API. It stores no data and holds no bank key.
     Build settings and analyzers come from Directory.Build.props.
   -->
   <PropertyGroup>
@@ -12,6 +12,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\Core\KbcTracker.Application\KbcTracker.Application.csproj" />
     <ProjectReference Include="..\..\Core\KbcTracker.Shared\KbcTracker.Shared.csproj" />
+    <ProjectReference Include="..\..\Core\KbcTracker.ViewModels\KbcTracker.ViewModels.csproj" />
+    <ProjectReference Include="..\..\Core\KbcTracker.Components\KbcTracker.Components.csproj" />
     <ProjectReference Include="..\..\..\Aspire\Defaults\KbcTracker.ServiceDefaults\KbcTracker.ServiceDefaults.csproj" />
   </ItemGroup>
 
@@ -20,27 +22,12 @@
   </ItemGroup>
 
   <ItemGroup Label="Feature namespaces used across the project">
-    <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
-    <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
-    <Using Include="KbcTracker.Domain.Features.Categories.Errors" />
-    <Using Include="KbcTracker.Domain.Features.Categories.Services" />
-    <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
-    <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />
-    <Using Include="KbcTracker.Domain.Features.FixedPayments.ValueObjects" />
-    <Using Include="KbcTracker.Domain.Features.Overview.ValueObjects" />
-    <Using Include="KbcTracker.Domain.Features.Review.ValueObjects" />
-    <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
-    <Using Include="KbcTracker.Domain.Features.Shared.Services" />
-    <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
-    <Using Include="KbcTracker.Domain.Features.Transactions.ValueObjects" />
-    <Using Include="KbcTracker.Web.Features.BankConnection" />
-    <Using Include="KbcTracker.Web.Features.Categories" />
-    <Using Include="KbcTracker.Web.Features.FixedPayments" />
-    <Using Include="KbcTracker.Web.Features.Overview" />
-    <Using Include="KbcTracker.Web.Features.Review" />
-    <Using Include="KbcTracker.Web.Features.Settings" />
+    <Using Include="KbcTracker.Components.Features.Shared" />
+    <Using Include="KbcTracker.Components.Features.Shared.Layout" />
+    <Using Include="KbcTracker.ViewModels.Features.Shared" />
     <Using Include="KbcTracker.Web.Features.Shared.Api" />
-    <Using Include="KbcTracker.Web.Features.Transactions" />
+    <Using Include="KbcTracker.Web.Features.Shared.Shell" />
+    <Using Include="Microsoft.AspNetCore.Components" />
   </ItemGroup>
 
 </Project>

@@ -9,6 +9,7 @@
 | 5  | [Run the app on the PC with an Aspire AppHost][adr-0005]                               | Proposed               |
 | 6  | [Classify spending in a COICOP 2018 category tree by purpose][adr-0006]                | Proposed               |
 | 7  | [Split a payment into categorised parts][adr-0007]                                     | Proposed               |
+| 8  | [Build the web and Android front ends from shared Blazor components][adr-0008]         | Proposed               |
 
 [adr-0001]: 0001-build-the-tracker-as-a-maui-android-app-with-a-shared-core.md
 [adr-0002]: 0002-adopt-the-shared-analyzer-set.md
@@ -17,3 +18,4 @@
 [adr-0005]: 0005-run-the-app-on-the-pc-with-aspire.md
 [adr-0006]: 0006-classify-spending-in-a-coicop-category-tree.md
 [adr-0007]: 0007-split-a-payment-into-categorised-parts.md
+[adr-0008]: 0008-build-the-front-ends-as-shared-blazor-components.md

@@ -1,0 +1,105 @@
+.head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.card {
+	margin-bottom: 12px;
+}
+
+h2 {
+	display: flex;
+	justify-content: space-between;
+	margin: 0 0 8px;
+	font-size: 1.05rem;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+th,
+td {
+	padding: 4px 8px;
+	border-bottom: 1px solid var(--kt-line);
+	text-align: left;
+	vertical-align: top;
+}
+
+.num {
+	text-align: right;
+	white-space: nowrap;
+}
+
+.name {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.toggle,
+.toggle-gap {
+	width: 1.6rem;
+}
+
+.toggle {
+	border: 0;
+	background: none;
+	cursor: pointer;
+}
+
+.toggle:focus-visible,
+a:focus-visible {
+	outline: 2px solid var(--kt-focus);
+	outline-offset: 2px;
+}
+
+a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.bar {
+	min-width: 80px;
+	height: 8px;
+	border-radius: 4px;
+	background: var(--kt-bg);
+}
+
+.bar i {
+	display: block;
+	height: 100%;
+	border-radius: 4px;
+}
+
+.keywords {
+	max-width: 220px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.pill {
+	padding: 1px 10px;
+	border: 1px solid var(--kt-line);
+	border-radius: 999px;
+	font-size: 0.85rem;
+}
+
+.pill.bad {
+	border-color: var(--kt-bad);
+	color: var(--kt-bad);
+}
+
+.pill.ok {
+	border-color: var(--kt-ok);
+	color: var(--kt-ok);
+}
+
+.pill.nil {
+	color: var(--kt-muted);
+}

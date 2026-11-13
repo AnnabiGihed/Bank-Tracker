@@ -4,7 +4,7 @@ KbcTracker is a single-user app. It reads your account through Enable Banking, k
 seen, and analyses the whole history each time you open a page.
 
 It follows the Pivot.Framework structure and runs as one backend on your home PC: a PostgreSQL database and an
-API, used by the web app and, later, an Android app. There is no login; outside Development, only the owner's
+API, used by the web app and an Android app. There is no login; outside Development, only the owner's
 tailnet identity gets in ([ADR-0004][adr-0004], proposed). The backend owns the data, the bank key and the sync;
 the user interfaces only call its API.
 
@@ -18,7 +18,10 @@ the user interfaces only call its API.
 | Infrastructure | `src/Infrastructure/KbcTracker.Persistence.EntityFrameworkCore` | PostgreSQL persistence: the EF Core context on Pivot's base context, migrations, repositories, Pivot's unit of work, the advisory locks and the one-time import. |
 | Containers | `src/Containers/API/KbcTracker.ApiService` | The backend: API controllers, the automatic sync worker, the maintenance commands, the loopback listener and the owner-identity gate. |
 | Containers | `src/Containers/UI/Core/KbcTracker.Shared` | `BackendClient`, the typed API client the user interfaces share. |
-| Containers | `src/Containers/UI/Hosting/KbcTracker.Web` | The web app: server-rendered pages that read and change everything through `BackendClient`. |
+| Containers | `src/Containers/UI/Core/KbcTracker.ViewModels` | The workspace store and one view model per tab: the state and computation behind each screen, as plain .NET. |
+| Containers | `src/Containers/UI/Core/KbcTracker.Components` | The Radzen Razor components of every tab, drawn from the view models. |
+| Containers | `src/Containers/UI/Hosting/KbcTracker.Web` | The web app: a Blazor Web App in Interactive Server mode that hosts the components. |
+| Containers | `src/Containers/UI/Hosting/KbcTracker.Mobile` | The Android app: a MAUI Blazor Hybrid app that hosts the same components. |
 
 Inside every project, code is grouped by feature: `Features/Transactions`, `Features/Categories`,
 `Features/FixedPayments`, `Features/BankConnection`, `Features/Workspace`, `Features/Overview`, `Features/Review`,
@@ -30,6 +33,31 @@ Dependencies point inward:
 - The application depends on the domain.
 - The infrastructure implements the application's ports.
 - Only the containers wire everything together.
+
+## The user interfaces
+
+Both user interfaces are built from the same Blazor components
+([ADR-0008][adr-0008]). `KbcTracker.ViewModels` loads the workspace once through `BackendClient`, rebuilds the
+domain `Analysis` from it and refreshes it after each decision or sync. `KbcTracker.Components` draws it. Neither
+project depends on a host.
+
+```mermaid
+flowchart LR
+    Browser[Browser] <-->|live connection| Web["KbcTracker.Web (Interactive Server)"]
+    Phone["KbcTracker.Mobile (Android)"] -->|HTTP| Api
+    Web -->|HTTP, server-side| Api[KbcTracker.ApiService]
+    Web -.uses.-> Ui[Components and ViewModels]
+    Phone -.uses.-> Ui
+    Api --> Db[(PostgreSQL)]
+    Api --> Bank[Enable Banking]
+```
+
+- **Web app.** The components run on the server, in a circuit per open tab. They call the API from there, so the
+  API stays on loopback and the owner header never reaches the browser. If the connection drops, the workspace
+  reloads. The web app also serves `/callback` (the bank's redirect) and `/export.csv`.
+- **Android app.** The components run in a web view on the phone and call the API directly. In development the
+  emulator reaches the API on your PC at `http://10.0.2.2:5080/`. The app has no production backend until the API
+  moves to a server with authentication. Connecting the bank and the CSV export stay in the web app.
 
 ## Domain model
 
@@ -68,8 +96,8 @@ in `jsonb` columns with the fixed payments in their own table. Row versions catc
    classifies every transaction, applies your decisions, and computes the fixed payments, suggestions, review
    queue and month summaries (see [How payments are classified](payment-classification.md)). Raw bank records
    and credentials never leave the backend.
-1. **Pages.** The web app renders the workspace for the selected month. A decision is one API call; the backend
-   applies it to `UserData` or the categories and commits it in one unit of work.
+1. **Pages.** The web app and the Android app show the workspace for the selected month. A decision is one API call;
+   the backend applies it to `UserData` or the categories and commits it in one unit of work.
 
 ## Why the history is kept forever
 
@@ -77,3 +105,4 @@ The bank's 90-day window would otherwise erase last quarter's payments, and with
 and yearly fixed payments. Keeping the history makes the analysis better over time; database backups protect it.
 
 [adr-0004]: ../adr/0004-serve-both-apps-from-one-postgresql-backend-and-api.md
+[adr-0008]: ../adr/0008-build-the-front-ends-as-shared-blazor-components.md

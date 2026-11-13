@@ -1,0 +1,55 @@
+.header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px 20px;
+	padding: 10px 16px;
+	background: var(--kt-card);
+	border-bottom: 1px solid var(--kt-line);
+}
+
+.title {
+	margin: 0;
+	font-size: 1.25rem;
+}
+
+.sync {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-right: auto;
+	color: var(--kt-muted);
+	font-size: 0.9rem;
+}
+
+.months {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.step {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2rem;
+	height: 2rem;
+	border-radius: 6px;
+	border: 1px solid var(--kt-line);
+	color: var(--kt-ink);
+	text-decoration: none;
+}
+
+.step:focus-visible {
+	outline: 2px solid var(--kt-focus);
+	outline-offset: 2px;
+}
+
+.step.disabled {
+	color: var(--kt-muted);
+	opacity: 0.5;
+}
+
+.months ::deep .month-select {
+	min-width: 11rem;
+}

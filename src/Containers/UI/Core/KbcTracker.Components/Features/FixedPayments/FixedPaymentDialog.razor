@@ -1,0 +1,20 @@
+<div class="form">
+	<label for="fixed-name">Name</label>
+	<RadzenTextBox Value="@Edit.Name" ValueChanged="@(name => Edit.Name = name)" Immediate="true" Name="fixed-name" id="fixed-name" />
+
+	<span>Category</span>
+	<CategoryPicker Options="@CategoryOptions" Value="@Edit.CategoryId" ValueChanged="@(id => Edit.CategoryId = id)" AriaLabel="Category" />
+
+	<span id="fixed-amount-label">Usual amount (€)</span>
+	<RadzenNumeric TValue="decimal?" Value="@Edit.Amount" ValueChanged="@(amount => Edit.Amount = amount)" Min="0" Step="0.01"
+		InputAttributes="@AmountInputAttributes" />
+
+	<span id="fixed-rhythm-label">Rhythm</span>
+	<RadzenDropDown TValue="int" Data="@FixedPaymentEdit.Rhythms" TextProperty="Item2" ValueProperty="Item1" Value="@Edit.Rhythm"
+		ValueChanged="@(days => Edit.Rhythm = days)" InputAttributes="@RhythmInputAttributes" />
+
+	<div class="actions">
+		<RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" />
+		<RadzenButton Text="Save" Disabled="@(!Edit.IsValid)" Click="@Save" />
+	</div>
+</div>
