@@ -417,6 +417,51 @@ public sealed class AnalysisTests
 		summary.Spent.Should().Be(0m);
 		summary.Income.Should().Be(0m);
 	}
+
+	/// <summary>
+	/// Verifies that income is earnings only: a salary, another income and a refund are summed apart, and the loan
+	/// payout is its own figure; refunds and loan money are in no total, so what is left ignores them.
+	/// </summary>
+	[Fact]
+	public void MonthData_SalaryRefundAndLoan_EarningsRefundsAndLoanApart()
+	{
+		var payroll = BankJson.TransferIn("2026-10-25", 2500m, "ACME PAYROLL", "Salary October");
+		var user = UserData.Empty();
+		user.AssignTransactionCategory(payroll.Id, new CategoryId("income-salary"));
+		var analysis = AnalyseDefaults(
+		[
+			payroll,
+			BankJson.TransferIn("2026-10-26", 100m, "FRIEND ONE", "Thanks"),
+			BankJson.CardRefund("2026-10-27", 30m, "SHOPPY BE1000 Bruxelles"),
+			BankJson.TransferIn("2026-10-05", 10000m, "KBC BANK NV", "Loan payout", subCode: "CAJT"),
+			BankJson.Card("2026-10-10", 50m, "SHOPPY BE1000 Bruxelles"),
+		], user);
+
+		var october = analysis.MonthData("2026-10");
+
+		october.Income.Should().Be(2600m);
+		october.Salary.Should().Be(2500m);
+		october.Refunds.Should().Be(30m);
+		october.LoanReceived.Should().Be(10000m);
+		october.Spent.Should().Be(50m);
+		october.Net.Should().Be(2600m - 50m);
+	}
+
+	/// <summary>
+	/// Verifies that a credit the owner moved into the Refunds category counts as a refund, not as earnings.
+	/// </summary>
+	[Fact]
+	public void MonthData_CreditAssignedToRefunds_NotEarnings()
+	{
+		var credit = BankJson.TransferIn("2026-10-25", 40m, "FRIEND ONE", "Money back");
+		var user = UserData.Empty();
+		user.AssignTransactionCategory(credit.Id, new CategoryId("refunds"));
+
+		var october = AnalyseDefaults([credit], user).MonthData("2026-10");
+
+		october.Income.Should().Be(0m);
+		october.Refunds.Should().Be(40m);
+	}
 	#endregion
 
 	#region Review Queue Tests

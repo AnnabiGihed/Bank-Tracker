@@ -18,6 +18,11 @@
 	border-top-color: var(--kt-fixed);
 }
 
+.kpi-refunds,
+.kpi-loan {
+	border-top-color: var(--kt-muted);
+}
+
 .kpi-saved {
 	border-top-color: var(--kt-save);
 }

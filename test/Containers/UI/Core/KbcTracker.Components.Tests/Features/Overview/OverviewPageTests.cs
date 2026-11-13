@@ -36,6 +36,30 @@ public sealed class OverviewPageTests : UiTestContext
 		page.FindAll("section[aria-label='Key figures'] .label").Should().HaveCount(5);
 	}
 
+	/// <summary>Verifies refunds and loan money show as their own figures, apart from the five key figures.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Render_RefundAndLoanMoney_ShowsSeparateFigures()
+	{
+		Serve(TestWorkspace.Analyse(
+		[
+			TestWorkspace.Payment("t1", new DateOnly(2026, 11, 3), 30m, "Shop One"),
+			TestWorkspace.Payment("t2", new DateOnly(2026, 11, 4), 5000m, "Kbc Bank"),
+		], (user, _) =>
+		{
+			user.AssignTransactionCategory(new TxnId("t1"), new CategoryId("refunds"));
+			user.AssignTransactionCategory(new TxnId("t2"), CategoryId.LoanReceived);
+		}));
+
+		var page = Render<OverviewPage>();
+
+		await page.WaitForAssertionAsync(() => page.Find("section[aria-label='Not counted in the totals']"));
+		var figures = page.Find("section[aria-label='Not counted in the totals']").TextContent;
+		figures.Should().Contain("Refunds").And.Contain(Formats.Belgian.Money(30m));
+		figures.Should().Contain("Loan received").And.Contain(Formats.Belgian.Money(5000m));
+		page.FindAll("section[aria-label='Key figures'] .label").Should().HaveCount(5);
+	}
+
 	/// <summary>Verifies the attention notice counts the payees whose automatic category waits for the owner.</summary>
 	/// <returns>A task that completes when verified.</returns>
 	[Fact]

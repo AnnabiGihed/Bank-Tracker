@@ -79,6 +79,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Overview's Income is earnings only (salary and other income). Refunds and Loan received are shown as their own
+  figures when not zero and count in no total, so "Left over" is earnings − spent − saved. The month summary of
+  the API gains `salary`, `refunds` and `loanReceived`.
 - The category pickers show every top-level category as a bold heading you can pick, with its sub-categories
   indented below it, instead of a flat list with dashes.
 - The web app is rebuilt as a Blazor Web App with Radzen components, with the same tab addresses. The charts

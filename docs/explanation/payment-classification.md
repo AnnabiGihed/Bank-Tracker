@@ -15,7 +15,9 @@ transaction (`bank_transaction_code.code/sub_code`). The app trusts it more than
   `WL*GOOGLE YouTube IED02 R296 Dublin` and `GOOGLE *YouTube IEUNKNOWN` both become *Google YouTube*.
 - **Transfers**: grouped by the other party's International Bank Account Number (IBAN).
 - **Loan payouts** (`RCDT/CAJT`) are not income: they go to the built-in Loan received category, which counts
-  neither as income nor as spending.
+  neither as income nor as spending. The Overview shows it as its own figure.
+- **Refunds** (money back, the built-in Refunds category) are not earnings either: the Overview shows them as their own
+  figure and counts them in no total.
 
 The account holder is the name that most often pays money out. Transfers to or from that name are own transfers:
 they count neither as spending nor as income.

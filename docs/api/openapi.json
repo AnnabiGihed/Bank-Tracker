@@ -979,8 +979,11 @@
           "byCategory",
           "fixed",
           "income",
+          "loanReceived",
           "month",
           "net",
+          "refunds",
+          "salary",
           "saved",
           "spent",
           "variable"
@@ -1012,6 +1015,18 @@
               "type": "number",
               "format": "decimal"
             }
+          },
+          "salary": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "refunds": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "loanReceived": {
+            "type": "number",
+            "format": "decimal"
           },
           "spent": {
             "type": "number",

@@ -33,6 +33,19 @@ else if (_view is not null)
 			</RadzenCard>
 		}
 	</section>
+	@if (_view.AsideFigures.Count > 0)
+	{
+		<section class="kpis" aria-label="Not counted in the totals">
+			@foreach (var kpi in _view.AsideFigures)
+			{
+				<RadzenCard class="@("kpi kpi-" + kpi.Key)">
+					<div class="label">@kpi.Label</div>
+					<div class="value">@kpi.Value</div>
+					<div class="sub">@kpi.Sub</div>
+				</RadzenCard>
+			}
+		</section>
+	}
 	<div class="charts">
 		<RadzenCard>
 			<h2>Last months</h2>

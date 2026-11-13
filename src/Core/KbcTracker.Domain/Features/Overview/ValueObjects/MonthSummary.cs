@@ -7,12 +7,16 @@ namespace KbcTracker.Domain.Features.Overview.ValueObjects;
 ///              are left out.
 /// </summary>
 /// <param name="Month">The month, as <c>yyyy-MM</c>.</param>
-/// <param name="Income">Money in, in income categories.</param>
+/// <param name="Income">Earnings: money in, in income categories, except refunds.</param>
 /// <param name="Fixed">Spending matched to accepted fixed payments.</param>
 /// <param name="Variable">Other spending; refunds in an expense category reduce it.</param>
 /// <param name="Saved">Money put aside, in savings categories.</param>
 /// <param name="ByCategory">Spending per expense category id.</param>
-public sealed record MonthSummary(string Month, decimal Income, decimal Fixed, decimal Variable, decimal Saved, IReadOnlyDictionary<string, decimal> ByCategory)
+/// <param name="Salary">The part of <paramref name="Income"/> in the Salary category and below it.</param>
+/// <param name="Refunds">Money in, in the built-in Refunds category and below it; counted in no total.</param>
+/// <param name="LoanReceived">Money in, in the built-in Loan received category; counted in no total.</param>
+public sealed record MonthSummary(string Month, decimal Income, decimal Fixed, decimal Variable, decimal Saved, IReadOnlyDictionary<string, decimal> ByCategory,
+	decimal Salary = 0, decimal Refunds = 0, decimal LoanReceived = 0)
 {
 	#region Properties
 	/// <summary>
@@ -21,7 +25,7 @@ public sealed record MonthSummary(string Month, decimal Income, decimal Fixed, d
 	public decimal Spent => Fixed + Variable;
 
 	/// <summary>
-	/// Gets what is left: income minus spending and savings.
+	/// Gets what is left: earnings minus spending and savings; refunds and loan money are not part of it.
 	/// </summary>
 	public decimal Net => Income - Spent - Saved;
 	#endregion

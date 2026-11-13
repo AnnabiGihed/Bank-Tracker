@@ -85,7 +85,10 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
   start of a word, so "AD " never hits "AZAD"; longest match wins; for card payments only the shop name, never
   the description — it contains "Google Pay", "KBC").
   Automatic categories need user confirmation, except bank-certain kinds (loan, own transfer, fee, plan, cash).
-- Category type decides totals: Expense = spending, Income, Savings (separate), Transfer (ignored).
+- Category type decides totals: Expense = spending, Income, Savings (separate), Transfer (ignored). Income on the
+  Overview is earnings only: everything of type Income except the built-in Refunds sub-tree. Refunds and Loan received
+  are shown as their own figures and count in no total (not income, not reducing spending); left over = earnings −
+  spent − saved.
 - Categories are a tree (ADR-0006): COICOP 2018 divisions as spending roots plus non-spending roots, max depth 4,
   children carry their root's type, classified by purpose (shampoo = Personal care, car insurance = Insurance).
   A payment stays on the deepest node that is known (STIB → Public & paid transport, "not specified" below it);

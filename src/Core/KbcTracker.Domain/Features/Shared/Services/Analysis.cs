@@ -34,6 +34,12 @@ public sealed partial class Analysis
 	/// The longest a regular expression may run on one bank label before it is abandoned.
 	/// </summary>
 	private const int RegexTimeoutMilliseconds = 1000;
+
+	/// <summary>The built-in Refunds category, below Income: money back that is no earning.</summary>
+	private const string RefundsId = "refunds";
+
+	/// <summary>The Salary category below Income; the Overview shows its part of the earnings apart.</summary>
+	private const string SalaryId = "income-salary";
 	#endregion
 
 	#region Static Instances
@@ -670,20 +676,32 @@ public sealed partial class Analysis
 			.OrderByDescending(r => Math.Abs(r.Total)).ToList();
 
 	/// <summary>
-	/// Computes the totals of one month. Credits in an expense category (refunds) reduce spending. A split payment is
-	/// spending as a whole and its parts feed the totals by category.
+	/// Computes the totals of one month. Credits in an expense category reduce spending. Income is earnings only:
+	/// refunds (the built-in Refunds category and below) and loan money are summed apart and counted in no total. A
+	/// split payment is spending as a whole and its parts feed the totals by category.
 	/// </summary>
 	private MonthSummary BuildMonth(string month)
 	{
 		var inMonth = Items.Where(i => string.Equals(i.Month, month, StringComparison.Ordinal)).ToList();
 		var spend = inMonth.Where(i => i.EffectiveType == CategoryType.Expense).ToList();
+		var earnings = inMonth.Where(i => i.IsIncome && !IsUnder(i.Category, RefundsId)).ToList();
 		return new MonthSummary(month,
-			inMonth.Where(i => i.IsIncome).Sum(i => i.T.Amount),
+			earnings.Sum(i => i.T.Amount),
 			spend.Where(i => i.Recurring is not null).Sum(i => -i.T.Amount),
 			spend.Where(i => i.Recurring is null).Sum(i => -i.T.Amount),
 			inMonth.Where(i => i.IsSaving).Sum(i => -i.T.Amount),
-			spend.SelectMany(i => i.Parts).GroupBy(p => p.Category.Id.Value, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Sum(p => -p.Amount), StringComparer.Ordinal));
+			spend.SelectMany(i => i.Parts).GroupBy(p => p.Category.Id.Value, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Sum(p => -p.Amount), StringComparer.Ordinal),
+			earnings.Where(i => IsUnder(i.Category, SalaryId)).Sum(i => i.T.Amount),
+			inMonth.Where(i => i.IsIncome && IsUnder(i.Category, RefundsId)).Sum(i => i.T.Amount),
+			inMonth.Where(i => !i.IsSplit && i.T.Amount > 0 && IsUnder(i.Category, CategoryId.LoanReceived.Value)).Sum(i => i.T.Amount));
 	}
+
+	/// <summary>
+	/// Determines whether a category is the given one or lies below it in the category tree.
+	/// </summary>
+	private bool IsUnder(Category category, string ancestorId) =>
+		string.Equals(category.Id.Value, ancestorId, StringComparison.Ordinal)
+		|| Tree.Ancestors(category.Id.Value).Any(a => string.Equals(a.Id.Value, ancestorId, StringComparison.Ordinal));
 	#endregion
 
 	#region Text Helpers

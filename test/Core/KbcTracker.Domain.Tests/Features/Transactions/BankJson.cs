@@ -41,6 +41,17 @@ internal static class BankJson
 			$"{shopLabel} Payment with Google Pay via Debit Mastercard {date} at 12.00 time 5127 88XX XXXX 0000 {Holder}");
 
 	/// <summary>
+	/// Creates a card refund: money paid back by a shop to the card.
+	/// </summary>
+	/// <param name="date">The booking date.</param>
+	/// <param name="amount">The amount paid back, as a positive number.</param>
+	/// <param name="shopLabel">The text before "Payment with".</param>
+	/// <returns>The mapped transaction.</returns>
+	public static Txn CardRefund(string date, decimal amount, string shopLabel) =>
+		Map(date, amount, "CRDT", "CCRD", "POSD", creditor: Holder, debtor: null, creditorIban: null,
+			$"{shopLabel} Payment with Google Pay via Debit Mastercard {date} at 12.00 time 5127 88XX XXXX 0000 {Holder}");
+
+	/// <summary>
 	/// Creates an outgoing SEPA credit transfer.
 	/// </summary>
 	/// <param name="date">The booking date.</param>
