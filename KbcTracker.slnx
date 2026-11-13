@@ -13,10 +13,13 @@
   </Folder>
   <Folder Name="/src/Containers/UI/" />
   <Folder Name="/src/Containers/UI/Core/">
+    <Project Path="src/Containers/UI/Core/KbcTracker.Components/KbcTracker.Components.csproj" />
     <Project Path="src/Containers/UI/Core/KbcTracker.Shared/KbcTracker.Shared.csproj" />
+    <Project Path="src/Containers/UI/Core/KbcTracker.ViewModels/KbcTracker.ViewModels.csproj" />
   </Folder>
   <Folder Name="/src/Containers/UI/Hosting/">
     <Project Path="src/Containers/UI/Hosting/KbcTracker.Web/KbcTracker.Web.csproj" />
+    <Project Path="src/Containers/UI/Hosting/KbcTracker.Mobile/KbcTracker.Mobile.csproj" />
   </Folder>
   <Folder Name="/src/Core/">
     <Project Path="src/Core/KbcTracker.Domain/KbcTracker.Domain.csproj" />
@@ -36,7 +39,9 @@
   </Folder>
   <Folder Name="/test/Containers/UI/" />
   <Folder Name="/test/Containers/UI/Core/">
+    <Project Path="test/Containers/UI/Core/KbcTracker.Components.Tests/KbcTracker.Components.Tests.csproj" />
     <Project Path="test/Containers/UI/Core/KbcTracker.Shared.Tests/KbcTracker.Shared.Tests.csproj" />
+    <Project Path="test/Containers/UI/Core/KbcTracker.ViewModels.Tests/KbcTracker.ViewModels.Tests.csproj" />
   </Folder>
   <Folder Name="/test/Core/">
     <Project Path="test/Core/KbcTracker.Domain.Tests/KbcTracker.Domain.Tests.csproj" />

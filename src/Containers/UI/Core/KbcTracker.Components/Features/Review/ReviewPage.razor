@@ -1,0 +1,54 @@
+@page "/review"
+@inherits TabPageBase
+
+<PageTitle>To review</PageTitle>
+@if (_view is not null)
+{
+	<section class="head">
+		<p class="muted">@ReviewViewModel.Explanation</p>
+		<RadzenDropDown TValue="DirectionFilter" Data="@DirectionChoices" TextProperty="Label" ValueProperty="Value" Value="@_view.Direction"
+			Change="@OnDirectionChanged" InputAttributes="@DirectionInputAttributes" />
+		<RadzenButton Text="✓ Confirm all shown" ButtonStyle="ButtonStyle.Success" Click="@ConfirmShownAsync" Disabled="@(_rows.Count == 0)" />
+	</section>
+
+	<RadzenCard>
+		@if (_view.IsEmpty)
+		{
+			<p class="muted">@ReviewViewModel.EmptyMessage</p>
+		}
+		else
+		{
+			<RadzenDataGrid TItem="ReviewRow" Data="@_rows" AllowSorting="false" AriaLabel="Payees to review">
+				<Columns>
+					<RadzenDataGridColumn TItem="ReviewRow" Title="Payee">
+						<Template Context="row">
+							<strong>@row.Name</strong>
+							<div class="muted">@row.Sample</div>
+						</Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="ReviewRow" Title="Payments" TextAlign="TextAlign.Right" Width="100px">
+						<Template Context="row">@Formats.Number(row.Count)</Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="ReviewRow" Title="Total" TextAlign="TextAlign.Right" Width="130px">
+						<Template Context="row"><span class="@(row.TotalIsPositive ? "income" : null)">@row.TotalText</span></Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="ReviewRow" Title="Last" TextAlign="TextAlign.Right" Width="100px">
+						<Template Context="row">@row.LastText</Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="ReviewRow" Title="Category" MinWidth="260px">
+						<Template Context="row">
+							<CategoryPicker Options="@_categories" Value="@row.CategoryId" ValueChanged="@(id => ChangeCategoryAsync(row, id))"
+								AriaLabel="@($"Category of {row.Name}")" />
+						</Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="ReviewRow" Title="Confirm" Width="90px" TextAlign="TextAlign.Right">
+						<Template Context="row">
+							<RadzenButton Text="✓" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" title="@($"Confirm the category for {row.Name}")"
+								aria-label="@($"Confirm the category of {row.Name}")" Click="@(() => DecideAsync(row.ConfirmRequest))" />
+						</Template>
+					</RadzenDataGridColumn>
+				</Columns>
+			</RadzenDataGrid>
+		}
+	</RadzenCard>
+}

@@ -79,7 +79,7 @@ These parts of Pivot's canonical structure are still left out:
 | `KbcTracker.IntegrationEvents`, outbox and broker | One service and no domain events yet. | A second service, or the first domain event that must leave the process |
 | Hangfire | One daily job; Pivot's Hangfire helper uses SQL Server storage and its dashboard needs a login. | Several scheduled jobs |
 | Audit fields and soft delete | Bank history and the user's choices are never deleted (`LightweightAggregateRoot`, from ADR-0003). | n/a |
-| Canonical UI (Blazor, `UI/Core/KbcTracker.ViewModels`) | The web host keeps its server-rendered pages until the Android app exists. | The Android app step |
+| Canonical UI (Blazor, `UI/Core/KbcTracker.ViewModels`) | The web host keeps its server-rendered pages until the Android app exists (amended by [ADR-0008](0008-build-the-front-ends-as-shared-blazor-components.md): the web host renders the shared Blazor components instead). | The Android app step |
 
 The delivery continues in steps, each on its own branch and keeping the app working and `RealDataTests` green:
 

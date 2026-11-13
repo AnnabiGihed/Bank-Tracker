@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    The Android app (ADR-0004, ADR-0008): a .NET MAUI Blazor Hybrid shell that hosts the shared components of
+    KbcTracker.Components and reads and changes everything through the backend's API. It stores no data and holds no
+    bank key, and it does not reference the service defaults of the PC hosts. Android only: the singular
+    TargetFramework replaces the one in Directory.Build.props. Analyzers come from Directory.Build.props.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>KbcTracker.Mobile</RootNamespace>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <IsPackable>false</IsPackable>
+
+    <ApplicationTitle>KbcTracker</ApplicationTitle>
+    <ApplicationId>com.BankTracker.mobile</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <SupportedOSPlatformVersion>29.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\KbcTracker.Shared\KbcTracker.Shared.csproj" />
+    <ProjectReference Include="..\..\Core\KbcTracker.ViewModels\KbcTracker.ViewModels.csproj" />
+    <ProjectReference Include="..\..\Core\KbcTracker.Components\KbcTracker.Components.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="App icon and splash screen">
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#1B5E20" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#1B5E20" BaseSize="128,128" />
+  </ItemGroup>
+
+  <ItemGroup Label="Settings read at startup; the development file is embedded in Debug builds only">
+    <EmbeddedResource Include="appsettings.json" LogicalName="appsettings.json" />
+    <EmbeddedResource Include="appsettings.Development.json" LogicalName="appsettings.Development.json" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <ItemGroup Label="Feature namespaces used across the project">
+    <Using Include="KbcTracker.Components.Features.Shared.Layout" />
+    <Using Include="KbcTracker.Mobile.Features.Shared.Shell" />
+    <Using Include="KbcTracker.ViewModels.Features.Shared" />
+    <Using Include="Microsoft.AspNetCore.Components" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,43 @@
+<nav class="crumbs" aria-label="Category path">
+	@foreach (var crumb in _crumbs)
+	{
+		@if (crumb != _crumbs[0])
+		{
+			<span aria-hidden="true"> › </span>
+		}
+
+		@if (crumb.IsCurrent)
+		{
+			<strong aria-current="location">@crumb.Label</strong>
+		}
+		else
+		{
+			<button type="button" class="crumb" @onclick="@(() => GoTo(crumb.Id))">@crumb.Label</button>
+		}
+	}
+</nav>
+@if (_slices.Count == 0)
+{
+	<p class="muted">No spending in this month.</p>
+}
+else
+{
+	<div class="donut">
+		<RadzenChart SeriesClick="@OnSliceClick" class="chart">
+			<RadzenDonutSeries Data="@_slices" CategoryProperty="Name" ValueProperty="Value" Fills="@_fills" Title="Spending" />
+			<RadzenLegend Position="LegendPosition.Right" />
+		</RadzenChart>
+	</div>
+	<ul class="slices" aria-label="Categories of the month">
+		@foreach (var slice in _slices)
+		{
+			<li>
+				<button type="button" class="slice" @onclick="@(() => Activate(slice))"
+					title="@(slice.CanDrill ? "Show its sub-categories" : "Show its transactions")">
+					<CategoryTag Text="@slice.Name" Color="@slice.Color" />
+					<span class="amount">@Formats.Belgian.Money(slice.Value)</span>
+				</button>
+			</li>
+		}
+	</ul>
+}

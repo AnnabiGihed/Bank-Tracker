@@ -1,0 +1,75 @@
+.kpis {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.kpi {
+	border-top: 4px solid var(--kt-line);
+}
+
+.kpi-income {
+	border-top-color: var(--kt-inc);
+}
+
+.kpi-spent,
+.kpi-fixed {
+	border-top-color: var(--kt-fixed);
+}
+
+.kpi-saved {
+	border-top-color: var(--kt-save);
+}
+
+.label,
+.sub,
+.empty {
+	color: var(--kt-muted);
+}
+
+.value {
+	font-size: 1.6rem;
+	font-weight: 600;
+}
+
+.charts,
+.tables {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+h2 {
+	margin: 0 0 8px;
+	font-size: 1.05rem;
+}
+
+.notice {
+	margin-bottom: 12px;
+	padding: 8px 14px;
+	border: 1px solid var(--kt-warn);
+	border-radius: 8px;
+	background: var(--kt-card);
+}
+
+.notice ul {
+	margin: 0;
+	padding-left: 18px;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+td {
+	padding: 4px 6px;
+	border-bottom: 1px solid var(--kt-line);
+}
+
+.num {
+	text-align: right;
+	white-space: nowrap;
+}

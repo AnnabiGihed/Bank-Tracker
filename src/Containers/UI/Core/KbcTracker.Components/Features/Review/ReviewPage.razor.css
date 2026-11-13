@@ -1,0 +1,17 @@
+.head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+	margin-bottom: 12px;
+}
+
+.head p {
+	flex: 1;
+	min-width: 260px;
+	margin: 0;
+}
+
+.income {
+	color: var(--kt-inc);
+}

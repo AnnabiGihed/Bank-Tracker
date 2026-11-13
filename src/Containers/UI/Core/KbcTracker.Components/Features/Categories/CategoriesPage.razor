@@ -1,0 +1,70 @@
+@page "/categories"
+@inherits TabPageBase
+
+<PageTitle>Categories</PageTitle>
+@if (_view is not null)
+{
+	<section class="head">
+		<span class="muted">@_view.MonthLabel · click a category to see its transactions</span>
+		<RadzenButton Text="+ New category" Click="@(() => EditAsync(_view.NewCategory()))" />
+	</section>
+	@foreach (var card in _view.Cards)
+	{
+		<RadzenCard class="card">
+			<h2>@card.Title <span class="total">@card.TotalText</span></h2>
+			<table>
+				<caption class="sr-only">@card.Title by category</caption>
+				<thead>
+					<tr>
+						<th scope="col">Category</th>
+						<th scope="col"><span class="sr-only">Share of the largest</span></th>
+						<th scope="col" class="num">@_view.MonthLabel</th>
+						<th scope="col" class="num">vs. previous months</th>
+						<th scope="col">Keywords</th>
+						<th scope="col"><span class="sr-only">Actions</span></th>
+					</tr>
+				</thead>
+				<tbody>
+					@foreach (var row in _view.VisibleRows(card))
+					{
+						<tr @key="row.Id">
+							<td>
+								<div class="name" style="@IndentStyle(row, 0)">
+									@if (row.HasChildren)
+									{
+										<button type="button" class="toggle" aria-expanded="@(_view.IsExpanded(row.Id) ? "true" : "false")"
+											aria-label="@($"Show or hide the sub-categories of {row.Name}")" @onclick="@(() => Toggle(row))">
+											@(_view.IsExpanded(row.Id) ? "▾" : "▸")
+										</button>
+									}
+									else
+									{
+										<span class="toggle-gap"></span>
+									}
+									<a href="@TabRoutes.TransactionsOf(Month, row.Id)" title="See its transactions"><CategoryTag Text="@row.Name" Color="@row.Color" /></a>
+								</div>
+								<div class="muted" style="@IndentStyle(row, ToggleWidthRem)">@row.PaymentsText</div>
+							</td>
+							<td>
+								<div class="bar" aria-hidden="true"><i style="@BarStyle(row)"></i></div>
+							</td>
+							<td class="num">@row.ValueText</td>
+							<td class="num"><span class="pill @ComparisonClass(row.Comparison)">@row.Comparison.Text</span></td>
+							<td class="muted keywords" title="@row.Keywords">@row.Keywords</td>
+							<td class="num actions">
+								@if (row.CanAddSubCategory)
+								{
+									<RadzenButton Text="+ sub-category" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
+										title="@($"Add a sub-category to {row.Name}")" aria-label="@($"Add a sub-category to {row.Name}")"
+										Click="@(() => EditAsync(_view.NewCategory(row.Id)))" />
+								}
+								<RadzenButton Text="✎" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small" title="Edit"
+									aria-label="@($"Edit {row.Name}")" Click="@(() => EditAsync(_view.Edit(row)))" />
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</RadzenCard>
+	}
+}

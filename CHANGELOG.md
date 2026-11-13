@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The Android app `KbcTracker.Mobile` (.NET MAUI Blazor Hybrid, `com.BankTracker.mobile`), built from the same
+  components as the web app ([ADR-0008](docs/adr/0008-build-the-front-ends-as-shared-blazor-components.md),
+  proposed). It is for development only for now: it runs in the emulator against the backend on your PC and has no
+  production backend until the API moves to a server with authentication. Connecting the bank and the CSV export stay
+  in the web app. See [Run the Android app](docs/how-to/run-the-android-app.md).
+- New projects `KbcTracker.ViewModels` and `KbcTracker.Components`, tests for both (the components with bUnit), a
+  Playwright browser test of the web app and the solution filter `KbcTracker.Core.slnf`, which builds everything
+  except the Android app.
 - The backend can split one payment into categorised parts ([ADR-0007](docs/adr/0007-split-a-payment-into-categorised-parts.md),
   proposed): the decisions `split` (a payment and two to a hundred parts, each an amount, a spending category and an
   optional label, adding up exactly to the payment) and `unsplit`. A split counts as spending and as confirmed, wins over
@@ -69,6 +77,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The web app is rebuilt as a Blazor Web App with Radzen components, with the same tab addresses. The charts
+  no longer need the internet, the category pickers are searchable, dialogs and messages look different, and the
+  "Only this one" choice after a category change appears as a notification.
 - Two decisions made at the same moment, such as a double-click or two quick edits, are now both saved: the second
   waits up to five seconds for the first instead of failing at once. It still fails with `409 Conflict`, and the
   message "Another change is still being saved. Try again in a moment.", only when that wait runs out.
@@ -95,6 +106,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- The web app's `/api`, `/sync` and `/connect` addresses: the pages call the backend directly, so a bookmark to
+  `/sync` or `/connect` stops working. Use the **Sync** button and the reconnect button on the Settings tab.
 - The web app's JSON data folder, its `--sync` option (it now exits with code 2 and points to the backend's
   `--sync`), its own automatic sync, and its `DataDirectory`, `AutoSyncHours`, `EnableBanking` and `Categories`
   settings: the backend took them over.

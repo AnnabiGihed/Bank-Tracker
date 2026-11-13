@@ -1,0 +1,16 @@
+.status {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin: 12px auto 0;
+	max-width: 1168px;
+	padding: 10px 14px;
+	border: 1px solid var(--kt-bad);
+	border-radius: 8px;
+	background: var(--kt-card);
+}
+
+.status strong {
+	margin-right: 8px;
+}

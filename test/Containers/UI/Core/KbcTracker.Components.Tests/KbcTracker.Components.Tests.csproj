@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tests of KbcTracker.Components with bUnit, against a stubbed backend. Test packages and settings come from
+    test/Directory.Build.props. The stub backend and the invented workspace are the ones of the view model tests,
+    linked rather than copied so they cannot drift apart.
+  -->
+  <ItemGroup>
+    <PackageReference Include="bunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\..\src\Containers\UI\Core\KbcTracker.Components\KbcTracker.Components.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Shared test doubles of the view model tests">
+    <Compile Include="..\KbcTracker.ViewModels.Tests\Features\Shared\StubBackend.cs" Link="Features\Shared\StubBackend.cs" />
+    <Compile Include="..\KbcTracker.ViewModels.Tests\Features\Shared\TestWorkspace.cs" Link="Features\Shared\TestWorkspace.cs" />
+  </ItemGroup>
+
+  <ItemGroup Label="Feature namespaces used across the project">
+    <Using Include="Bunit" />
+    <Using Include="KbcTracker.Application.Features.BankConnection.Commands" />
+    <Using Include="KbcTracker.Application.Features.BankConnection.Consent" />
+    <Using Include="KbcTracker.Application.Features.BankConnection.Queries" />
+    <Using Include="KbcTracker.Application.Features.Workspace.Contracts" />
+    <Using Include="KbcTracker.Components.Features.BankConnection" />
+    <Using Include="KbcTracker.Components.Features.Categories" />
+    <Using Include="KbcTracker.Components.Features.FixedPayments" />
+    <Using Include="KbcTracker.Components.Features.Overview" />
+    <Using Include="KbcTracker.Components.Features.Review" />
+    <Using Include="KbcTracker.Components.Features.Settings" />
+    <Using Include="KbcTracker.Components.Features.Shared" />
+    <Using Include="KbcTracker.Components.Features.Shared.Layout" />
+    <Using Include="KbcTracker.Components.Features.Shared.Pickers" />
+    <Using Include="KbcTracker.Components.Features.Transactions" />
+    <Using Include="KbcTracker.Components.Tests.Features.Shared" />
+    <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.Services" />
+    <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.FixedPayments.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Shared.Services" />
+    <Using Include="KbcTracker.Domain.Features.Splits.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.ValueObjects" />
+    <Using Include="KbcTracker.Shared.Features.Backend" />
+    <Using Include="KbcTracker.ViewModels.Features.BankConnection" />
+    <Using Include="KbcTracker.ViewModels.Features.Categories" />
+    <Using Include="KbcTracker.ViewModels.Features.FixedPayments" />
+    <Using Include="KbcTracker.ViewModels.Features.Overview" />
+    <Using Include="KbcTracker.ViewModels.Features.Review" />
+    <Using Include="KbcTracker.ViewModels.Features.Settings" />
+    <Using Include="KbcTracker.ViewModels.Features.Shared" />
+    <Using Include="KbcTracker.ViewModels.Features.Transactions" />
+    <Using Include="KbcTracker.ViewModels.Tests.Features.Shared" />
+    <Using Include="Microsoft.AspNetCore.Components" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Radzen" />
+    <Using Include="Radzen.Blazor" />
+  </ItemGroup>
+
+</Project>

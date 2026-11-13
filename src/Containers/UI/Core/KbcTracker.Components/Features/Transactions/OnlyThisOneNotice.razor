@@ -1,0 +1,11 @@
+<div class="notice">
+	@if (_applied)
+	{
+		<span role="status">Done: only this payment changed.</span>
+	}
+	else
+	{
+		<RadzenButton Text="Only this one" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" Click="@ApplyAsync" Disabled="@_busy"
+			data-testid="undo-category" />
+	}
+</div>

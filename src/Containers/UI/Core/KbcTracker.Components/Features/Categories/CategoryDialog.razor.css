@@ -1,0 +1,21 @@
+.form {
+	display: grid;
+	gap: 6px;
+}
+
+input[type="color"] {
+	width: 4rem;
+	height: 2.25rem;
+	padding: 2px;
+}
+
+.actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.spacer {
+	flex: 1;
+}

@@ -1,0 +1,12 @@
+<nav class="tabs" aria-label="Tabs">
+	@foreach (var tab in Tabs)
+	{
+		<a class="tab @(IsCurrent(tab) ? "current" : null)" href="@TabRoutes.Tab(tab.Id, Month)" aria-current="@(IsCurrent(tab) ? "page" : null)">
+			<span>@tab.Label</span>
+			@if (tab.Badge > 0)
+			{
+				<RadzenBadge BadgeStyle="BadgeStyle.Warning" IsPill="true" Text="@Formats.Belgian.Number(tab.Badge)" />
+			}
+		</a>
+	}
+</nav>

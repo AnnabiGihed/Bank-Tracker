@@ -1,0 +1,26 @@
+@inherits LayoutComponentBase
+
+<RadzenComponents />
+<RadzenTheme Theme="material" />
+<div class="shell">
+	<a class="skip-link" href="#main">Skip to the content</a>
+	<ShellHeader Shell="@_shell" CurrentTab="@_currentTab" />
+	@if (_shell is not null)
+	{
+		<TabBar Tabs="@_shell.Tabs" CurrentTab="@_currentTab" Month="@_shell.SelectedMonth" />
+		<SyncBanner Notice="@_shell.Notice" />
+	}
+	<BackendStatus Problem="@Store.Problem" OnRetry="@RetryAsync" />
+	<main class="content" id="main" tabindex="-1">
+		<ErrorBoundary @ref="_boundary">
+			<ChildContent>@Body</ChildContent>
+			<ErrorContent Context="error">
+				<div role="alert" class="fatal">
+					<strong>Something went wrong on this page.</strong>
+					<p>@error.Message</p>
+					<p>Open another tab, or reload the app.</p>
+				</div>
+			</ErrorContent>
+		</ErrorBoundary>
+	</main>
+</div>

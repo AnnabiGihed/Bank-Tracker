@@ -1,0 +1,8 @@
+.picker {
+	width: 100%;
+	min-width: 11rem;
+}
+
+.picker ::deep .picker-input {
+	width: 100%;
+}

@@ -1,0 +1,27 @@
+.pill {
+	display: inline-block;
+	padding: 1px 10px;
+	border: 1px solid var(--kt-line);
+	border-radius: 999px;
+	font-size: 0.85rem;
+	white-space: nowrap;
+}
+
+.pill.ok {
+	border-color: var(--kt-ok);
+	color: var(--kt-ok);
+}
+
+.pill.due {
+	border-color: var(--kt-warn);
+	color: var(--kt-warn);
+}
+
+.pill.bad {
+	border-color: var(--kt-bad);
+	color: var(--kt-bad);
+}
+
+.pill.nil {
+	color: var(--kt-muted);
+}

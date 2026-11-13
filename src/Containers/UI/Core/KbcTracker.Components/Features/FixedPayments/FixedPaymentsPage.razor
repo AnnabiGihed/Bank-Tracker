@@ -1,0 +1,91 @@
+@page "/fixed"
+@inherits TabPageBase
+
+<PageTitle>Fixed payments</PageTitle>
+@if (_view is not null)
+{
+	@if (_view.Suggestions.Count > 0)
+	{
+		<RadzenCard class="block">
+			<h2>Possible fixed payments — please check <span class="muted">accept to start tracking them</span></h2>
+			<div class="suggestions">
+				@foreach (var suggestion in _view.Suggestions)
+				{
+					<article class="suggestion" aria-label="@($"Suggestion: {suggestion.Name}")">
+						<header>
+							<strong>@suggestion.Name</strong>
+							@if (suggestion.IsMaybe)
+							{
+								<span class="maybe" title="Only 2 payments seen so far">maybe</span>
+							}
+						</header>
+						<div class="amount">@suggestion.AmountText <span class="muted">@suggestion.Rhythm</span></div>
+						<div class="muted">@suggestion.Reason · <CategoryTag Text="@suggestion.CategoryName" Color="@suggestion.CategoryColor" /></div>
+						<ul class="chips" aria-label="Payments seen">
+							@foreach (var chip in suggestion.Chips)
+							{
+								<li title="@chip.Tooltip">@chip.Text</li>
+							}
+						</ul>
+						<div class="buttons">
+							<RadzenButton Text="✓ Fixed payment" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
+								aria-label="@($"Accept {suggestion.Name} as a fixed payment")" Click="@(() => DecideAsync(suggestion.AcceptRequest))" />
+							<RadzenButton Text="✕ Not fixed" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+								aria-label="@($"{suggestion.Name} is not a fixed payment")" Click="@(() => DecideAsync(suggestion.DismissRequest))" />
+						</div>
+					</article>
+				}
+			</div>
+		</RadzenCard>
+	}
+
+	<RadzenCard class="block">
+		<dl class="summary">
+			<div><dt>Expected in @_view.MonthLabel</dt><dd>@_view.ExpectedText</dd></div>
+			<div><dt>Paid</dt><dd class="paid">@_view.PaidText</dd></div>
+			<div><dt>Still to come</dt><dd class="due">@_view.StillToComeText</dd></div>
+			<div><dt>Fixed payments</dt><dd>@Formats.Number(_view.FixedPaymentCount)</dd></div>
+		</dl>
+	</RadzenCard>
+
+	<RadzenCard>
+		@if (_view.Rows.Count == 0)
+		{
+			<p class="muted">@FixedPaymentsViewModel.EmptyMessage</p>
+		}
+		else
+		{
+			<RadzenDataGrid TItem="FixedPaymentRow" Data="@_view.Rows" AllowSorting="false" AriaLabel="Fixed payments">
+				<Columns>
+					<RadzenDataGridColumn TItem="FixedPaymentRow" Title="Day" Width="70px" TextAlign="TextAlign.Right">
+						<Template Context="row">@Formats.Number(row.UsualDay)</Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="FixedPaymentRow" Title="Payment">
+						<Template Context="row">
+							<strong>@row.Name</strong>
+							<div class="muted">@row.DetailText</div>
+						</Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="FixedPaymentRow" Title="Category">
+						<Template Context="row"><CategoryTag Text="@row.CategoryName" Color="@row.CategoryColor" /></Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="FixedPaymentRow" Title="Amount" TextAlign="TextAlign.Right">
+						<Template Context="row">@row.AmountText</Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="FixedPaymentRow" Title="This month">
+						<Template Context="row"><StatusPill Pill="@row.Status" /></Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="FixedPaymentRow" Title="Actions" Width="120px">
+						<Template Context="row">
+							<RadzenButton Text="✎" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small" title="Edit"
+								aria-label="@($"Edit {row.Name}")" Click="@(() => EditAsync(row))" />
+							<RadzenButton Text="✕" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Size="ButtonSize.Small" title="Stop tracking"
+								aria-label="@($"Stop tracking {row.Name}")" Click="@(() => StopAsync(row))" />
+						</Template>
+					</RadzenDataGridColumn>
+				</Columns>
+			</RadzenDataGrid>
+			<p class="muted">Missing one? In <strong>Transactions</strong> click ☆ next to it.</p>
+		}
+	</RadzenCard>
+}

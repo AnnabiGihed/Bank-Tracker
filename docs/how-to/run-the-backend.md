@@ -1,7 +1,7 @@
 # Run the backend
 
 The backend holds your history and decisions in PostgreSQL, owns the Enable Banking key and the sync, and serves
-the API the web app uses ([ADR-0004](../adr/0004-serve-both-apps-from-one-postgresql-backend-and-api.md)).
+the API the web app and the Android app use ([ADR-0004](../adr/0004-serve-both-apps-from-one-postgresql-backend-and-api.md)).
 You need the .NET 10 SDK and the private-feed credentials described in the root README.
 
 There are two ways to run it. The Aspire AppHost starts everything at once and is the recommended one; the manual
@@ -111,8 +111,9 @@ Then start the web app in a second terminal:
 dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web
 ```
 
-The web app reaches the backend at `Backend:BaseUrl`. When the backend is down, its pages say so; they never fall
-back to local data.
+The web app is a Blazor app: it keeps a live connection to its host while a tab is open. It reaches the backend at
+`Backend:BaseUrl`. When the backend is down, its pages say so; they never fall back to local data. To use the
+Android app against this backend, see [Run the Android app](run-the-android-app.md).
 
 ## Understand the access boundary
 
@@ -132,7 +133,7 @@ host name to `AllowedHosts` before you serve the apps through Tailscale.
   your PC, and back up with `pg_dump`.
 - Not yet verified: that Docker publishes the backend on loopback only, which Host header Tailscale Serve passes,
   and that Enable Banking accepts a `*.ts.net` redirect URL.
-- The Android app and its SQLite cache.
+- The Android app's production backend (it only works against your PC in the emulator) and its SQLite cache.
 
 ## Refresh the contract
 

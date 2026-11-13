@@ -1,6 +1,17 @@
 # Tabs
 
-Pick a month at the top, with ‹ › or the drop-down. Every tab follows it (`?m=yyyy-MM` in the address).
+Pick a month at the top, with ‹ › or the drop-down. Every tab follows it (`?m=yyyy-MM` in the address). The web app
+and the Android app show the same tabs; the addresses are the web app's.
+
+## Common to every tab
+
+- Edits open in a dialog. Messages, errors and confirmations appear as notifications.
+- After you change a payee's category, a notification offers **Only this one**: select it to undo the change for the
+  payee and keep it for this payment only.
+- Category pickers are flat lists with a search box: type part of a name to find it. Sub-categories are indented.
+- Charts work offline. Each chart has a table of the same numbers for keyboard and screen-reader use.
+
+## The tabs
 
 | Tab | What it shows | What you can do |
 | --- | --- | --- |

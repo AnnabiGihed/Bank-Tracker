@@ -1,0 +1,14 @@
+@if (Notice is not null)
+{
+	<div class="banner" role="alert">
+		<span><strong>@Notice.Heading</strong> @Notice.Message</span>
+		@if (Notice.Kind == SyncNoticeKind.Failed)
+		{
+			<RadzenLink Path="@TabRoutes.Banks" Text="Reconnect" />
+		}
+		else
+		{
+			<RadzenButton Text="Sync all again" Size="ButtonSize.Small" Click="@SyncAllAsync" IsBusy="@_syncing" />
+		}
+	</div>
+}

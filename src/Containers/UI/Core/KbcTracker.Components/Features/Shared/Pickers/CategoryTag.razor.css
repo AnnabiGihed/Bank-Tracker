@@ -1,0 +1,19 @@
+.tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 1px 8px;
+	border: 1px solid var(--kt-line);
+	border-radius: 999px;
+	background: var(--kt-card);
+	font-size: 0.85rem;
+	white-space: nowrap;
+}
+
+.dot {
+	display: inline-block;
+	width: 0.6rem;
+	height: 0.6rem;
+	border-radius: 50%;
+	background: var(--kt-muted);
+}

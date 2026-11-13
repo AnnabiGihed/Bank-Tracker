@@ -1,0 +1,87 @@
+@page "/transactions"
+@inherits TabPageBase
+
+<PageTitle>Transactions</PageTitle>
+@if (_view is not null)
+{
+	<section class="filters" aria-label="Filters">
+		<RadzenTextBox Value="@_view.Search" Change="@OnSearchChanged" Immediate="true" Placeholder="Search name, text or amount…"
+			aria-label="Search transactions" class="search" />
+		<RadzenDropDown TValue="TransactionTypeFilter" Data="@TypeChoices" TextProperty="Label" ValueProperty="Value" Value="@_view.Type"
+			Change="@OnTypeChanged" InputAttributes="@TypeInputAttributes" />
+		<CategoryPicker Options="@_view.FilterCategories" Value="@_view.CategoryId" ValueChanged="@OnCategoryFilterChanged" AllowClear="true"
+			Placeholder="All categories" AriaLabel="Category filter" />
+		<label class="check">
+			<RadzenCheckBox TValue="bool" Value="@_view.UnconfirmedOnly" Change="@OnUnconfirmedChanged" AriaLabel="Not confirmed only" />
+			not confirmed only
+		</label>
+	</section>
+
+	<RadzenCard>
+		<RadzenDataGrid TItem="TransactionRow" Data="@_rows" EmptyText="@TransactionsViewModel.EmptyMessage" AllowSorting="false" AllowFiltering="false"
+			AriaLabel="Transactions">
+			<Columns>
+				<RadzenDataGridColumn TItem="TransactionRow" Title="Date" Width="80px">
+					<Template Context="row"><span class="muted">@row.DateText</span></Template>
+				</RadzenDataGridColumn>
+				<RadzenDataGridColumn TItem="TransactionRow" Title="Name">
+					<Template Context="row">
+						<strong>@row.Name</strong>
+						<div class="muted description" title="@row.Description">@row.Description</div>
+					</Template>
+				</RadzenDataGridColumn>
+				<RadzenDataGridColumn TItem="TransactionRow" Title="Category" MinWidth="300px">
+					<Template Context="row">
+						<div class="category">
+							@if (row.IsSplit)
+							{
+								@foreach (var part in row.Parts)
+								{
+									<span title="@part.Path"><CategoryTag Text="@part.Text" Color="@part.CategoryColor" /></span>
+								}
+							}
+							else
+							{
+								<CategoryPicker Options="@_categories" Value="@row.CategoryId" ValueChanged="@(id => ChangeCategoryAsync(row, id))"
+									AriaLabel="@($"Category of {row.Name}")" TestId="category-select" />
+								@if (!row.Confirmed)
+								{
+									<RadzenButton Text="✓" ButtonStyle="ButtonStyle.Success" Variant="Variant.Text" Size="ButtonSize.Small"
+										title="@($"Confirm this category for {row.Name}")" aria-label="@($"Confirm the category of {row.Name}")"
+										Click="@(() => DecideAsync(row.ConfirmRequest))" />
+								}
+							}
+							@if (row.CanSplit)
+							{
+								<RadzenButton Text="✂" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
+									title="@row.SplitButtonTitle" aria-label="@($"{row.SplitButtonTitle}: {row.Name}")" Click="@(() => OpenSplitAsync(row))" />
+							}
+						</div>
+					</Template>
+				</RadzenDataGridColumn>
+				<RadzenDataGridColumn TItem="TransactionRow" Title="Amount" TextAlign="TextAlign.Right" Width="120px">
+					<Template Context="row"><span class="@(row.IsIncome ? "income" : null)">@row.AmountText</span></Template>
+				</RadzenDataGridColumn>
+				<RadzenDataGridColumn TItem="TransactionRow" Title="Fixed" Width="70px">
+					<Template Context="row">
+						@if (row.Fixed == FixedMark.IsFixed)
+						{
+							<RadzenLink Path="@TabRoutes.Tab("fixed", Month)" Text="★" title="@($"Fixed payment: {row.FixedName}")"
+								aria-label="@($"Fixed payment: {row.FixedName}")" />
+						}
+						else if (row.Fixed == FixedMark.CanMark)
+						{
+							<RadzenButton Text="☆" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
+								title="@($"Mark {row.Name} as a fixed payment")" aria-label="@($"Mark {row.Name} as a fixed payment")"
+								Click="@(() => DecideAsync(row.MarkFixedRequest))" />
+						}
+					</Template>
+				</RadzenDataGridColumn>
+			</Columns>
+		</RadzenDataGrid>
+		<div class="totals">
+			<span>@_view.CountText</span>
+			<strong>@_view.TotalText</strong>
+		</div>
+	</RadzenCard>
+}

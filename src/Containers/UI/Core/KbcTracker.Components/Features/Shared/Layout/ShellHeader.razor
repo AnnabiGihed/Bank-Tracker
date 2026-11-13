@@ -1,0 +1,44 @@
+<header class="header">
+	<h1 class="title">KBC Tracker</h1>
+	@if (Shell is not null)
+	{
+		<div class="sync" aria-live="polite">
+			<span>@Shell.SyncText</span>
+			@if (Shell.AccessWarning is { } warning)
+			{
+				<RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="@warning" />
+			}
+		</div>
+		@if (ShowsMonths)
+		{
+			<div class="months" role="group" aria-label="Month">
+				@if (Shell.OlderMonth is { } older)
+				{
+					<a class="step" href="@MonthUri(older)" aria-label="Older month" title="Older month">‹</a>
+				}
+				else
+				{
+					<span class="step disabled" aria-hidden="true">‹</span>
+				}
+				<RadzenDropDown TValue="string" Data="@Shell.Months" TextProperty="Label" ValueProperty="Value" Value="@Shell.SelectedMonth"
+					Change="@OnMonthChanged" InputAttributes="@MonthInputAttributes" class="month-select" />
+				@if (Shell.NewerMonth is { } newer)
+				{
+					<a class="step" href="@MonthUri(newer)" aria-label="Newer month" title="Newer month">›</a>
+				}
+				else
+				{
+					<span class="step disabled" aria-hidden="true">›</span>
+				}
+			</div>
+		}
+		@if (Shell.IsConnected)
+		{
+			<RadzenButton Text="↻ Sync" Click="@SyncAsync" IsBusy="@_syncing" BusyText="Syncing…" />
+		}
+		else
+		{
+			<RadzenLink Path="@TabRoutes.Banks" Text="Connect bank" />
+		}
+	}
+</header>

@@ -1,0 +1,28 @@
+{
+  "solution": {
+    "path": "KbcTracker.slnx",
+    "projects": [
+      "src\\Containers\\API\\KbcTracker.ApiService\\KbcTracker.ApiService.csproj",
+      "src\\Containers\\Aspire\\Defaults\\KbcTracker.ServiceDefaults\\KbcTracker.ServiceDefaults.csproj",
+      "src\\Containers\\Aspire\\Hosting\\KbcTracker.AppHost\\KbcTracker.AppHost.csproj",
+      "src\\Containers\\UI\\Core\\KbcTracker.Components\\KbcTracker.Components.csproj",
+      "src\\Containers\\UI\\Core\\KbcTracker.Shared\\KbcTracker.Shared.csproj",
+      "src\\Containers\\UI\\Core\\KbcTracker.ViewModels\\KbcTracker.ViewModels.csproj",
+      "src\\Containers\\UI\\Hosting\\KbcTracker.Web\\KbcTracker.Web.csproj",
+      "src\\Core\\KbcTracker.Domain\\KbcTracker.Domain.csproj",
+      "src\\Core\\KbcTracker.Application\\KbcTracker.Application.csproj",
+      "src\\Infrastructure\\KbcTracker.Infrastructure\\KbcTracker.Infrastructure.csproj",
+      "src\\Infrastructure\\KbcTracker.Persistence.EntityFrameworkCore\\KbcTracker.Persistence.EntityFrameworkCore.csproj",
+      "test\\Containers\\Aspire\\Hosting\\KbcTracker.AppHost.Tests\\KbcTracker.AppHost.Tests.csproj",
+      "test\\Containers\\API\\KbcTracker.ApiService.Tests\\KbcTracker.ApiService.Tests.csproj",
+      "test\\Containers\\UI\\Core\\KbcTracker.Components.Tests\\KbcTracker.Components.Tests.csproj",
+      "test\\Containers\\UI\\Core\\KbcTracker.Shared.Tests\\KbcTracker.Shared.Tests.csproj",
+      "test\\Containers\\UI\\Core\\KbcTracker.ViewModels.Tests\\KbcTracker.ViewModels.Tests.csproj",
+      "test\\Core\\KbcTracker.Domain.Tests\\KbcTracker.Domain.Tests.csproj",
+      "test\\Core\\KbcTracker.Application.Tests\\KbcTracker.Application.Tests.csproj",
+      "test\\Infrastructure\\KbcTracker.Infrastructure.Tests\\KbcTracker.Infrastructure.Tests.csproj",
+      "test\\Infrastructure\\KbcTracker.Persistence.EntityFrameworkCore.Tests\\KbcTracker.Persistence.EntityFrameworkCore.Tests.csproj",
+      "test\\KbcTracker.E2E.Tests\\KbcTracker.E2E.Tests.csproj"
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The state and computation behind every tab (ADR-0008): the workspace store, one view model per tab, formatting, the
+    CSV export and the ports a host implements. Plain .NET: no Razor, no ASP.NET Core, so the web app and the Android
+    app share it. Build settings come from Directory.Build.props.
+  -->
+  <PropertyGroup>
+    <RootNamespace>KbcTracker.ViewModels</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KbcTracker.Shared\KbcTracker.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="Feature namespaces used across the project">
+    <Using Include="KbcTracker.Application.Features.BankConnection.Commands" />
+    <Using Include="KbcTracker.Application.Features.BankConnection.Consent" />
+    <Using Include="KbcTracker.Application.Features.Workspace.Contracts" />
+    <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Categories.Services" />
+    <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.FixedPayments.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Overview.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Review.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Shared.Services" />
+    <Using Include="KbcTracker.Domain.Features.Splits.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Transactions.ValueObjects" />
+    <Using Include="KbcTracker.Shared.Features.Backend" />
+    <Using Include="KbcTracker.ViewModels.Features.BankConnection" />
+    <Using Include="KbcTracker.ViewModels.Features.Categories" />
+    <Using Include="KbcTracker.ViewModels.Features.FixedPayments" />
+    <Using Include="KbcTracker.ViewModels.Features.Overview" />
+    <Using Include="KbcTracker.ViewModels.Features.Review" />
+    <Using Include="KbcTracker.ViewModels.Features.Settings" />
+    <Using Include="KbcTracker.ViewModels.Features.Shared" />
+    <Using Include="KbcTracker.ViewModels.Features.Transactions" />
+  </ItemGroup>
+
+</Project>
