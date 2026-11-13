@@ -4,6 +4,14 @@
 <PageTitle>Transactions</PageTitle>
 @if (_view is not null)
 {
+	@if (_view.FigureText is { } figureText)
+	{
+		<div class="figure-filter" role="status">
+			<span>@figureText</span>
+			<RadzenButton Text="Clear filter" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
+				aria-label="Clear the figure filter and show all payments of the month" Click="@ClearFigure" />
+		</div>
+	}
 	<section class="filters" aria-label="Filters">
 		<RadzenTextBox Value="@_view.Search" Change="@OnSearchChanged" Immediate="true" Placeholder="Search name, text or amount…"
 			aria-label="Search transactions" class="search" />

@@ -201,4 +201,63 @@ public sealed class TransactionsViewModelTests
 		transactions.CategoryGroups.SelectMany(g => g.Options).Select(o => o.Id).Should().Contain(["trav", "trav-train", "bills", "other"]);
 	}
 	#endregion
+
+	#region Figure Filter Tests
+	/// <summary>Verifies that opening a figure of the month lists exactly the payments behind it, whatever the default kind
+	/// filter, and that they add up to the figure the Overview shows.</summary>
+	/// <param name="figure">The figure.</param>
+	/// <param name="expectedId">The only payment behind it.</param>
+	[Theory]
+	[InlineData(MonthFigure.Earnings, "t3")]
+	[InlineData(MonthFigure.Refunds, "t5")]
+	[InlineData(MonthFigure.LoanReceived, "t6")]
+	public void FigureFilter_Figure_ListsThePaymentsBehindItAndSumsToIt(MonthFigure figure, string expectedId)
+	{
+		var analysis = TestWorkspace.Analyse(
+		[
+			TestWorkspace.Payment("t1", new DateOnly(2026, 10, 5), -8m, "Rail Co"),
+			TestWorkspace.Payment("t3", new DateOnly(2026, 10, 1), 2500m, "Acme Payroll", "Salary October"),
+			TestWorkspace.Payment("t5", new DateOnly(2026, 10, 7), 30m, "Shop One"),
+			TestWorkspace.Payment("t6", new DateOnly(2026, 10, 8), 5000m, "Kbc Bank"),
+		], (user, _) =>
+		{
+			user.AssignTransactionCategory(new TxnId("t5"), new CategoryId("refunds"));
+			user.AssignTransactionCategory(new TxnId("t6"), CategoryId.LoanReceived);
+		});
+		var month = analysis.MonthData("2026-10");
+		var figureTotal = figure switch { MonthFigure.Earnings => month.Income, MonthFigure.Refunds => month.Refunds, _ => month.LoanReceived };
+
+		var transactions = new TransactionsViewModel(analysis, "2026-10", Formats.Belgian, figure: figure);
+
+		transactions.VisibleRows.Select(r => r.Id).Should().Equal(expectedId);
+		transactions.VisibleRows.Sum(r => r.Amount).Should().Be(figureTotal);
+		transactions.Type.Should().Be(TransactionTypeFilter.Everything);
+		transactions.FigureText.Should().Be($"Showing {MonthFigureNames.Label(figure)} of the month");
+	}
+
+	/// <summary>Verifies that without a figure there is no filter text, and that the query words round-trip.</summary>
+	[Fact]
+	public void FigureFilter_NoFigure_NoTextAndQueryRoundTrips()
+	{
+		new TransactionsViewModel(October(), "2026-10", Formats.Belgian).FigureText.Should().BeNull();
+		MonthFigureNames.Parse("bogus").Should().BeNull();
+		foreach (var figure in Enum.GetValues<MonthFigure>())
+		{
+			MonthFigureNames.Parse(MonthFigureNames.ToQuery(figure)).Should().Be(figure);
+		}
+	}
+
+	/// <summary>Verifies that an undefined figure is refused instead of being named as loan money.</summary>
+	[Fact]
+	public void FigureNames_UndefinedFigure_Throws()
+	{
+		var undefined = (MonthFigure)99;
+
+		var toQuery = () => MonthFigureNames.ToQuery(undefined);
+		var label = () => MonthFigureNames.Label(undefined);
+
+		toQuery.Should().Throw<ArgumentOutOfRangeException>();
+		label.Should().Throw<ArgumentOutOfRangeException>();
+	}
+	#endregion
 }

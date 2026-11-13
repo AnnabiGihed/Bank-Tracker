@@ -40,6 +40,15 @@ public sealed partial class Analysis
 
 	/// <summary>The Salary category below Income; the Overview shows its part of the earnings apart.</summary>
 	private const string SalaryId = "income-salary";
+
+	/// <summary>The ISO bank transaction domain of loan operations (<c>LDAS</c>); money in under it is a loan payout.</summary>
+	private const string LoanDomain = "LDAS";
+
+	/// <summary>The fewest days between two credits of one payer that still make them a monthly pay.</summary>
+	private const int MonthlyMinimumDays = 26;
+
+	/// <summary>The most days between two credits of one payer that still make them a monthly pay.</summary>
+	private const int MonthlyMaximumDays = 35;
 	#endregion
 
 	#region Static Instances
@@ -66,6 +75,7 @@ public sealed partial class Analysis
 	private readonly Dictionary<string, Category> _categories;
 	private readonly DateOnly _today;
 	private readonly CategoryKeywordMatcher _matcher;
+	private readonly IncomingEvidence _incoming;
 	#endregion
 
 	#region Constructors
@@ -87,6 +97,7 @@ public sealed partial class Analysis
 		_matcher = new CategoryKeywordMatcher(CategoryList, Tree);
 
 		var parsed = txns.Select(t => (Txn: t, Fields: BankFields.From(t))).ToList();
+		_incoming = IncomingEvidence.From(parsed.Select(p => (p.Txn, p.Fields)));
 		HolderName = parsed.Where(p => p.Txn.Amount < 0).Select(p => p.Fields.DebtorName).OfType<string>()
 			.Where(n => !string.IsNullOrWhiteSpace(n))
 			.GroupBy(Norm, StringComparer.Ordinal).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault() ?? "";
@@ -118,6 +129,7 @@ public sealed partial class Analysis
 	private Analysis(AnalysisState state)
 	{
 		_today = state.Today;
+		_incoming = IncomingEvidence.None;
 		Items = state.Items;
 		CategoryList = state.Categories;
 		_categories = state.Categories.ToDictionary(c => c.Id.Value, StringComparer.Ordinal);
@@ -204,6 +216,16 @@ public sealed partial class Analysis
 		?? new(month, 0, 0, 0, 0, new Dictionary<string, decimal>(StringComparer.Ordinal));
 
 	/// <summary>
+	/// Gets the payments a figure of a month adds up, newest first. Their amounts sum exactly to the figure in
+	/// <see cref="MonthData"/>.
+	/// </summary>
+	/// <param name="month">The month, as <c>yyyy-MM</c>.</param>
+	/// <param name="figure">The figure.</param>
+	/// <returns>The payments behind the figure; empty when there are none.</returns>
+	public IReadOnlyList<TxnInfo> Behind(string month, MonthFigure figure) =>
+		[.. Items.Where(i => string.Equals(i.Month, month, StringComparison.Ordinal) && IsBehind(i, figure))];
+
+	/// <summary>
 	/// Gets a category by id.
 	/// </summary>
 	/// <param name="id">The category id.</param>
@@ -274,7 +296,7 @@ public sealed partial class Analysis
 		var kind = DetectKind(txn, fields);
 		var (key, name) = Identify(txn, fields, kind);
 		var tokens = Tokens(name);
-		var automatic = AutomaticCategory(txn, kind, name);
+		var automatic = AutomaticCategory(txn, fields, kind, name);
 		if (user.PayeeNames.TryGetValue(key, out var chosenName))
 		{
 			name = chosenName;
@@ -299,7 +321,7 @@ public sealed partial class Analysis
 		else
 		{
 			// Categories the bank code makes certain (loan, own transfer, fee…) need no confirmation.
-			(categoryId, confirmed) = (automatic, IsBankCertain(kind));
+			(categoryId, confirmed) = (automatic, IsBankCertain(kind, txn, fields));
 		}
 
 		var category = Cat(categoryId);
@@ -355,7 +377,7 @@ public sealed partial class Analysis
 			(_, _, true) when own => Kind.OwnTransferOut,
 			(_, _, false) when own => Kind.OwnTransferIn,
 			(_, _, true) when fields.Code is "ICDT" or "IRCT" or "ICCN" or "RCDT" or "RRCT" => Kind.Transfer,
-			(_, _, false) => Kind.Income,
+			(_, _, false) => IncomingKind(txn, fields),
 			_ => Kind.Other,
 		};
 		if (fields.Code is null && debit)
@@ -374,6 +396,38 @@ public sealed partial class Analysis
 	}
 
 	/// <summary>
+	/// Tells what money in is when no bank code decides it and it is no own transfer. In this order: a loan-domain
+	/// code is a loan payout; refund words are a refund (refund evidence wins over loan words, so "refus prêt" is a
+	/// refund); loan words, or a payer the account repays a loan to, are a loan payout; payroll markers are income
+	/// (salary); a payer the account paid before, at least as much as the credit, is a refund; everything else is
+	/// income.
+	/// </summary>
+	private Kind IncomingKind(Txn txn, BankFields fields)
+	{
+		if (string.Equals(txn.BankCode, LoanDomain, StringComparison.OrdinalIgnoreCase))
+		{
+			return Kind.LoanReceived;
+		}
+
+		if (RefundWords().IsMatch(txn.Description))
+		{
+			return Kind.Refund;
+		}
+
+		if (LoanWords().IsMatch(txn.Description) || _incoming.RepaysLoan(fields))
+		{
+			return Kind.LoanReceived;
+		}
+
+		if (HasPayrollMarker(txn.Description))
+		{
+			return Kind.Income;
+		}
+
+		return _incoming.PaidBefore(fields, txn.Date, txn.Amount) ? Kind.Refund : Kind.Income;
+	}
+
+	/// <summary>
 	/// Builds the payee series key and display name. Card payments are grouped by shop name, direct debits by
 	/// creditor and mandate, loans by reference, transfers by IBAN.
 	/// </summary>
@@ -384,8 +438,10 @@ public sealed partial class Analysis
 		var description = txn.Description;
 		switch (kind)
 		{
-			case Kind.Card or Kind.Refund:
+			case Kind.Card:
+			case Kind.Refund when fields.Code is "CCRD":
 			{
+				// Only card refunds share the shop's series; any other refund keeps its payer's FROM: key.
 				var shop = Merchant(description.Length > 0 ? description : txn.Counterparty);
 				return ("CARD:" + string.Join(' ', Tokens(shop).Take(3).DefaultIfEmpty(Norm(shop))), shop);
 			}
@@ -421,7 +477,8 @@ public sealed partial class Analysis
 				return ("CASHOUT", "Cash withdrawal");
 			case Kind.CashDeposit:
 				return ("CASHIN", "Cash deposit");
-			case Kind.LoanReceived:
+			case Kind.LoanReceived when fields.SubCode is "CAJT" || string.Equals(txn.BankCode, LoanDomain, StringComparison.OrdinalIgnoreCase):
+				// Only bank-certain payouts share one key; suggested ones stay with their lender's FROM: key.
 				return ("LOANIN", "Loan received");
 			default:
 			{
@@ -437,7 +494,7 @@ public sealed partial class Analysis
 	/// For card payments only the shop name is searched, because card descriptions contain words such as
 	/// "Google Pay" or "KBC" that would match unrelated keywords.
 	/// </summary>
-	private string AutomaticCategory(Txn txn, Kind kind, string name) => kind switch
+	private string AutomaticCategory(Txn txn, BankFields fields, Kind kind, string name) => kind switch
 	{
 		Kind.Loan => "loan",
 		Kind.SavingsPlan or Kind.SpareChange => "savings",
@@ -445,17 +502,46 @@ public sealed partial class Analysis
 		Kind.OwnTransferOut or Kind.OwnTransferIn or Kind.CashDeposit => "own-transfers",
 		Kind.LoanReceived => CategoryId.LoanReceived.Value,
 		Kind.CashWithdrawal => "cash",
-		Kind.Income => KeywordCategory(name, CategoryType.Income) ?? "income",
+		Kind.Income => IncomeCategory(txn, fields, name),
 		Kind.Refund => "refunds",
 		_ => KeywordCategory(name, null) ?? (kind == Kind.Card ? null : KeywordCategory(txn.Description, null))
 			 ?? kind switch { Kind.DirectDebit => "bills", Kind.Transfer => "transfers", _ => "other" },
 	};
 
 	/// <summary>
-	/// Determines whether the bank code makes the category certain, so the user need not confirm it.
+	/// Chooses the category of money in that is neither a refund nor a loan payout: Salary for payroll markers in the
+	/// remittance, then a keyword of the payer's name, then Salary for a payer that credits about monthly (when the
+	/// Salary category exists), otherwise plain income. Salary is only a suggestion the user confirms.
 	/// </summary>
-	private static bool IsBankCertain(Kind kind) => kind is Kind.Loan or Kind.SavingsPlan or Kind.SpareChange or Kind.BankFee
-		or Kind.OwnTransferOut or Kind.OwnTransferIn or Kind.LoanReceived or Kind.CashDeposit or Kind.CashWithdrawal;
+	private string IncomeCategory(Txn txn, BankFields fields, string name)
+	{
+		var salaryExists = _categories.ContainsKey(SalaryId);
+		if (salaryExists && HasPayrollMarker(txn.Description))
+		{
+			return SalaryId;
+		}
+
+		return KeywordCategory(name, CategoryType.Income)
+			?? (salaryExists && _incoming.IsMonthlyPayer(fields, txn.Date) ? SalaryId : "income");
+	}
+
+	/// <summary>
+	/// Determines whether a remittance carries a payroll marker: a pay word, or both the employer and the employee
+	/// tokens that Belgian payroll transfers print.
+	/// </summary>
+	private static bool HasPayrollMarker(string description) =>
+		SalaryWords().IsMatch(description) || (EmployerWord().IsMatch(description) && EmployeeWord().IsMatch(description));
+
+	/// <summary>
+	/// Determines whether the bank code makes the category certain, so the user need not confirm it. A loan payout is
+	/// certain only by its bank code, not when only loan words or the payer suggest it.
+	/// </summary>
+	private static bool IsBankCertain(Kind kind, Txn txn, BankFields fields) => kind switch
+	{
+		Kind.LoanReceived => string.Equals(fields.SubCode, "CAJT", StringComparison.Ordinal) || string.Equals(txn.BankCode, LoanDomain, StringComparison.OrdinalIgnoreCase),
+		_ => kind is Kind.Loan or Kind.SavingsPlan or Kind.SpareChange or Kind.BankFee
+			or Kind.OwnTransferOut or Kind.OwnTransferIn or Kind.CashDeposit or Kind.CashWithdrawal,
+	};
 
 	/// <summary>
 	/// Finds the accepted fixed payment a transaction belongs to: by payee series first, then by all its shop words
@@ -684,7 +770,7 @@ public sealed partial class Analysis
 	{
 		var inMonth = Items.Where(i => string.Equals(i.Month, month, StringComparison.Ordinal)).ToList();
 		var spend = inMonth.Where(i => i.EffectiveType == CategoryType.Expense).ToList();
-		var earnings = inMonth.Where(i => i.IsIncome && !IsUnder(i.Category, RefundsId)).ToList();
+		var earnings = inMonth.Where(i => IsBehind(i, MonthFigure.Earnings)).ToList();
 		return new MonthSummary(month,
 			earnings.Sum(i => i.T.Amount),
 			spend.Where(i => i.Recurring is not null).Sum(i => -i.T.Amount),
@@ -692,9 +778,20 @@ public sealed partial class Analysis
 			inMonth.Where(i => i.IsSaving).Sum(i => -i.T.Amount),
 			spend.SelectMany(i => i.Parts).GroupBy(p => p.Category.Id.Value, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Sum(p => -p.Amount), StringComparer.Ordinal),
 			earnings.Where(i => IsUnder(i.Category, SalaryId)).Sum(i => i.T.Amount),
-			inMonth.Where(i => i.IsIncome && IsUnder(i.Category, RefundsId)).Sum(i => i.T.Amount),
-			inMonth.Where(i => !i.IsSplit && i.T.Amount > 0 && IsUnder(i.Category, CategoryId.LoanReceived.Value)).Sum(i => i.T.Amount));
+			inMonth.Where(i => IsBehind(i, MonthFigure.Refunds)).Sum(i => i.T.Amount),
+			inMonth.Where(i => IsBehind(i, MonthFigure.LoanReceived)).Sum(i => i.T.Amount));
 	}
+
+	/// <summary>
+	/// The one rule that says which payments a figure of the month adds up; the month summary and
+	/// <see cref="Behind"/> both use it, so a list of the payments always sums to its figure.
+	/// </summary>
+	private bool IsBehind(TxnInfo item, MonthFigure figure) => figure switch
+	{
+		MonthFigure.Earnings => item.IsIncome && !IsUnder(item.Category, RefundsId),
+		MonthFigure.Refunds => item.IsIncome && IsUnder(item.Category, RefundsId),
+		_ => !item.IsSplit && item.T.Amount > 0 && IsUnder(item.Category, CategoryId.LoanReceived.Value),
+	};
 
 	/// <summary>
 	/// Determines whether a category is the given one or lies below it in the category tree.
@@ -796,6 +893,39 @@ public sealed partial class Analysis
 	private static partial Regex CountryPostcode();
 
 	/// <summary>
+	/// Matches a refund word at the start of a word, in English, French and Dutch: REMB (also REMBOURSEMENT),
+	/// REFUND, TERUGBETALING, TERUGSTORTING, RETOUR and STORNO.
+	/// </summary>
+	[GeneratedRegex(@"(?<!\p{L})(?:REMB|REFUND|TERUGBETALING|TERUGSTORTING|RETOUR|STORNO)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
+	private static partial Regex RefundWords();
+
+	/// <summary>
+	/// Matches a loan word in English, French and Dutch: LOAN, LENING and KREDIET at the start of a word, PRET or
+	/// PRÊT as a whole word (so "pretty" never matches).
+	/// </summary>
+	[GeneratedRegex(@"(?<!\p{L})(?:LOAN|LENING|KREDIET|PR[ÊE]T(?!\p{L}))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
+	private static partial Regex LoanWords();
+
+	/// <summary>
+	/// Matches a pay word: SALARY, SALAIRE, WEDDE and PAYROLL at the start of a word, LOON and PAIE as whole words
+	/// (so "paiement" never matches).
+	/// </summary>
+	[GeneratedRegex(@"(?<!\p{L})(?:SALARY|SALAIRE|WEDDE|PAYROLL|LOON(?!\p{L})|PAIE(?!\p{L}))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
+	private static partial Regex SalaryWords();
+
+	/// <summary>
+	/// Matches the whole word EMPLOYER, printed in Belgian payroll transfers together with EMPLOYEE.
+	/// </summary>
+	[GeneratedRegex(@"(?<!\p{L})EMPLOYER(?!\p{L})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
+	private static partial Regex EmployerWord();
+
+	/// <summary>
+	/// Matches the whole word EMPLOYEE, printed in Belgian payroll transfers together with EMPLOYER.
+	/// </summary>
+	[GeneratedRegex(@"(?<!\p{L})EMPLOYEE(?!\p{L})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeoutMilliseconds)]
+	private static partial Regex EmployeeWord();
+
+	/// <summary>
 	/// Captures the mandate reference of a direct-debit description, in English, French and Dutch.
 	/// </summary>
 	[GeneratedRegex(@"(?:Direct debit|Domiciliation|Domiciliëring)\s+\d+\s+(?<mandate>\S+)", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture, RegexTimeoutMilliseconds)]
@@ -809,6 +939,137 @@ public sealed partial class Analysis
 	#endregion
 
 	#region Nested Types
+	/// <summary>
+	/// Author      : Gihed Annabi
+	/// Date        : 11-2026
+	/// Purpose     : What the whole history says about money in: which counterparties the account paid before (and
+	///              when first), which it repays a loan to, and on which dates each payer credited the account.
+	///              Counterparties are recognised by IBAN or by normalised name, whichever the bank sent.
+	/// </summary>
+	private sealed class IncomingEvidence
+	{
+		#region Static Instances
+		/// <summary>
+		/// Evidence of an empty history, for an analysis restored from computed state.
+		/// </summary>
+		public static readonly IncomingEvidence None = new([], [], []);
+		#endregion
+
+		#region Fields
+		private readonly Dictionary<string, List<(DateOnly Date, decimal Amount)>> _paid;
+		private readonly HashSet<string> _lenders;
+		private readonly Dictionary<string, List<DateOnly>> _creditDates;
+		#endregion
+
+		#region Constructors
+		/// <summary>
+		/// Initialises a new <see cref="IncomingEvidence"/>.
+		/// </summary>
+		private IncomingEvidence(Dictionary<string, List<(DateOnly Date, decimal Amount)>> paid, HashSet<string> lenders, Dictionary<string, List<DateOnly>> creditDates)
+		{
+			_paid = paid;
+			_lenders = lenders;
+			_creditDates = creditDates;
+		}
+		#endregion
+
+		#region Factory Methods
+		/// <summary>
+		/// Collects the evidence from the full history.
+		/// </summary>
+		/// <param name="parsed">Every transaction with its bank fields.</param>
+		/// <returns>The evidence.</returns>
+		public static IncomingEvidence From(IEnumerable<(Txn Txn, BankFields Fields)> parsed)
+		{
+			var paid = new Dictionary<string, List<(DateOnly Date, decimal Amount)>>(StringComparer.Ordinal);
+			var lenders = new HashSet<string>(StringComparer.Ordinal);
+			var creditDates = new Dictionary<string, List<DateOnly>>(StringComparer.Ordinal);
+			foreach (var (txn, fields) in parsed)
+			{
+				if (txn.Amount < 0)
+				{
+					var isLoan = string.Equals(fields.Code, "CSLN", StringComparison.Ordinal);
+					foreach (var key in Keys(fields.CreditorIban, fields.CreditorName))
+					{
+						if (!paid.TryGetValue(key, out var debits))
+						{
+							paid[key] = debits = [];
+						}
+
+						debits.Add((txn.Date, -txn.Amount));
+						if (isLoan)
+						{
+							lenders.Add(key);
+						}
+					}
+				}
+				else if (Keys(fields.DebtorIban, fields.DebtorName).FirstOrDefault() is { } payer)
+				{
+					if (!creditDates.TryGetValue(payer, out var dates))
+					{
+						creditDates[payer] = dates = [];
+					}
+
+					dates.Add(txn.Date);
+				}
+			}
+
+			return new IncomingEvidence(paid, lenders, creditDates);
+		}
+		#endregion
+
+		#region Public Methods
+		/// <summary>
+		/// Determines whether a credit can be money the payer gives back: the account paid the payer on or before the
+		/// credit's date, and at least as much as the credit (a payer who pays more than the account ever paid it is no
+		/// refund).
+		/// </summary>
+		/// <param name="credit">The bank fields of the credit.</param>
+		/// <param name="date">The credit's date.</param>
+		/// <param name="amount">The credit's amount, positive.</param>
+		/// <returns><see langword="true"/> when an earlier debit to the same IBAN or name was at least that amount.</returns>
+		public bool PaidBefore(BankFields credit, DateOnly date, decimal amount) =>
+			Keys(credit.DebtorIban, credit.DebtorName).Any(k => _paid.TryGetValue(k, out var debits)
+				&& debits.Exists(d => d.Date <= date && d.Amount >= amount));
+
+		/// <summary>
+		/// Determines whether the account repays a loan (<c>CSLN</c> debit) to the payer of a credit.
+		/// </summary>
+		/// <param name="credit">The bank fields of the credit.</param>
+		/// <returns><see langword="true"/> when a loan instalment went to the same IBAN or name.</returns>
+		public bool RepaysLoan(BankFields credit) => Keys(credit.DebtorIban, credit.DebtorName).Any(_lenders.Contains);
+
+		/// <summary>
+		/// Determines whether the payer of a credit credited the account another time 26 to 35 days before or after.
+		/// </summary>
+		/// <param name="credit">The bank fields of the credit.</param>
+		/// <param name="date">The credit's date.</param>
+		/// <returns><see langword="true"/> when the payer pays about monthly.</returns>
+		public bool IsMonthlyPayer(BankFields credit, DateOnly date) =>
+			Keys(credit.DebtorIban, credit.DebtorName).FirstOrDefault() is { } payer
+			&& _creditDates.TryGetValue(payer, out var dates)
+			&& dates.Exists(d => Math.Abs(d.DayNumber - date.DayNumber) is >= MonthlyMinimumDays and <= MonthlyMaximumDays);
+		#endregion
+
+		#region Private Helpers
+		/// <summary>
+		/// Lists the keys that identify a counterparty: its IBAN first, then its normalised name.
+		/// </summary>
+		private static IEnumerable<string> Keys(string? iban, string? name)
+		{
+			if (iban is not null)
+			{
+				yield return "IBAN:" + iban;
+			}
+
+			if (!string.IsNullOrWhiteSpace(name))
+			{
+				yield return "NAME:" + Norm(name);
+			}
+		}
+		#endregion
+	}
+
 	/// <summary>
 	/// Author      : Gihed Annabi
 	/// Date        : 11-2026

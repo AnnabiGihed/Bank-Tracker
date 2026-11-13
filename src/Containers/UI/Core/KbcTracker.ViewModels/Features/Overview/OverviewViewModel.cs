@@ -48,7 +48,7 @@ public sealed class OverviewViewModel
 		Attention = analysis.Suggestions.Count > 0 || analysis.Review.Count > 0 ? new AttentionNotice(analysis.Suggestions.Count, analysis.Review.Count) : null;
 		Kpis =
 		[
-			new("income", "Income", formats.Money(current.Income), EarningsBreakdown(current, formats)),
+			new("income", "Income", formats.Money(current.Income), EarningsBreakdown(current, formats), MonthFigure.Earnings),
 			new("spent", "Spent", formats.Money(current.Spent), $"fixed {formats.WholeMoney(current.Fixed)} · variable {formats.WholeMoney(current.Variable)}"),
 			new("fixed", "Fixed payments", formats.Money(current.Fixed), FixedPaymentsOutlook(open.Count, fixedRows.Count, open.Sum(x => x.Payment.Def.Amount), formats)),
 			new("saved", "Saved & invested", formats.Money(current.Saved), "plans, spare change…"),
@@ -142,12 +142,12 @@ public sealed class OverviewViewModel
 		var figures = new List<Kpi>();
 		if (month.Refunds != 0)
 		{
-			figures.Add(new("refunds", "Refunds", formats.Money(month.Refunds), "not counted in income or spending"));
+			figures.Add(new("refunds", "Refunds", formats.Money(month.Refunds), "not counted in income or spending", MonthFigure.Refunds));
 		}
 
 		if (month.LoanReceived != 0)
 		{
-			figures.Add(new("loan", "Loan received", formats.Money(month.LoanReceived), "not income"));
+			figures.Add(new("loan", "Loan received", formats.Money(month.LoanReceived), "not income", MonthFigure.LoanReceived));
 		}
 
 		return figures;

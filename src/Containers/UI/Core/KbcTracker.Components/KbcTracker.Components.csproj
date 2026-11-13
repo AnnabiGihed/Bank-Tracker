@@ -24,6 +24,7 @@
     <Using Include="KbcTracker.Application.Features.Workspace.Contracts" />
     <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Overview.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.Shared.Services" />
     <Using Include="KbcTracker.Shared.Features.Backend" />
     <Using Include="KbcTracker.ViewModels.Features.BankConnection" />

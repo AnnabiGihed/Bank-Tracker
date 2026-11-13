@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- On the Overview, the Income, Refunds and Loan received figures open Transactions with exactly the payments behind
+  the figure for that month (`?show=earnings|refunds|loan-received`), with a "Clear filter" button.
 - A built-in category Loan received (type Transfer) for loan payouts, which used to land in Own transfers. An
   existing database gets it with the next decision.
 - The Android app `KbcTracker.Mobile` (.NET MAUI Blazor Hybrid, `com.BankTracker.mobile`), built from the same
@@ -79,6 +81,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Money in is told apart better, as suggestions you confirm: payroll transfers (employer and employee markers, pay
+  words, or the same payer about every month) go to Salary; refund words or a credit from someone you paid before
+  go to Refunds; loan words or a credit from the lender you repay go to Loan received. Own transfers and your own
+  decisions still win.
 - The Overview's Income is earnings only (salary and other income). Refunds and Loan received are shown as their own
   figures when not zero and count in no total, so "Left over" is earnings − spent − saved. The month summary of
   the API gains `salary`, `refunds` and `loanReceived`.

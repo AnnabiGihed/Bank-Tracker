@@ -200,4 +200,28 @@ public sealed class TransactionsPageTests : UiTestContext
 		await host.WaitForAssertionAsync(() => Backend.LastDecisionBody.Should().Contain("\"split\"").And.Contain("\"t1\"").And.Contain("7.5"));
 	}
 	#endregion
+
+	#region Figure Filter Tests
+	/// <summary>Verifies a figure in the address limits the list to the payments behind it, names the filter, and that clearing it
+	/// opens the month without the figure.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Render_ShowInAddress_ListsThePaymentsBehindTheFigureAndCanBeCleared()
+	{
+		Serve(November());
+		var navigation = Services.GetRequiredService<NavigationManager>();
+		navigation.NavigateTo("/transactions?m=2026-11&show=earnings");
+
+		var page = Render<TransactionsPage>();
+
+		await page.WaitForAssertionAsync(() => page.Markup.Should().Contain("Acme Payroll"));
+		page.Markup.Should().NotContain("Shop One");
+		page.Find(".figure-filter").TextContent.Should().Contain("Showing Income of the month");
+		page.Find(".totals").TextContent.Should().Contain("1 transactions").And.Contain("Total in: " + Formats.Belgian.Money(2500m));
+
+		await page.Find(".figure-filter button").ClickAsync();
+
+		navigation.Uri.Should().EndWith("/transactions?m=2026-11");
+	}
+	#endregion
 }

@@ -80,9 +80,10 @@ internal static class BankJson
 	/// <param name="debtor">The payer's name.</param>
 	/// <param name="remittance">The remittance text.</param>
 	/// <param name="subCode">The ISO sub code; <c>ESCT</c> for a transfer, <c>CAJT</c> for a loan payout.</param>
+	/// <param name="debtorIban">The payer's IBAN, or <see langword="null"/> when the bank sends none.</param>
 	/// <returns>The mapped transaction.</returns>
-	public static Txn TransferIn(string date, decimal amount, string debtor, string remittance, string subCode = "ESCT") =>
-		Map(date, amount, "CRDT", "RCDT", subCode, creditor: Holder, debtor: debtor, creditorIban: null, remittance);
+	public static Txn TransferIn(string date, decimal amount, string debtor, string remittance, string subCode = "ESCT", string? debtorIban = null) =>
+		Map(date, amount, "CRDT", "RCDT", subCode, creditor: Holder, debtor: debtor, creditorIban: null, remittance, debtorIban);
 	#endregion
 
 	#region Private Helpers
@@ -96,7 +97,7 @@ internal static class BankJson
 	/// Builds the Enable Banking JSON with the fields KBC fills in, and the transaction the mapper makes of it.
 	/// </summary>
 	private static Txn Map(string date, decimal amount, string indicator, string code, string subCode,
-		string? creditor, string? debtor, string? creditorIban, string remittance)
+		string? creditor, string? debtor, string? creditorIban, string remittance, string? debtorIban = null)
 	{
 		var json = new JsonObject
 		{
@@ -105,6 +106,7 @@ internal static class BankJson
 			["creditor"] = creditor is null ? null : new JsonObject { ["name"] = creditor },
 			["creditor_account"] = creditorIban is null ? null : new JsonObject { ["iban"] = creditorIban },
 			["debtor"] = debtor is null ? null : new JsonObject { ["name"] = debtor },
+			["debtor_account"] = debtorIban is null ? null : new JsonObject { ["iban"] = debtorIban },
 			["bank_transaction_code"] = new JsonObject { ["description"] = "PMNT", ["code"] = code, ["sub_code"] = subCode },
 			["credit_debit_indicator"] = indicator,
 			["status"] = "BOOK",

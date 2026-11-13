@@ -23,14 +23,26 @@ else if (_view is not null)
 			</ul>
 		</div>
 	}
-	<section class="kpis" aria-label="Key figures">
-		@foreach (var kpi in _view.Kpis)
+	RenderFragment<Kpi> figureCard = kpi => @<RadzenCard class="@("kpi kpi-" + kpi.Key)">
+		@if (kpi.Figure is { } figure)
 		{
-			<RadzenCard class="@("kpi kpi-" + kpi.Key)">
+			<a class="kpi-link" href="@TabRoutes.TransactionsBehind(Month, figure)" aria-label="@($"{kpi.Label} {kpi.Value}: show the payments behind it")">
 				<div class="label">@kpi.Label</div>
 				<div class="value">@kpi.Value</div>
 				<div class="sub">@kpi.Sub</div>
-			</RadzenCard>
+			</a>
+		}
+		else
+		{
+			<div class="label">@kpi.Label</div>
+			<div class="value">@kpi.Value</div>
+			<div class="sub">@kpi.Sub</div>
+		}
+	</RadzenCard>;
+	<section class="kpis" aria-label="Key figures">
+		@foreach (var kpi in _view.Kpis)
+		{
+			@figureCard(kpi)
 		}
 	</section>
 	@if (_view.AsideFigures.Count > 0)
@@ -38,11 +50,7 @@ else if (_view is not null)
 		<section class="kpis" aria-label="Not counted in the totals">
 			@foreach (var kpi in _view.AsideFigures)
 			{
-				<RadzenCard class="@("kpi kpi-" + kpi.Key)">
-					<div class="label">@kpi.Label</div>
-					<div class="value">@kpi.Value</div>
-					<div class="sub">@kpi.Sub</div>
-				</RadzenCard>
+				@figureCard(kpi)
 			}
 		</section>
 	}

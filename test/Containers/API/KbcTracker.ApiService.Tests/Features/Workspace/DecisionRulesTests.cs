@@ -80,7 +80,7 @@ public sealed class DecisionRulesTests(ApiFixture fixture) : IClassFixture<ApiFi
 			await AddCategoryIfMissingAsync(db, "cash", CategoryType.Expense).ConfigureAwait(false);
 			await AddCategoryIfMissingAsync(db, "income", CategoryType.Income).ConfigureAwait(false);
 			await AddTransactionIfMissingAsync(db, "rules-a", -12.50m).ConfigureAwait(false);
-			await AddTransactionIfMissingAsync(db, "rules-income", 2500m).ConfigureAwait(false);
+			await AddTransactionIfMissingAsync(db, "rules-income", 2500m, "Rules Employer").ConfigureAwait(false);
 		}).ConfigureAwait(false);
 	}
 
@@ -258,12 +258,12 @@ public sealed class DecisionRulesTests(ApiFixture fixture) : IClassFixture<ApiFi
 	}
 
 	/// <summary>Adds a payment of the test account unless an earlier test already did.</summary>
-	private static async Task AddTransactionIfMissingAsync(KbcTrackerDbContext db, string id, decimal amount)
+	private static async Task AddTransactionIfMissingAsync(KbcTrackerDbContext db, string id, decimal amount, string counterparty = "Rules Shop")
 	{
 		if (!await db.Transactions.AnyAsync(t => t.Id == new TxnId(id)).ConfigureAwait(false))
 		{
 			db.Transactions.Add(Txn.Rehydrate(new TxnId(id), "current", new DateOnly(2026, 10, 3), Money.Rehydrate(amount, "EUR"),
-				Counterparty.Rehydrate("Rules Shop", null), "Payment", BankRecord.None));
+				Counterparty.Rehydrate(counterparty, null), "Payment", BankRecord.None));
 		}
 	}
 	#endregion
