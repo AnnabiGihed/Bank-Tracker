@@ -27,9 +27,11 @@
     <Using Include="KbcTracker.Components.Features.BankConnection" />
     <Using Include="KbcTracker.Components.Features.Categories" />
     <Using Include="KbcTracker.Components.Features.FixedPayments" />
+    <Using Include="KbcTracker.Components.Features.Income" />
     <Using Include="KbcTracker.Components.Features.Overview" />
     <Using Include="KbcTracker.Components.Features.Review" />
     <Using Include="KbcTracker.Components.Features.Settings" />
+    <Using Include="KbcTracker.Components.Features.Subscriptions" />
     <Using Include="KbcTracker.Components.Features.Shared" />
     <Using Include="KbcTracker.Components.Features.Shared.Layout" />
     <Using Include="KbcTracker.Components.Features.Shared.Pickers" />
@@ -50,9 +52,11 @@
     <Using Include="KbcTracker.ViewModels.Features.BankConnection" />
     <Using Include="KbcTracker.ViewModels.Features.Categories" />
     <Using Include="KbcTracker.ViewModels.Features.FixedPayments" />
+    <Using Include="KbcTracker.ViewModels.Features.Income" />
     <Using Include="KbcTracker.ViewModels.Features.Overview" />
     <Using Include="KbcTracker.ViewModels.Features.Review" />
     <Using Include="KbcTracker.ViewModels.Features.Settings" />
+    <Using Include="KbcTracker.ViewModels.Features.Subscriptions" />
     <Using Include="KbcTracker.ViewModels.Features.Shared" />
     <Using Include="KbcTracker.ViewModels.Features.Transactions" />
     <Using Include="KbcTracker.ViewModels.Tests.Features.Shared" />

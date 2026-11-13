@@ -19,8 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- On the Overview, the Income, Refunds and Loan received figures open Transactions with exactly the payments behind
-  the figure for that month (`?show=earnings|refunds|loan-received`), with a "Clear filter" button.
+- An Income tab (`/income?m=yyyy-MM`) with the month's earnings (salary and other income), refunds and loan money
+  received, each with its payments and a category picker and confirm button, plus the earnings of the last 12 months and
+  the earnings by payer. The Overview's Income, Refunds and Loan received figures open it on their section
+  (`?show=earnings|refunds|loan-received`); the Transactions tab no longer has that filter.
+- A Subscriptions tab (`/subscriptions`) for recurring payments made by card that repeat monthly or yearly, with
+  suggestions to accept, cost per month and per year, last and next charge and status. They leave the Fixed payments
+  tab but still count as fixed payments in every total.
 - A built-in category Loan received (type Transfer) for loan payouts, which used to land in Own transfers. An
   existing database gets it with the next decision.
 - The Android app `KbcTracker.Mobile` (.NET MAUI Blazor Hybrid, `com.BankTracker.mobile`), built from the same

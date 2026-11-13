@@ -117,16 +117,62 @@ public sealed class OverviewViewModelTests
 
 		if (analysis.Suggestions.Count > 0 || analysis.Review.Count > 0)
 		{
-			overview.Attention.Should().Be(new AttentionNotice(analysis.Suggestions.Count, analysis.Review.Count));
+			overview.Attention.Should().Be(new AttentionNotice(new WaitingSuggestions(analysis.Suggestions.Count(s => !s.IsSubscription),
+				analysis.Suggestions.Count(s => s.IsSubscription)), analysis.Review.Count));
 		}
 		else
 		{
 			overview.Attention.Should().BeNull();
 		}
 
-		new AttentionNotice(0, 2).SuggestionText.Should().BeNull();
-		new AttentionNotice(0, 2).ReviewText.Should().Be("2 payee(s) with an automatic category to confirm.");
-		new AttentionNotice(3, 0).SuggestionText.Should().Be("3 possible fixed payment(s) found.");
+		new AttentionNotice(new WaitingSuggestions(0, 0), 2).SuggestionText.Should().BeNull();
+		new AttentionNotice(new WaitingSuggestions(0, 0), 2).ReviewText.Should().Be("2 payee(s) with an automatic category to confirm.");
+		new AttentionNotice(new WaitingSuggestions(3, 0), 0).SuggestionText.Should().Be("3 fixed payments waiting");
+	}
+
+	/// <summary>Verifies the waiting suggestions count fixed payments and subscriptions apart, say so in words and link to each tab that has any.</summary>
+	[Fact]
+	public void Waiting_FixedAndSubscriptions_CountedApartWithALinkToEach()
+	{
+		var analysis = TestWorkspace.Analyse(
+		[
+			.. Enumerable.Range(0, 4).Select(m => TestWorkspace.Payment($"g{m}", new DateOnly(2026, 7 + m, 5), -30m, "Gym Club")),
+			.. Enumerable.Range(0, 4).Select(m => TestWorkspace.Payment($"b{m}", new DateOnly(2026, 7 + m, 5), -20m, "Book Club")),
+			.. Enumerable.Range(0, 4).Select(m => TestWorkspace.Payment($"r{m}", new DateOnly(2026, 7 + m, 3), -940m, "Landlord", "Rent")),
+		]);
+
+		var overview = new OverviewViewModel(analysis, "2026-10", null, Formats.Belgian, TestWorkspace.Today);
+
+		overview.Waiting.FixedCount.Should().Be(analysis.Suggestions.Count(s => !s.IsSubscription)).And.BeGreaterThan(0);
+		overview.Waiting.SubscriptionCount.Should().Be(analysis.Suggestions.Count(s => s.IsSubscription)).And.BeGreaterThan(0);
+		overview.Waiting.Links.Select(l => l.TabId).Should().Equal("fixed", "subscriptions");
+		overview.Waiting.Text.Should().Contain(" and ").And.EndWith(" waiting");
+		overview.Attention!.Suggestions.Should().Be(overview.Waiting);
+	}
+
+	/// <summary>Verifies the words use the singular for one and name only the tab that has suggestions.</summary>
+	[Fact]
+	public void WaitingSuggestions_OneOfEach_SingularWordsAndOnlyTabsWithAny()
+	{
+		new WaitingSuggestions(1, 1).Text.Should().Be("1 fixed payment and 1 subscription waiting");
+		new WaitingSuggestions(2, 0).Links.Should().ContainSingle().Which.CheckText.Should().Be("Check fixed payments");
+		new WaitingSuggestions(0, 3).Links.Should().ContainSingle().Which.Should().Be(new SuggestionLink("subscriptions", "3 subscriptions", "Check subscriptions"));
+		new WaitingSuggestions(0, 0).Text.Should().BeNull();
+		new WaitingSuggestions(0, 0).Links.Should().BeEmpty();
+		WaitingSuggestions.WaitingWord.Should().Be("waiting");
+	}
+
+	/// <summary>Verifies the plural counts, the "and" join and the link order, fixed payments first.</summary>
+	[Fact]
+	public void WaitingSuggestions_PluralOfBoth_JoinedWithAndInOrder()
+	{
+		var waiting = new WaitingSuggestions(2, 3);
+
+		waiting.Total.Should().Be(5);
+		waiting.Text.Should().Be("2 fixed payments and 3 subscriptions waiting");
+		waiting.Links.Select(l => l.TabId).Should().Equal("fixed", "subscriptions");
+		new WaitingSuggestions(1, 0).Text.Should().Be("1 fixed payment waiting");
+		new WaitingSuggestions(0, 1).Text.Should().Be("1 subscription waiting");
 	}
 	#endregion
 
@@ -249,11 +295,11 @@ public sealed class OverviewViewModelTests
 		var two = new OverviewViewModel(Monthly("Gym Club", "Book Club"), "2026-10", null, Formats.Belgian, TestWorkspace.Today);
 
 		none.NoFixedPaymentsText.Should().Be("No confirmed fixed payments yet.");
-		none.SuggestionsWaitingText.Should().BeNull();
-		one.SuggestionsWaiting.Should().Be(1);
+		none.Waiting.Text.Should().BeNull();
+		one.Waiting.Total.Should().Be(1);
 		one.NoFixedPaymentsText.Should().Be("No confirmed fixed payments yet —");
-		one.SuggestionsWaitingText.Should().Be("1 suggestion waiting");
-		two.SuggestionsWaitingText.Should().Be("2 suggestions waiting");
+		one.Waiting.Text.Should().EndWith("waiting");
+		two.Waiting.Total.Should().Be(2);
 	}
 	#endregion
 }

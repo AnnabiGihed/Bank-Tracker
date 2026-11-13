@@ -3,7 +3,7 @@ namespace KbcTracker.Components.Features.Transactions;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
-/// Purpose     : The Transactions tab (<c>/transactions?m=&amp;cat=&amp;q=&amp;show=</c>): the month's transactions with filters (search,
+/// Purpose     : The Transactions tab (<c>/transactions?m=&amp;cat=&amp;q=</c>): the month's transactions with filters (search,
 ///              kind, category, not confirmed only), an inline category picker that sets the category of the whole payee
 ///              and offers "Only this one" as an undo, confirm, mark as fixed and the split dialog (ADR-0007). The filters
 ///              live in <see cref="TransactionsViewModel"/> and survive a reload after a decision.
@@ -26,11 +26,6 @@ public partial class TransactionsPage : TabPageBase
 	[SupplyParameterFromQuery(Name = "q")]
 	[Parameter]
 	public string? SearchQuery { get; set; }
-
-	/// <summary>Gets or sets the figure of the month to show the payments of, from the <c>show</c> query value (<c>earnings</c>, <c>refunds</c> or <c>loan-received</c>).</summary>
-	[SupplyParameterFromQuery(Name = "show")]
-	[Parameter]
-	public string? ShowQuery { get; set; }
 	#endregion
 
 	#region Fields
@@ -48,9 +43,6 @@ public partial class TransactionsPage : TabPageBase
 
 	/// <summary>The search query the filters were last set from.</summary>
 	private string? _appliedSearch;
-
-	/// <summary>The figure query the filters were last set from.</summary>
-	private string? _appliedFigure;
 	#endregion
 
 	#region Properties
@@ -84,8 +76,7 @@ public partial class TransactionsPage : TabPageBase
 		var fromAddress = previous is null || AddressChanged();
 		_appliedCategory = CategoryQuery;
 		_appliedSearch = SearchQuery;
-		_appliedFigure = ShowQuery;
-		var view = new TransactionsViewModel(analysis, Month, Formats, CategoryQuery, SearchQuery, MonthFigureNames.Parse(ShowQuery));
+		var view = new TransactionsViewModel(analysis, Month, Formats, CategoryQuery, SearchQuery);
 		if (!fromAddress && previous is not null)
 		{
 			view.Search = previous.Search;
@@ -101,9 +92,6 @@ public partial class TransactionsPage : TabPageBase
 	#endregion
 
 	#region Event Handlers
-	/// <summary>Leaves the figure filter by opening the month's transactions without it.</summary>
-	private void ClearFigure() => Navigation.NavigateTo(TabRoutes.Tab("transactions", Month));
-
 	/// <summary>Filters on the text the owner typed.</summary>
 	/// <param name="text">The search text.</param>
 	private void OnSearchChanged(string text)
@@ -153,7 +141,8 @@ public partial class TransactionsPage : TabPageBase
 		var response = await DecideAsync(row.ChangeCategoryRequest(categoryId));
 		if (response is not null)
 		{
-			OfferOnlyThisOne(row, categoryId, response.PreviousAssignment);
+			var categoryName = _categories.FirstOrDefault(c => string.Equals(c.Id, categoryId, StringComparison.Ordinal))?.Name ?? categoryId;
+			OfferOnlyThisOne(row.Name, categoryName, row.OnlyThisOneRequest(categoryId, response.PreviousAssignment));
 		}
 	}
 
@@ -175,42 +164,11 @@ public partial class TransactionsPage : TabPageBase
 	#region Private Helpers
 	/// <summary>Determines whether the address asks for other filters than the ones last applied.</summary>
 	private bool AddressChanged() => !string.Equals(_appliedCategory, CategoryQuery, StringComparison.Ordinal)
-		|| !string.Equals(_appliedSearch, SearchQuery, StringComparison.Ordinal)
-		|| !string.Equals(_appliedFigure, ShowQuery, StringComparison.Ordinal);
+		|| !string.Equals(_appliedSearch, SearchQuery, StringComparison.Ordinal);
 
 	/// <summary>Recalculates the rows that pass the filters.</summary>
 	private void ApplyFilters() => _rows = _view!.VisibleRows;
 
-	/// <summary>Shows a notification that says the category now applies to the whole payee and offers to keep it to this payment only.</summary>
-	private void OfferOnlyThisOne(TransactionRow row, string categoryId, PayeeAssignmentSnapshot? previous)
-	{
-		var categoryName = _categories.FirstOrDefault(c => string.Equals(c.Id, categoryId, StringComparison.Ordinal))?.Name ?? categoryId;
-		var request = row.OnlyThisOneRequest(categoryId, previous);
-		Notifications.Notify(new NotificationMessage
-		{
-			Severity = NotificationSeverity.Success,
-			Summary = $"“{categoryName}” set for all payments to {row.Name}",
-			DetailContent = _ => builder =>
-			{
-				builder.OpenComponent<OnlyThisOneNotice>(0);
-				builder.AddAttribute(1, nameof(OnlyThisOneNotice.Apply), () => ApplyOnlyThisOneAsync(request));
-				builder.CloseComponent();
-			},
-			Duration = 10000,
-		});
-	}
-
-	/// <summary>Sends the "only this one" decision. It does not use the page's lifetime: the notification outlives the page, and the owner's click must still count.</summary>
-	/// <param name="request">The decision that restores the payee and sets the category of this payment only.</param>
-	/// <returns>A task that completes when the decision was sent.</returns>
-	private async Task ApplyOnlyThisOneAsync(DecisionRequest request)
-	{
-		var result = await Store.DecideAsync(request, CancellationToken.None);
-		if (result.Problem is { } problem)
-		{
-			ProblemNotices.Report(Notifications, problem);
-		}
-	}
 	#endregion
 
 	#region Nested Types

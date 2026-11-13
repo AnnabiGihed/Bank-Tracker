@@ -75,6 +75,27 @@ public sealed class OverviewPageTests : UiTestContext
 		page.Find("div.notice a[href^='/review']").TextContent.Should().Contain("Review categories");
 	}
 
+	/// <summary>Verifies the notice and the fixed payments card count fixed payment and subscription suggestions and link to both tabs.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Render_FixedAndSubscriptionSuggestions_LinkToBothTabs()
+	{
+		Serve(TestWorkspace.Analyse(
+		[
+			.. Enumerable.Range(0, 4).Select(m => TestWorkspace.Payment($"g{m}", new DateOnly(2026, 7 + m, 5), -30m, "Gym Club")),
+			.. Enumerable.Range(0, 4).Select(m => TestWorkspace.Payment($"r{m}", new DateOnly(2026, 7 + m, 3), -940m, "Landlord", "Rent")),
+		]));
+
+		var page = Render<OverviewPage>();
+
+		await page.WaitForAssertionAsync(() => page.Find("div.notice").TextContent.Should().Contain("1 fixed payment and 1 subscription waiting"));
+		page.Find("div.notice a[href^='/fixed']").TextContent.Should().Contain("Check fixed payments");
+		page.Find("div.notice a[href^='/subscriptions']").TextContent.Should().Contain("Check subscriptions");
+		var card = page.FindAll(".tables > *").First(c => c.TextContent.Contains("No confirmed fixed payments yet", StringComparison.Ordinal));
+		card.QuerySelector("p a[href^='/fixed']")!.TextContent.Should().Be("1 fixed payment");
+		card.QuerySelector("p a[href^='/subscriptions']")!.TextContent.Should().Be("1 subscription");
+	}
+
 	/// <summary>Verifies the biggest expenses list the payment with its date and amount, and the chart has a table of the same numbers.</summary>
 	/// <returns>A task that completes when verified.</returns>
 	[Fact]
@@ -164,10 +185,10 @@ public sealed class OverviewPageTests : UiTestContext
 		var page = Render<OverviewPage>();
 
 		await page.WaitForAssertionAsync(() => page.FindAll("a.kpi-link").Should().HaveCount(3));
-		page.Find("section[aria-label='Key figures'] a.kpi-link").GetAttribute("href").Should().Be("/transactions?m=2026-11&show=earnings");
+		page.Find("section[aria-label='Key figures'] a.kpi-link").GetAttribute("href").Should().Be("/income?m=2026-11&show=earnings");
 		page.Find("section[aria-label='Key figures'] a.kpi-link").GetAttribute("aria-label").Should().Contain("Income").And.Contain("show the payments");
 		var aside = page.FindAll("section[aria-label='Not counted in the totals'] a.kpi-link").Select(a => a.GetAttribute("href")).ToList();
-		aside.Should().Equal("/transactions?m=2026-11&show=refunds", "/transactions?m=2026-11&show=loan-received");
+		aside.Should().Equal("/income?m=2026-11&show=refunds", "/income?m=2026-11&show=loan-received");
 		page.FindAll("section[aria-label='Key figures'] .kpi").Should().HaveCount(5);
 	}
 	#endregion

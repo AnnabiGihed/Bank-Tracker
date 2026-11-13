@@ -23,12 +23,12 @@ public sealed class FixedPaymentsPageTests : UiTestContext
 	], (user, first) => user.AcceptFixedPayment(RecurringPayment.Create(new RecurringPaymentId("rent"), "Rent", new CategoryId("bills"),
 		new PayeeMatch([TestWorkspace.SeriesKeyOf(first, "r1")], []), new RecurrenceRule(940m, 3m, 30), new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero)).Value));
 
-	/// <summary>Builds a streaming subscription of 13.99 euro paid on the 5th of three months in a row, which the analysis suggests as a fixed payment.</summary>
-	private static Analysis Subscription() => TestWorkspace.Analyse(
+	/// <summary>Builds a gym membership of 13.99 euro paid on the 5th of three months in a row, not by card, which the analysis suggests as a fixed payment (not as a subscription).</summary>
+	private static Analysis Membership() => TestWorkspace.Analyse(
 	[
-		TestWorkspace.Payment("s1", new DateOnly(2026, 8, 5), -13.99m, "Streamflix"),
-		TestWorkspace.Payment("s2", new DateOnly(2026, 9, 5), -13.99m, "Streamflix"),
-		TestWorkspace.Payment("s3", new DateOnly(2026, 10, 5), -13.99m, "Streamflix"),
+		TestWorkspace.Payment("s1", new DateOnly(2026, 8, 5), -13.99m, "Gym", "Membership"),
+		TestWorkspace.Payment("s2", new DateOnly(2026, 9, 5), -13.99m, "Gym", "Membership"),
+		TestWorkspace.Payment("s3", new DateOnly(2026, 10, 5), -13.99m, "Gym", "Membership"),
 	]);
 
 	/// <summary>Makes the backend accept decisions.</summary>
@@ -72,7 +72,7 @@ public sealed class FixedPaymentsPageTests : UiTestContext
 	[Fact]
 	public async Task Suggestion_Accepted_SendsAccept()
 	{
-		var analysis = Subscription();
+		var analysis = Membership();
 		analysis.Suggestions.Should().NotBeEmpty();
 		Serve(analysis);
 		AcceptDecisions();
@@ -81,7 +81,7 @@ public sealed class FixedPaymentsPageTests : UiTestContext
 
 		await page.WaitForAssertionAsync(() => page.Find("article[aria-label^='Suggestion']"));
 		var card = page.Find("article[aria-label^='Suggestion']").TextContent;
-		card.Should().Contain("Streamflix").And.Contain(Formats.Belgian.Money(13.99m)).And.Contain("monthly");
+		card.Should().Contain("Gym").And.Contain(Formats.Belgian.Money(13.99m)).And.Contain("monthly");
 		page.FindAll("article ul.chips li").Should().HaveCount(3);
 
 		await page.Find("button[aria-label^='Accept']").ClickAsync();
@@ -94,7 +94,7 @@ public sealed class FixedPaymentsPageTests : UiTestContext
 	[Fact]
 	public async Task Suggestion_Dismissed_SendsDismiss()
 	{
-		var analysis = Subscription();
+		var analysis = Membership();
 		Serve(analysis);
 		AcceptDecisions();
 		var page = Render<FixedPaymentsPage>();

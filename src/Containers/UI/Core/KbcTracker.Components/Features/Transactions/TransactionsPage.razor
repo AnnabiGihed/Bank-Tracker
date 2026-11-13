@@ -4,14 +4,6 @@
 <PageTitle>Transactions</PageTitle>
 @if (_view is not null)
 {
-	@if (_view.FigureText is { } figureText)
-	{
-		<div class="figure-filter" role="status">
-			<span>@figureText</span>
-			<RadzenButton Text="Clear filter" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
-				aria-label="Clear the figure filter and show all payments of the month" Click="@ClearFigure" />
-		</div>
-	}
 	<section class="filters" aria-label="Filters">
 		<RadzenTextBox Value="@_view.Search" Change="@OnSearchChanged" Immediate="true" Placeholder="Search name, text or amount…"
 			aria-label="Search transactions" class="search" />
@@ -74,7 +66,7 @@
 					<Template Context="row">
 						@if (row.Fixed == FixedMark.IsFixed)
 						{
-							<RadzenLink Path="@TabRoutes.Tab("fixed", Month)" Text="★" title="@($"Fixed payment: {row.FixedName}")"
+							<RadzenLink Path="@TabRoutes.Tab(row.FixedIsSubscription ? "subscriptions" : "fixed", Month)" Text="★" title="@($"Fixed payment: {row.FixedName}")"
 								aria-label="@($"Fixed payment: {row.FixedName}")" />
 						}
 						else if (row.Fixed == FixedMark.CanMark)

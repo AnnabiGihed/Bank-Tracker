@@ -23,6 +23,11 @@ public sealed record FixedRow(RecurringPayment Def, Category Category, IReadOnly
 	/// Gets the median day of the month it is paid on; 1 when no payment was matched yet.
 	/// </summary>
 	public int UsualDay => Payments.Count == 0 ? 1 : Payments.Select(p => p.T.Date.Day).Order().ElementAt(Payments.Count / 2);
+
+	/// <summary>
+	/// Gets a value indicating whether it is a subscription: paid by card only, monthly or yearly (see <see cref="SubscriptionRule"/>).
+	/// </summary>
+	public bool IsSubscription => SubscriptionRule.IsSubscription(Def.CadenceDays, Payments.ToList());
 	#endregion
 
 	#region Public Methods

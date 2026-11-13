@@ -35,7 +35,9 @@ public sealed class ShellViewModel
 		Tabs =
 		[
 			new("overview", "Overview", 0),
-			new("fixed", "Fixed payments", analysis.Suggestions.Count),
+			new("income", "Income", 0),
+			new("fixed", "Fixed payments", analysis.Suggestions.Count(s => !s.IsSubscription)),
+			new("subscriptions", "Subscriptions", analysis.Suggestions.Count(s => s.IsSubscription)),
 			new("transactions", "Transactions", 0),
 			new("review", "To review", analysis.Review.Count),
 			new("categories", "Categories", 0),

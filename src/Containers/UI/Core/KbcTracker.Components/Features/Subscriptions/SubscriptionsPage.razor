@@ -1,0 +1,96 @@
+@page "/subscriptions"
+@inherits TabPageBase
+
+<PageTitle>Subscriptions</PageTitle>
+@if (_view is not null)
+{
+	@if (_view.Suggestions.Count > 0)
+	{
+		<RadzenCard class="block">
+			<h2>Possible subscriptions — please check <span class="muted">accept to start tracking them</span></h2>
+			<div class="suggestions">
+				@foreach (var suggestion in _view.Suggestions)
+				{
+					<article class="suggestion" aria-label="@($"Suggestion: {suggestion.Name}")">
+						<header>
+							<strong>@suggestion.Name</strong>
+							@if (suggestion.IsMaybe)
+							{
+								<span class="maybe" title="Only 2 payments seen so far">maybe</span>
+							}
+						</header>
+						<div class="amount">@suggestion.AmountText <span class="muted">@suggestion.Rhythm</span></div>
+						<div class="muted">@suggestion.Reason · <CategoryTag Text="@suggestion.CategoryName" Color="@suggestion.CategoryColor" /></div>
+						<ul class="chips" aria-label="Payments seen">
+							@foreach (var chip in suggestion.Chips)
+							{
+								<li title="@chip.Tooltip">@chip.Text</li>
+							}
+						</ul>
+						<div class="buttons">
+							<RadzenButton Text="✓ Subscription" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small"
+								aria-label="@($"Accept {suggestion.Name} as a subscription")" Click="@(() => DecideAsync(suggestion.AcceptRequest))" />
+							<RadzenButton Text="✕ Not fixed" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+								aria-label="@($"{suggestion.Name} is not a fixed payment")" Click="@(() => DecideAsync(suggestion.DismissRequest))" />
+						</div>
+					</article>
+				}
+			</div>
+		</RadzenCard>
+	}
+
+	<RadzenCard class="block">
+		<dl class="summary">
+			<div><dt>Per month</dt><dd>@_view.PerMonthText</dd></div>
+			<div><dt>Per year</dt><dd>@_view.PerYearText</dd></div>
+			<div><dt>Subscriptions</dt><dd>@Formats.Number(_view.SubscriptionCount)</dd></div>
+		</dl>
+		<p class="muted">@SubscriptionsViewModel.FixedNote</p>
+	</RadzenCard>
+
+	<RadzenCard>
+		@if (_view.Rows.Count == 0)
+		{
+			<p class="muted">@SubscriptionsViewModel.EmptyMessage</p>
+		}
+		else
+		{
+			<RadzenDataGrid TItem="SubscriptionRow" Data="@_view.Rows" AllowSorting="false" AriaLabel="Subscriptions">
+				<Columns>
+					<RadzenDataGridColumn TItem="SubscriptionRow" Title="Subscription">
+						<Template Context="row"><strong>@row.Name</strong></Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="SubscriptionRow" Title="Category">
+						<Template Context="row"><CategoryTag Text="@row.CategoryName" Color="@row.CategoryColor" /></Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="SubscriptionRow" Title="Amount" TextAlign="TextAlign.Right">
+						<Template Context="row">@row.AmountText <span class="muted">@row.Rhythm.ToLowerInvariant()</span></Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="SubscriptionRow" Title="Per month" TextAlign="TextAlign.Right">
+						<Template Context="row">@row.PerMonthText</Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="SubscriptionRow" Title="Per year" TextAlign="TextAlign.Right">
+						<Template Context="row">@row.PerYearText</Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="SubscriptionRow" Title="Last charge">
+						<Template Context="row">@row.LastChargeText</Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="SubscriptionRow" Title="Next expected">
+						<Template Context="row">@row.NextExpectedText</Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="SubscriptionRow" Title="This month">
+						<Template Context="row"><StatusPill Pill="@row.Status" /></Template>
+					</RadzenDataGridColumn>
+					<RadzenDataGridColumn TItem="SubscriptionRow" Title="Actions" Width="120px">
+						<Template Context="row">
+							<RadzenButton Text="✎" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small" title="Edit"
+								aria-label="@($"Edit {row.Name}")" Click="@(() => EditAsync(row))" />
+							<RadzenButton Text="✕" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Size="ButtonSize.Small" title="Stop tracking"
+								aria-label="@($"Stop tracking {row.Name}")" Click="@(() => StopAsync(row))" />
+						</Template>
+					</RadzenDataGridColumn>
+				</Columns>
+			</RadzenDataGrid>
+		}
+	</RadzenCard>
+}

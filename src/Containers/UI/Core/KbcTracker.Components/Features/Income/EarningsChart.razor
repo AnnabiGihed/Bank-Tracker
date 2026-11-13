@@ -1,0 +1,23 @@
+<figure class="figure" aria-label="Earnings of the last months">
+	<RadzenChart class="chart">
+		<RadzenColumnSeries Data="@Points" CategoryProperty="Label" ValueProperty="Earnings" Title="Earnings" Fill="var(--kt-inc)" />
+		<RadzenCategoryAxis />
+		<RadzenValueAxis Formatter="@FormatAxis" />
+		<RadzenLegend Visible="false" />
+	</RadzenChart>
+	<table class="sr-only">
+		<caption>Earnings of the last months in numbers</caption>
+		<thead>
+			<tr><th scope="col">Month</th><th scope="col">Earnings</th></tr>
+		</thead>
+		<tbody>
+			@foreach (var point in Points)
+			{
+				<tr>
+					<th scope="row">@point.Label</th>
+					<td>@Format(point.Earnings)</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+</figure>

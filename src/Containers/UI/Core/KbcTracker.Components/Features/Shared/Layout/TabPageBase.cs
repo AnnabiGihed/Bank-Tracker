@@ -115,6 +115,26 @@ public abstract class TabPageBase : ComponentBase, IDisposable
 			return null;
 		}
 	}
+
+	/// <summary>Shows a notification that says the category now applies to the whole payee and offers to keep it to one payment only.</summary>
+	/// <param name="payeeName">The payee's name, for the message.</param>
+	/// <param name="categoryName">The name of the category the payee was given.</param>
+	/// <param name="onlyThisOne">The decision that restores the payee and sets the category of this payment only.</param>
+	protected void OfferOnlyThisOne(string payeeName, string categoryName, DecisionRequest onlyThisOne)
+	{
+		Notifications.Notify(new NotificationMessage
+		{
+			Severity = NotificationSeverity.Success,
+			Summary = $"“{categoryName}” set for all payments to {payeeName}",
+			DetailContent = _ => builder =>
+			{
+				builder.OpenComponent<OnlyThisOneNotice>(0);
+				builder.AddAttribute(1, nameof(OnlyThisOneNotice.Apply), () => ApplyOnlyThisOneAsync(onlyThisOne));
+				builder.CloseComponent();
+			},
+			Duration = 10000,
+		});
+	}
 	#endregion
 
 	#region IDisposable Implementation
@@ -142,6 +162,18 @@ public abstract class TabPageBase : ComponentBase, IDisposable
 	#endregion
 
 	#region Private Helpers
+	/// <summary>Sends the "only this one" decision. It does not use the page's lifetime: the notification outlives the page, and the owner's click must still count.</summary>
+	/// <param name="request">The decision that restores the payee and sets the category of this payment only.</param>
+	/// <returns>A task that completes when the decision was sent.</returns>
+	private async Task ApplyOnlyThisOneAsync(DecisionRequest request)
+	{
+		var result = await Store.DecideAsync(request, CancellationToken.None);
+		if (result.Problem is { } problem)
+		{
+			ProblemNotices.Report(Notifications, problem);
+		}
+	}
+
 	/// <summary>Rebuilds and re-renders on the renderer's thread after the store changed.</summary>
 	private void OnStoreChanged(object? sender, EventArgs e)
 	{

@@ -1,10 +1,10 @@
-namespace KbcTracker.ViewModels.Features.Transactions;
+namespace KbcTracker.ViewModels.Features.Income;
 
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
-/// Purpose     : The words a <see cref="MonthFigure"/> goes by: its value in the <c>show</c> query of the Transactions
-///              tab (<c>earnings</c>, <c>refunds</c>, <c>loan-received</c>) and the label shown for the active filter.
+/// Purpose     : The words a <see cref="MonthFigure"/> goes by: its value in the <c>show</c> query of the Income
+///              tab (<c>earnings</c>, <c>refunds</c>, <c>loan-received</c>) and the section title shown for it.
 /// </summary>
 public static class MonthFigureNames
 {
@@ -31,7 +31,7 @@ public static class MonthFigureNames
 		_ => null,
 	};
 
-	/// <summary>Gets the label of a figure, as the Overview names it.</summary>
+	/// <summary>Gets the label of a figure, as the Overview names it and the Income tab titles its section.</summary>
 	/// <param name="figure">The figure.</param>
 	/// <returns>The label.</returns>
 	public static string Label(MonthFigure figure) => figure switch

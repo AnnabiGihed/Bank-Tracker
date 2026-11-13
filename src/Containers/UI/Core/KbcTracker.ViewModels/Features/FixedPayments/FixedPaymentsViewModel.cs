@@ -4,15 +4,12 @@ namespace KbcTracker.ViewModels.Features.FixedPayments;
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : What the Fixed payments tab shows: the suggestions to accept or dismiss, the month's expected, paid
-///              and still-to-come totals, and the accepted fixed payments with their status. Computed as the old page did.
+///              and still-to-come totals, and the accepted fixed payments with their status. Subscriptions (card payments
+///              repeating monthly or yearly, see <see cref="SubscriptionRule"/>) are left to the Subscriptions tab; the
+///              totals here are those of the other fixed payments, and the Overview's figure still counts both.
 /// </summary>
 public sealed class FixedPaymentsViewModel
 {
-	#region Constants
-	/// <summary>How many of a suggestion's payments are shown as chips.</summary>
-	private const int ChipCount = 6;
-	#endregion
-
 	#region Constructors
 	/// <summary>Initialises a new <see cref="FixedPaymentsViewModel"/>.</summary>
 	/// <param name="analysis">The analysis of all stored data.</param>
@@ -26,13 +23,14 @@ public sealed class FixedPaymentsViewModel
 		ArgumentNullException.ThrowIfNull(month);
 		ArgumentNullException.ThrowIfNull(formats);
 		MonthLabel = Formats.MonthName(month);
-		Suggestions = [.. analysis.Suggestions.Select(g => ToSuggestion(analysis, g, formats))];
-		var states = analysis.Fixed.Select(f => (Payment: f, State: f.StatusIn(month, today))).Where(x => x.State.Status != FixedStatus.NotStarted).ToList();
+		Suggestions = [.. analysis.Suggestions.Where(g => !g.IsSubscription).Select(g => FixedSuggestion.Of(analysis, g, formats))];
+		var fixedPayments = analysis.Fixed.Where(f => !f.IsSubscription).ToList();
+		var states = fixedPayments.Select(f => (Payment: f, State: f.StatusIn(month, today))).Where(x => x.State.Status != FixedStatus.NotStarted).ToList();
 		var monthly = states.Where(x => x.State.Status != FixedStatus.NotThisMonth || x.State.Paid > 0).ToList();
 		Expected = monthly.Sum(x => x.State.Paid > 0 ? x.State.Paid : x.Payment.Def.Amount);
 		Paid = monthly.Sum(x => x.State.Paid);
 		StillToCome = monthly.Where(x => x.State.Status is FixedStatus.Due or FixedStatus.Late).Sum(x => x.Payment.Def.Amount);
-		FixedPaymentCount = analysis.Fixed.Count;
+		FixedPaymentCount = fixedPayments.Count;
 		ExpectedText = formats.Money(Expected);
 		PaidText = formats.Money(Paid);
 		StillToComeText = formats.Money(StillToCome);
@@ -45,7 +43,7 @@ public sealed class FixedPaymentsViewModel
 	/// <summary>Gets the selected month's English name and year.</summary>
 	public string MonthLabel { get; }
 
-	/// <summary>Gets the suggested fixed payments to check.</summary>
+	/// <summary>Gets the suggested fixed payments to check, without the subscription suggestions.</summary>
 	public IReadOnlyList<FixedSuggestion> Suggestions { get; }
 
 	/// <summary>Gets what the month's fixed payments are expected to cost, paid ones at what was paid.</summary>
@@ -66,7 +64,7 @@ public sealed class FixedPaymentsViewModel
 	/// <summary>Gets <see cref="StillToCome"/>, formatted.</summary>
 	public string StillToComeText { get; }
 
-	/// <summary>Gets the number of accepted fixed payments, whatever their status.</summary>
+	/// <summary>Gets the number of accepted fixed payments that are no subscription, whatever their status.</summary>
 	public int FixedPaymentCount { get; }
 
 	/// <summary>Gets the accepted fixed payments that started, ordered by the day they are usually paid.</summary>
@@ -95,15 +93,6 @@ public sealed class FixedPaymentsViewModel
 	#endregion
 
 	#region Private Helpers
-	/// <summary>Builds the card of a suggestion.</summary>
-	private static FixedSuggestion ToSuggestion(Analysis analysis, Suggestion suggestion, Formats formats)
-	{
-		var category = analysis.CategoryById(suggestion.CategoryId);
-		return new(suggestion.Signature, suggestion.Name, !suggestion.HighConfidence, formats.Money(suggestion.Amount), suggestion.Cadence.ToLowerInvariant(),
-			suggestion.Reason, category.Name, category.Color,
-			[.. suggestion.Items.TakeLast(ChipCount).Select(i => new SuggestionChip($"{formats.Day(i.T.Date)} · {formats.Money(-i.T.Amount)}", i.T.Description))]);
-	}
-
 	/// <summary>Builds the row of an accepted fixed payment.</summary>
 	private static FixedPaymentRow ToRow(FixedRow payment, (FixedStatus Status, decimal Paid, DateOnly? Date) state, Formats formats) => new(
 		payment.Def.Id.Value, payment.Def.Name, payment.Category.Id.Value, payment.Category.Name, payment.Category.Color, payment.UsualDay,
