@@ -1,3 +1,4 @@
+using KbcTracker.ApiService.Features.Authentication;
 using System.Net;
 using System.Net.Http.Json;
 using KbcTracker.Application.Features.BankConnection.Consent;
@@ -37,7 +38,7 @@ public sealed class BankConsentTests(ApiFixture fixture) : IClassFixture<ApiFixt
 			.Returns(Task.FromResult(new BankConsentSession(sessionId, ["new-account"])));
 		var transactions = ApiFixture.DownloadingSource();
 		using var factory = fixture.CreateFactory("Development", bank, transactionSource: transactions);
-		using var client = factory.CreateClient();
+		using var client = ApiFixture.CreateAuthorizedClient(factory);
 		var lastSync = DateTimeOffset.UtcNow.AddHours(-2);
 		var setupScope = factory.Services.CreateAsyncScope();
 		await using (setupScope)
@@ -87,7 +88,7 @@ public sealed class BankConsentTests(ApiFixture fixture) : IClassFixture<ApiFixt
 		bank.BeginAsync(Arg.Any<BankDefinition>(), Arg.Do<string>(value => state = value), Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult(new Uri("https://bank.example.invalid/consent")));
 		using var factory = fixture.CreateFactory("Development", bank);
-		using var client = factory.CreateClient();
+		using var client = ApiFixture.CreateAuthorizedClient(factory);
 		using var begin = await client.PostAsJsonAsync(new Uri("/api/v1/consent", UriKind.Relative), new BeginConsentRequest("KBC", "BE"));
 		begin.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -106,7 +107,7 @@ public sealed class BankConsentTests(ApiFixture fixture) : IClassFixture<ApiFixt
 	{
 		var bank = Substitute.For<IBankConsentSource>();
 		using var factory = fixture.CreateFactory("Development", bank);
-		using var client = factory.CreateClient();
+		using var client = ApiFixture.CreateAuthorizedClient(factory);
 
 		using var callback = await client.GetAsync(new Uri("/api/v1/consent/callback?code=unused&state=forged", UriKind.Relative));
 
@@ -121,8 +122,8 @@ public sealed class BankConsentTests(ApiFixture fixture) : IClassFixture<ApiFixt
 	{
 		var bank = Substitute.For<IBankConsentSource>();
 		using var factory = fixture.CreateFactory("Development", bank);
-		using var client = factory.CreateClient();
-		var state = factory.Services.GetRequiredService<IConsentStateStore>().Create("development");
+		using var client = ApiFixture.CreateAuthorizedClient(factory);
+		var state = factory.Services.GetRequiredService<IConsentStateStore>().Create(OwnerIdentity.Id);
 		var scope = factory.Services.CreateAsyncScope();
 		await using (scope)
 		{
@@ -147,14 +148,14 @@ public sealed class BankConsentTests(ApiFixture fixture) : IClassFixture<ApiFixt
 		bank.BeginAsync(Arg.Any<BankDefinition>(), Arg.Do<string>(value => state = value), Arg.Any<CancellationToken>())
 			.Returns(Task.FromException<Uri>(new InvalidOperationException("private-key-path-and-provider-body")));
 		using var factory = fixture.CreateFactory("Development", bank);
-		using var client = factory.CreateClient();
+		using var client = ApiFixture.CreateAuthorizedClient(factory);
 
 		using var begin = await client.PostAsJsonAsync(new Uri("/api/v1/consent", UriKind.Relative), new BeginConsentRequest("KBC", "BE"));
 
 		begin.StatusCode.Should().Be(HttpStatusCode.Conflict);
 		(await begin.Content.ReadAsStringAsync()).Should().NotContain("private-key-path-and-provider-body");
 		state.Should().NotBeNullOrWhiteSpace();
-		factory.Services.GetRequiredService<IConsentStateStore>().TryConsume(state, "development").Should().BeFalse();
+		factory.Services.GetRequiredService<IConsentStateStore>().TryConsume(state, OwnerIdentity.Id).Should().BeFalse();
 	}
 
 	/// <summary>Verifies a bank list that fails because the backend lacks its bank settings says which settings to set,
@@ -172,7 +173,7 @@ public sealed class BankConsentTests(ApiFixture fixture) : IClassFixture<ApiFixt
 			? new BankAccessNotConfiguredException("private-setting-detail")
 			: new InvalidOperationException("private-provider-body")));
 		using var factory = fixture.CreateFactory("Development", bank);
-		using var client = factory.CreateClient();
+		using var client = ApiFixture.CreateAuthorizedClient(factory);
 
 		using var banks = await client.GetAsync(new Uri("/api/v1/banks", UriKind.Relative));
 		var body = await banks.Content.ReadAsStringAsync();

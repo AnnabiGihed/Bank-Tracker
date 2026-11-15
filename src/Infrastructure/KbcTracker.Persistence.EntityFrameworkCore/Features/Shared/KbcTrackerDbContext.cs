@@ -6,7 +6,7 @@ namespace KbcTracker.Persistence.EntityFrameworkCore.Features.Shared;
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : The EF Core context of KbcTracker on PostgreSQL (ADR-0004): transactions, categories, bank
-///              connections and the user's decisions.
+///              connections and the user's decisions, plus the token service's tables (ADR-0009).
 ///
 ///              Built on Pivot's <see cref="PivotDbContextBase"/>. Pivot adds no converters for strongly typed ids,
 ///              so the conventions here map every id to its string value and store every date and time in UTC, which
@@ -58,6 +58,9 @@ public sealed class KbcTrackerDbContext(DbContextOptions<KbcTrackerDbContext> op
 		ArgumentNullException.ThrowIfNull(modelBuilder);
 		base.OnModelCreating(modelBuilder);
 		modelBuilder.ApplyConfigurationsFromAssembly(AssemblyReference.Assembly);
+
+		// The tables of the API's token service (ADR-0009): applications, authorizations, scopes and tokens.
+		modelBuilder.UseOpenIddict();
 	}
 	#endregion
 }

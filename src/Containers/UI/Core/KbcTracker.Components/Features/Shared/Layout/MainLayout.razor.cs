@@ -8,7 +8,7 @@ namespace KbcTracker.Components.Features.Shared.Layout;
 /// Purpose     : The frame of every page: the Radzen host components and theme, the header with the sync status and the
 ///              month selector, the tab bar with its badges, the sync banner, the backend status and an error boundary
 ///              that catches anything a page does not handle itself. It reads the month from <c>?m=yyyy-MM</c>, hands it
-///              to the <see cref="WorkspaceStore"/>, and shows a one-time notice a host passes in.
+///              to the <see cref="WorkspaceStore"/>, shows a one-time notice a host passes in, and the account controls a host passes in.
 /// </summary>
 public sealed partial class MainLayout : LayoutComponentBase, IDisposable
 {
@@ -30,6 +30,10 @@ public sealed partial class MainLayout : LayoutComponentBase, IDisposable
 	/// <summary>Gets or sets a one-time failure message a host passes in, for example from a redirect, or <see langword="null"/> for none.</summary>
 	[CascadingParameter(Name = "PageNotice")]
 	public string? PageNotice { get; set; }
+
+	/// <summary>Gets or sets the account controls a host shows at the end of the header (who is signed in, sign-out), or <see langword="null"/> for none.</summary>
+	[CascadingParameter(Name = "AccountMenu")]
+	public RenderFragment? AccountMenu { get; set; }
 	#endregion
 
 	#region Fields

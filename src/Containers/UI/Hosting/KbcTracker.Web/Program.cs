@@ -1,9 +1,8 @@
 using KbcTracker.ServiceDefaults.Features.Telemetry;
-using KbcTracker.Shared.Features.Backend;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
-builder.Services.AddBackendClient(new BackendOptions(builder.Configuration["Backend:BaseUrl"], builder.Configuration["Backend:OwnerLogin"]));
+builder.AddWebAuthentication();
 builder.Services.AddKbcTrackerUi(ServiceLifetime.Scoped, options => options.ExportCsvPath = "/export.csv");
 builder.Services.AddScoped<IBankConnectionLauncher, WebBankConnectionLauncher>();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
@@ -15,10 +14,15 @@ if (args.Contains("--sync", StringComparer.Ordinal))
 	return 2;
 }
 
+// The access check comes first so it covers the circuit and the sign-in; authentication, then the fallback policy (only
+// the owner), then antiforgery, which must follow both.
 app.UseMiddleware<WebAccessMiddleware>();
 app.UseMiddleware<BackendUnavailableMiddleware>();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAntiforgery();
-app.MapStaticAssets();
+app.MapStaticAssets().AllowAnonymous();
+SignInEndpoints.Map(app);
 WebEndpoints.Map(app);
 app.MapRazorComponents<App>()
 	.AddInteractiveServerRenderMode()

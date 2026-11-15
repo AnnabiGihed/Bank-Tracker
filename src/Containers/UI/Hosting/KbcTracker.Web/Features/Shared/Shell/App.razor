@@ -9,7 +9,7 @@
 	<HeadOutlet @rendermode="InteractiveRender" />
 </head>
 <body>
-	<WebShell Notice="@_notice" @rendermode="InteractiveRender" />
+	<WebShell Notice="@_notice" AccountName="@_accountName" TokenField="@_tokenField" Token="@_token" @rendermode="InteractiveRender" />
 	<script src="@Assets["_framework/blazor.web.js"]"></script>
 	<script src="@Assets["_content/Radzen.Blazor/Radzen.Blazor.js"]"></script>
 </body>

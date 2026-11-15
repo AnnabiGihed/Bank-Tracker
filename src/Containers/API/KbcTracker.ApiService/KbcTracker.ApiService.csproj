@@ -5,6 +5,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Pivot.Framework.Containers.API" />
+    <PackageReference Include="OpenIddict.AspNetCore" />
+    <PackageReference Include="OpenIddict.Client.WebIntegration" />
     <ProjectReference Include="..\..\Aspire\Defaults\KbcTracker.ServiceDefaults\KbcTracker.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\..\Core\KbcTracker.Application\KbcTracker.Application.csproj" />
     <ProjectReference Include="..\..\..\Infrastructure\KbcTracker.Infrastructure\KbcTracker.Infrastructure.csproj" />

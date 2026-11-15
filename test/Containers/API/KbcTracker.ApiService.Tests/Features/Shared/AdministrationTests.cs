@@ -1,3 +1,4 @@
+using KbcTracker.ApiService.Features.Authentication;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -85,8 +86,11 @@ public sealed class AdministrationTests(ApiFixture fixture) : IClassFixture<ApiF
 		bank.CompleteAsync("valid-code", Arg.Any<CancellationToken>())
 			.Returns(Task.FromResult(new BankConsentSession("early-session", ["account"])));
 		using var factory = fixture.CreateFactory("Development", bank, databaseName: "initialize_" + Guid.NewGuid().ToString("N"));
-		using var client = factory.CreateClient();
+		using var client = ApiFixture.CreateAuthorizedClient(factory);
 		(await BackendAdministration.ExecuteAsync(["--migrate"], factory.Services, CancellationToken.None)).Should().Be(0);
+
+		// The host started before the migration and found no token tables; the next start would register the clients.
+		await factory.Services.GetRequiredService<OpenIddictClientSeeder>().SeedAsync(CancellationToken.None);
 
 		using (var early = await client.PostAsJsonAsync(new Uri("/api/v1/decisions", UriKind.Relative), new DecisionRequest("dismiss", Key: "series")))
 		{

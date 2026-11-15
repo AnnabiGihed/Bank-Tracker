@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Owner sign-in ([ADR-0009](docs/adr/0009-authenticate-the-owner-with-external-openid-connect-providers.md), proposed):
+  the backend runs an OpenIddict token service and signs the owner in through Google (Microsoft and Apple are
+  configuration), accepting only the issuer and subject in `Authentication:Owners`. Every API endpoint but `/health`
+  needs the owner; the web app has a sign-in page, an 8-hour cookie session, a Sign out button and its own client token
+  for backend calls. See [Set up sign-in](docs/how-to/set-up-sign-in.md) and [Sign-in](docs/explanation/sign-in.md).
+- The Android app signs the owner in through the system browser (code flow with PKCE, redirect `com.banktracker.mobile://auth`):
+  a sign-in screen, the refresh token in secure storage, the access token refreshed before it expires, and a Sign out
+  button in the header that revokes the session at the backend. In Debug it reaches the backend at
+  `http://localhost:5080/` through `adb reverse tcp:5080 tcp:5080` (see [Run the Android app](docs/how-to/run-the-android-app.md)).
 - An Income tab (`/income?m=yyyy-MM`) with the month's earnings (salary and other income), refunds and loan money
   received, each with its payments and a category picker and confirm button, plus the earnings of the last 12 months and
   the earnings by payer. The Overview's Income, Refunds and Loan received figures open it on their section
@@ -86,6 +95,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Android emulator reaches the backend at `http://localhost:5080/` through `adb reverse tcp:5080 tcp:5080`
+  instead of `http://10.0.2.2:5080/`.
 - Money in is told apart better, as suggestions you confirm: payroll transfers (employer and employee markers, pay
   words, or the same payer about every month) go to Salary; refund words or a credit from someone you paid before
   go to Refunds; loan words or a credit from the lender you repay go to Loan received. Own transfers and your own
@@ -124,6 +135,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- The Tailscale owner header: `TailnetAccessMiddleware`, `BackendAccess:OwnerLogin` and `Backend:OwnerLogin` are gone
+  and the tailnet is no longer part of the access model. Configure sign-in instead.
 - The web app's `/api`, `/sync` and `/connect` addresses: the pages call the backend directly, so a bookmark to
   `/sync` or `/connect` stops working. Use the **Sync** button and the reconnect button on the Settings tab.
 - The web app's JSON data folder, its `--sync` option (it now exits with code 2 and points to the backend's
@@ -157,6 +170,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- The web app refuses to start when `Backend:BaseUrl` or `Authentication:Authority` is plain HTTP and not on this PC.
+- The sign-in return address must be a local path: control characters, `//` and a leading `/` plus backslash are refused.
+- A refresh token is refused, and its authorization revoked, once the provider account is no longer on the owner list.
+- Extra redirect addresses of the web client must be https, or http on `localhost`, `127.0.0.1` or `[::1]`; others stop the
+  backend at start.
 - `Microsoft.AspNetCore.WebUtilities`, which Pivot's messaging package brings in, is pinned to 2.3.14, the version that
   fixes the denial-of-service vulnerability CVE-2026-118750 (GHSA-6527-9fp8-r4x6). The build had failed since the
   advisory was published, because vulnerability warnings count as errors.

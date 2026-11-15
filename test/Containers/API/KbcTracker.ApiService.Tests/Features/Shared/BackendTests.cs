@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using KbcTracker.ApiService.Features.Shared.Security;
 using KbcTracker.Application.Features.Transactions.Queries;
 
 namespace KbcTracker.ApiService.Tests.Features.Shared;
@@ -10,7 +9,7 @@ namespace KbcTracker.ApiService.Tests.Features.Shared;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
-/// Purpose     : Verifies HTTP contracts, privacy and access controls through the real PostgreSQL backend.
+/// Purpose     : Verifies HTTP contracts and privacy through the real PostgreSQL backend; the access rules are in AuthenticationTests.
 /// </summary>
 /// <param name="fixture">The shared isolated backend.</param>
 public sealed class BackendTests(ApiFixture fixture) : IClassFixture<ApiFixture>
@@ -97,7 +96,7 @@ public sealed class BackendTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 	{
 		var bank = ApiFixture.DownloadingSource();
 		using var factory = fixture.CreateFactory("Development", transactionSource: bank);
-		using var client = factory.CreateClient();
+		using var client = ApiFixture.CreateAuthorizedClient(factory);
 		using var response = await client.PostAsync(new Uri("/api/v1/sync?full=true", UriKind.Relative), content: null);
 		response.StatusCode.Should().Be(HttpStatusCode.OK);
 		await bank.Received(1).GetTransactionsAsync("current", Arg.Any<DateOnly?>(), true);
@@ -106,22 +105,6 @@ public sealed class BackendTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 	#endregion
 
 	#region Access And Contract Tests
-	/// <summary>Verifies production rejects requests without identity and accepts the configured owner behind loopback.</summary>
-	/// <returns>A task that completes when verified.</returns>
-	[Fact]
-	public async Task Production_OwnerIdentityRequired_AndSwaggerNotPublished()
-	{
-		using var factory = fixture.CreateFactory("Production");
-		using var client = factory.CreateClient();
-		using var denied = await client.GetAsync(new Uri("/api/v1/connection", UriKind.Relative));
-		denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-		client.DefaultRequestHeaders.Add(TailnetAccessMiddleware.IdentityHeader, ApiFixture.OwnerLogin);
-		using var allowed = await client.GetAsync(new Uri("/api/v1/connection", UriKind.Relative));
-		allowed.StatusCode.Should().Be(HttpStatusCode.OK);
-		using var swagger = await client.GetAsync(new Uri("/swagger/v1/swagger.json", UriKind.Relative));
-		swagger.StatusCode.Should().Be(HttpStatusCode.NotFound);
-	}
-
 	/// <summary>Verifies development exposes documented operations and matches the committed OpenAPI contract.</summary>
 	/// <returns>A task that completes when verified.</returns>
 	[Fact]

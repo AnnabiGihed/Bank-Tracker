@@ -7,10 +7,14 @@ bank list) throws a `BackendRefusedException` carrying the same status and messa
 `HttpRequestException`. The client holds no data and no bank key.
 
 `AddBackendClient(services, BackendOptions)` registers it for either host: the base address must be absolute HTTP(S)
-without user info, the timeout is 5 minutes, and the owner identity goes out as `Tailscale-User-Login` when
-`OwnerLogin` is set.
+without user info, and the timeout is 5 minutes. The client sends no credentials itself: each host adds a
+`DelegatingHandler` that sets the access token, through `WithAccessTokenHandler<THandler>()` on the returned builder
+([ADR-0009](../../../../../docs/adr/0009-authenticate-the-owner-with-external-openid-connect-providers.md)).
 
-The web app uses it now; the Android app will use it too. The endpoints are described by the
+The web app and the Android app both use it. The sign-in logic of the Android app, free of any platform, is in
+`Features/Authentication`: `PublicClientTokenService` (authorize address, code exchange, in-memory access token,
+rotating refresh token in an `IRefreshTokenStore`, refresh before expiry, revocation at sign-out), `PkceChallenge`,
+`TokenResponse` and `AuthorizationCallback`; its tests need no Android. The endpoints are described by the
 [OpenAPI contract](../../../../../docs/api/openapi.json).
 The view models on top of it are in [KbcTracker.ViewModels](../KbcTracker.ViewModels/README.md).
 Tests: `test/Containers/UI/Core/KbcTracker.Shared.Tests`, and through the web app in `test/KbcTracker.E2E.Tests`.

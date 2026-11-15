@@ -10,6 +10,7 @@
 | 6  | [Classify spending in a COICOP 2018 category tree by purpose][adr-0006]                | Proposed               |
 | 7  | [Split a payment into categorised parts][adr-0007]                                     | Proposed               |
 | 8  | [Build the web and Android front ends from shared Blazor components][adr-0008]         | Proposed               |
+| 9  | [Authenticate the owner with external OpenID Connect providers][adr-0009]             | Proposed               |
 
 [adr-0001]: 0001-build-the-tracker-as-a-maui-android-app-with-a-shared-core.md
 [adr-0002]: 0002-adopt-the-shared-analyzer-set.md
@@ -19,3 +20,4 @@
 [adr-0006]: 0006-classify-spending-in-a-coicop-category-tree.md
 [adr-0007]: 0007-split-a-payment-into-categorised-parts.md
 [adr-0008]: 0008-build-the-front-ends-as-shared-blazor-components.md
+[adr-0009]: 0009-authenticate-the-owner-with-external-openid-connect-providers.md

@@ -6,6 +6,8 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.Playwright" />
     <PackageReference Include="Testcontainers.PostgreSql" />
+    <!-- Security pin of a package the API's token service brings in transitively; see Directory.Packages.props. -->
+    <PackageReference Include="System.Security.Cryptography.Xml" />
   </ItemGroup>
 
   <ItemGroup>

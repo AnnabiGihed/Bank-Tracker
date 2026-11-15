@@ -4,10 +4,18 @@ Personal expense tracker for a KBC Brussels current account. .NET 10, single use
 Built on **Pivot.Framework** as one PostgreSQL backend + API on the home PC (`KbcTracker.ApiService`, loopback
 `http://127.0.0.1:5080`) used by the web app (a Blazor Web App in Interactive Server mode on shared Radzen components,
 `https://localhost:5001`, an API client that stores nothing) and the MAUI Blazor Hybrid Android app (same components,
-calls the API directly, from the emulator at `http://10.0.2.2:5080`; development only, SQLite cache later): see
-`docs/adr/0004-…` (Proposed), which supersedes ADR-0003, and `docs/adr/0008-…` (Proposed) for the shared components.
-No login: outside Development both hosts require a
-loopback peer plus a `Tailscale-User-Login` equal to the configured owner. The Aspire AppHost
+calls the API directly, from the emulator at `http://localhost:5080` through `adb reverse`; development only, SQLite
+cache later): see
+`docs/adr/0004-…` (Proposed), which supersedes ADR-0003, `docs/adr/0008-…` (Proposed) for the shared components and
+`docs/adr/0009-…` (Proposed) for the owner sign-in.
+Owner sign-in
+(ADR-0009, Proposed): the API runs an OpenIddict token service and signs the owner in through an external OpenID
+Connect provider (Google first; Microsoft/Apple are configuration); only the issuer + subject listed in
+`Authentication:Owners` get in, never the email. The web app holds a cookie session (8 h, signs out by dropping it;
+a copied cookie lives until it expires) and calls the API with its own `web` client-credentials token
+(`Authentication:Clients:Web:Secret`); the Android app uses code + PKCE (`com.banktracker.mobile://auth`) with the
+refresh token in secure storage and reaches the API at `http://localhost:5080` via `adb reverse`. Every endpoint but
+`/health` and the sign-in ones needs the owner; setup in `docs/how-to/set-up-sign-in.md`. The Aspire AppHost
 (`src/Containers/Aspire/Hosting/KbcTracker.AppHost`, ADR-0005) starts PostgreSQL (container + volume
 `kbctracker-postgres`), `--migrate`, the API and the web app. Production hosting is planned on a VPS with real
 authentication (no tailnet); it is not built yet.
@@ -18,9 +26,11 @@ authentication (no tailnet); it is not built yet.
 - JWT RS256 signed with the app's private key (`.pem`, path in the backend's `EnableBanking:PrivateKeyPath`,
   kept OUTSIDE the repo — never commit it). Application ID in `EnableBanking:ApplicationId`. Only the backend
   holds them (user secrets in Development).
-- Flow: web `/banks` → `/connect` → API `POST /api/v1/consent` (Enable Banking POST /auth, owner-bound state) → KBC
-  login (itsme) → web `/callback?code&state` → API `GET /api/v1/consent/callback` (POST /sessions, then a full sync).
-- Database setup order: `--migrate`, then `--import-json <old JSON folder>` (refuses a non-empty database) or
+- Flow: signed-in web `/banks` → `/connect` → API `POST /api/v1/consent` (Enable Banking POST /auth, state bound to
+  the owner id) → KBC login (itsme) → web `/callback?code&state` (needs the owner session) → API
+  `GET /api/v1/consent/callback` (POST /sessions, then a full sync).
+- Setup order: sign-in (`docs/how-to/set-up-sign-in.md`), then the database: `--migrate`, then
+  `--import-json <old JSON folder>` (refuses a non-empty database) or
   `--initialize` (seeds `CategoryDefaults.CreateDefaults()`, no-op exit 0 on a non-empty one); until then decisions
   and consent are refused with 409 so the import stays possible. The AppHost runs `--initialize` on every start, so
   an import into its volume only works before the first start.
@@ -47,7 +57,7 @@ Each project's `README.md` maps its types; read it before working in that projec
 - `src/Infrastructure/KbcTracker.Persistence.EntityFrameworkCore` — PostgreSQL context, mappings, repositories,
   advisory locks, `DataImporter`, `Migrations/` (`dotnet ef migrations add`).
 - `src/Containers/API/KbcTracker.ApiService` — the backend: controllers, `AutomaticBankSync`, maintenance commands,
-  `TailnetAccessMiddleware`. Contract: `docs/api/openapi.json`.
+  `Features/Authentication` (OpenIddict token service, owner allow-list, provider callback). Contract: `docs/api/openapi.json`.
 - `src/Containers/UI/Core/KbcTracker.Shared` — `BackendClient`, the typed API client.
 - `src/Containers/UI/Core/KbcTracker.ViewModels` — workspace store, one view model per tab, formats, CSV export and
   backend-problem texts; plain .NET, shared by both front ends (ADR-0008).

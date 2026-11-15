@@ -5,7 +5,8 @@ namespace KbcTracker.Components.Features.Shared.Layout;
 /// Date        : 11-2026
 /// Purpose     : The header of every page: when the bank was last read, the warning that the bank access ends, the month
 ///              selector (previous and next month as links, a drop-down for any month) on the tabs that are about one
-///              month, and the Sync button, or a link to connect a bank when none is connected.
+///              month, the Sync button, or a link to connect a bank when none is connected, and the account
+///              controls a host supplies.
 /// </summary>
 public sealed partial class ShellHeader : ComponentBase, IDisposable
 {
@@ -31,6 +32,10 @@ public sealed partial class ShellHeader : ComponentBase, IDisposable
 	/// <summary>Gets or sets the id of the tab on show, which decides whether the month selector is shown.</summary>
 	[Parameter]
 	public string CurrentTab { get; set; } = string.Empty;
+
+	/// <summary>Gets or sets what the host adds at the end of the header, such as the signed-in account and a sign-out button, or <see langword="null"/> for nothing.</summary>
+	[Parameter]
+	public RenderFragment? Account { get; set; }
 	#endregion
 
 	#region Fields

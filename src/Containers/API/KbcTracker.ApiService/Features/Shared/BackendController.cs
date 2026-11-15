@@ -2,6 +2,7 @@ using KbcTracker.Application.Features.Transactions.Queries;
 using KbcTracker.Application.Features.Categories.Queries;
 using KbcTracker.Application.Features.BankConnection.Queries;
 using KbcTracker.Application.Features.BankConnection.Commands;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pivot.Framework.Application.Abstractions.Messaging;
 using Pivot.Framework.Containers.API.Abstractions;
@@ -62,6 +63,7 @@ public sealed class BackendController(ISender sender) : ApiController(sender)
 
 	/// <summary>Reports process health without querying PostgreSQL or revealing configuration.</summary>
 	/// <returns>A constant health response.</returns>
+	[AllowAnonymous]
 	[HttpGet(ApiRoutes.HealthTemplate, Name = nameof(GetHealth))]
 	[ProducesResponseType<string>(StatusCodes.Status200OK, "text/plain")]
 	public ActionResult GetHealth() => Ok("healthy");

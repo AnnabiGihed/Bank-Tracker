@@ -1,44 +1,26 @@
-using System.Net;
-using KbcTracker.Shared.Features.Backend;
-
 namespace KbcTracker.Web.Features.Shared.Api;
 
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
-/// Purpose     : Applies the trusted-loopback owner boundary before the web host can call the backend.
+/// Purpose     : The browser-facing protections every response and write of the web host gets: no caching, no referrer, and
+///              the refusal of a write or WebSocket upgrade that another site started. Who may reach the app is decided by
+///              the owner's sign-in (the fallback authorization policy), not here.
 /// </summary>
 /// <param name="next">The protected web pipeline.</param>
-/// <param name="environment">The hosting environment.</param>
-/// <param name="configuration">The configured owner identity.</param>
-public sealed class WebAccessMiddleware(RequestDelegate next, IWebHostEnvironment environment, IConfiguration configuration)
+public sealed class WebAccessMiddleware(RequestDelegate next)
 {
-	#region Constants
-	/// <summary>The identity supplied by Tailscale Serve.</summary>
-	public const string IdentityHeader = BackendOptions.OwnerHeader;
-	#endregion
-
 	#region Public Methods
-	/// <summary>Rejects untrusted peers, missing owners and cross-origin browser writes.</summary>
-	/// <param name="context">The request to authorize.</param>
-	/// <returns>A task that completes after authorization and dispatch.</returns>
+	/// <summary>Adds the response headers and rejects cross-origin browser writes.</summary>
+	/// <param name="context">The request to check.</param>
+	/// <returns>A task that completes after the check and dispatch.</returns>
 	/// <exception cref="ArgumentNullException">The request is null.</exception>
 	public async Task InvokeAsync(HttpContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 		context.Response.Headers.CacheControl = "no-store";
 		context.Response.Headers["Referrer-Policy"] = "no-referrer";
-		var remote = context.Connection.RemoteIpAddress;
-		if (remote?.IsIPv4MappedToIPv6 is true)
-		{
-			remote = remote.MapToIPv4();
-		}
-
-		var local = remote is null ? environment.IsDevelopment() : IPAddress.IsLoopback(remote);
-		var owner = configuration["Backend:OwnerLogin"];
-		var authorized = local && (environment.IsDevelopment() || (!string.IsNullOrWhiteSpace(owner)
-			&& string.Equals(context.Request.Headers[IdentityHeader].ToString(), owner, StringComparison.Ordinal)));
-		if (!authorized || IsCrossOriginWrite(context.Request))
+		if (IsCrossOriginWrite(context.Request))
 		{
 			await Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Web access denied.").ExecuteAsync(context).ConfigureAwait(false);
 			return;

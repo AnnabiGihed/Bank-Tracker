@@ -44,7 +44,9 @@
 
   <ItemGroup Label="Feature namespaces used across the project">
     <Using Include="KbcTracker.Components.Features.Shared.Layout" />
+    <Using Include="KbcTracker.Mobile.Features.Authentication" />
     <Using Include="KbcTracker.Mobile.Features.Shared.Shell" />
+    <Using Include="KbcTracker.Shared.Features.Authentication" />
     <Using Include="KbcTracker.ViewModels.Features.Shared" />
     <Using Include="Microsoft.AspNetCore.Components" />
   </ItemGroup>

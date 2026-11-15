@@ -146,7 +146,7 @@ public sealed class MainLayoutTests : UiTestContext
 
 		var layout = RenderLayout();
 
-		await layout.WaitForAssertionAsync(() => layout.Find("[role='alert']").TextContent.Should().Contain("Backend refused access.").And.Contain("Backend:OwnerLogin"));
+		await layout.WaitForAssertionAsync(() => layout.Find("[role='alert']").TextContent.Should().Contain("Backend refused access.").And.Contain("Authentication:Owners"));
 	}
 
 	/// <summary>Verifies "Try again" reads the workspace again and the problem goes away once the backend answers.</summary>

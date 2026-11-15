@@ -23,7 +23,7 @@ public sealed class BackendProblemTests
 
 		forbidden.Status.Should().Be(403);
 		forbidden.Title.Should().Be("Backend refused access.");
-		forbidden.Detail.Should().Contain("Backend:OwnerLogin");
+		forbidden.Detail.Should().Contain("Authentication:Owners");
 		conflict.Status.Should().Be(409);
 		conflict.Title.Should().Be("The backend refused this request.");
 		conflict.Detail.Should().Be("Bank access is not set up on the backend.");

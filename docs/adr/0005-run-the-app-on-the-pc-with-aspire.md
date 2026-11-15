@@ -53,7 +53,7 @@ the PC, and `src/Containers/Aspire/Defaults/KbcTracker.ServiceDefaults`, which b
 - **Addresses do not change.** The API keeps `http://127.0.0.1:5080` and the web app `https://localhost:5001`, with
   no Aspire proxy in front of either; the web app calls the API on `127.0.0.1`. Forwarded headers stay off for both,
   so no local caller can rewrite the address the access checks rely on. Both run in Development: outside it they
-  require the Tailscale owner header, which nothing sends on the PC.
+  require the Tailscale owner header, which nothing sends on the PC. Sign-in replaces that header (ADR-0009).
 - **ServiceDefaults** adds OpenTelemetry logs, traces and metrics for ASP.NET Core, outgoing HTTP calls and the
   runtime, exported only when the AppHost gives an OTLP endpoint (the dashboard). The HTTP instrumentations keep
   their default redaction of query-string values, so the bank's authorization code never reaches a trace. Database

@@ -1,3 +1,8 @@
+@{
+	RenderFragment account = @<AccountMenu UserName="@AccountName" TokenField="@TokenField" Token="@Token" />;
+}
 <CascadingValue Name="PageNotice" Value="@Notice" IsFixed="true">
-	<KbcTrackerRouter />
+	<CascadingValue Name="AccountMenu" Value="@account" IsFixed="true">
+		<KbcTrackerRouter />
+	</CascadingValue>
 </CascadingValue>

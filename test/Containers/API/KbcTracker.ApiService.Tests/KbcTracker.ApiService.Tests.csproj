@@ -3,8 +3,11 @@
     <ProjectReference Include="..\..\..\..\src\Containers\API\KbcTracker.ApiService\KbcTracker.ApiService.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Testcontainers.PostgreSql" />
+    <!-- Security pin of a package the API's token service brings in transitively; see Directory.Packages.props. -->
+    <PackageReference Include="System.Security.Cryptography.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Using Include="KbcTracker.ApiService.Tests.Features.Authentication" />
     <Using Include="KbcTracker.ApiService.Tests.Features.BankConnection" />
     <Using Include="KbcTracker.ApiService.Tests.Features.Shared" />
   </ItemGroup>

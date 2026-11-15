@@ -4,8 +4,9 @@ KbcTracker is a single-user app. It reads your account through Enable Banking, k
 seen, and analyses the whole history each time you open a page.
 
 It follows the Pivot.Framework structure and runs as one backend on your home PC: a PostgreSQL database and an
-API, used by the web app and an Android app. There is no login; outside Development, only the owner's
-tailnet identity gets in ([ADR-0004][adr-0004], proposed). The backend owns the data, the bank key and the sync;
+API, used by the web app and an Android app. The owner signs in through an external provider and only the
+owner's account gets in ([ADR-0004][adr-0004] and [ADR-0009][adr-0009], proposed; see [Sign-in](sign-in.md)). The
+backend owns the data, the bank key and the sync;
 the user interfaces only call its API.
 
 ## Projects
@@ -16,7 +17,7 @@ the user interfaces only call its API.
 | Core | `src/Core/KbcTracker.Application` | Mediator commands and queries: sync, bank consent, the workspace (the analysis the pages show) and your decisions; the ports to storage and to the bank. |
 | Infrastructure | `src/Infrastructure/KbcTracker.Infrastructure` | The Enable Banking client and its mapping, behind the bank ports; the reader of the old JSON data folder. |
 | Infrastructure | `src/Infrastructure/KbcTracker.Persistence.EntityFrameworkCore` | PostgreSQL persistence: the EF Core context on Pivot's base context, migrations, repositories, Pivot's unit of work, the advisory locks and the one-time import. |
-| Containers | `src/Containers/API/KbcTracker.ApiService` | The backend: API controllers, the automatic sync worker, the maintenance commands, the loopback listener and the owner-identity gate. |
+| Containers | `src/Containers/API/KbcTracker.ApiService` | The backend: API controllers, the automatic sync worker, the maintenance commands, the loopback listener and the owner sign-in (token service and allow-list). |
 | Containers | `src/Containers/UI/Core/KbcTracker.Shared` | `BackendClient`, the typed API client the user interfaces share. |
 | Containers | `src/Containers/UI/Core/KbcTracker.ViewModels` | The workspace store and one view model per tab: the state and computation behind each screen, as plain .NET. |
 | Containers | `src/Containers/UI/Core/KbcTracker.Components` | The Radzen Razor components of every tab, drawn from the view models. |
@@ -53,10 +54,11 @@ flowchart LR
 ```
 
 - **Web app.** The components run on the server, in a circuit per open tab. They call the API from there, so the
-  API stays on loopback and the owner header never reaches the browser. If the connection drops, the workspace
+  API stays on loopback and the owner's tokens never reach the browser. If the connection drops, the workspace
   reloads. The web app also serves `/callback` (the bank's redirect) and `/export.csv`.
-- **Android app.** The components run in a web view on the phone and call the API directly. In development the
-  emulator reaches the API on your PC at `http://10.0.2.2:5080/`. The app has no production backend until the API
+- **Android app.** The components run in a web view on the phone and call the API directly. It signs in with the system
+  browser; in development the emulator reaches the API on your PC at `http://localhost:5080/` through
+  `adb reverse`. The app has no production backend until the API
   moves to a server with authentication. Connecting the bank and the CSV export stay in the web app.
 
 ## Domain model
@@ -106,3 +108,4 @@ and yearly fixed payments. Keeping the history makes the analysis better over ti
 
 [adr-0004]: ../adr/0004-serve-both-apps-from-one-postgresql-backend-and-api.md
 [adr-0008]: ../adr/0008-build-the-front-ends-as-shared-blazor-components.md
+[adr-0009]: ../adr/0009-authenticate-the-owner-with-external-openid-connect-providers.md

@@ -1,11 +1,15 @@
 using System.Net;
+using System.Security.Claims;
+using KbcTracker.ApiService.Features.Authentication;
 using KbcTracker.Application.Features.Workspace.Contracts;
+using KbcTracker.E2E.Tests.Features.Authentication;
 using KbcTracker.Domain.Features.Categories.Services;
 using KbcTracker.Domain.Features.Shared.Aggregates;
 using KbcTracker.Domain.Features.Transactions.Aggregates;
 using KbcTracker.Domain.Features.Transactions.ValueObjects;
 using KbcTracker.Persistence.EntityFrameworkCore.Features.Shared;
 using KbcTracker.Shared.Features.Backend;
+using KbcTracker.Web.Features.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -20,17 +24,15 @@ namespace KbcTracker.E2E.Tests;
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Runs the web and API hosts end to end over a disposable PostgreSQL database and checks what the web host
-///              itself decides: that every tab address serves the Blazor shell, who may reach it and its circuit, the bank
-///              callback, and the CSV export. What the components show and do is tested in the component tests; what the
+///              itself decides: that every tab address serves the Blazor shell, that only the signed-in owner reaches it, its
+///              circuit, the bank callback and the CSV export, the sign-in page and the sign-out, and the refusal of cross-site
+///              writes. The owner signs in through the test-only route of <see cref="TestSignInStartupFilter"/>. What the components show and do is tested in the component tests; what the
 ///              backend stores in the API tests. Never touches personal data or the bank.
 /// </summary>
 /// <param name="fixture">The disposable database container shared by the class.</param>
 public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<BackendFixture>, IAsyncLifetime
 {
 	#region Constants
-	/// <summary>The owner identity configured outside Development.</summary>
-	private const string OwnerLogin = "owner@example.invalid";
-
 	/// <summary>The negotiation request every Blazor circuit starts with.</summary>
 	private const string NegotiatePath = "/_blazor/negotiate?negotiateVersion=1";
 	#endregion
@@ -58,7 +60,8 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 		_api = new WebApplicationFactory<ApiProgram>().WithWebHostBuilder(builder => builder
 			.UseEnvironment("Development")
 			.UseSetting("ConnectionStrings:KbcTracker", fixture.CreateConnectionString())
-			.UseSetting("AutoSyncHours", "0"));
+			.UseSetting("AutoSyncHours", "0")
+			.UseTestSignIn());
 		await ChangeAsync(async db =>
 		{
 			await db.Database.MigrateAsync().ConfigureAwait(false);
@@ -68,11 +71,12 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 			db.Categories.AddRange(CategoryDefaults.Create(new Dictionary<string, string[]>(StringComparer.Ordinal)));
 			db.UserData.Add(UserData.Empty());
 		}).ConfigureAwait(false);
+
+		// The host started before the migration found no token tables; register the sign-in clients now.
+		await Api.Services.GetRequiredService<OpenIddictClientSeeder>().SeedAsync(CancellationToken.None).ConfigureAwait(false);
 		_web = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
 			.UseEnvironment("Development")
-			.UseSetting("Backend:BaseUrl", "http://localhost/")
-			.ConfigureTestServices(services => services.AddHttpClient<BackendClient>()
-				.ConfigurePrimaryHttpMessageHandler(() => Api.Server.CreateHandler())));
+			.UseApiHost(Api));
 	}
 
 	/// <inheritdoc />
@@ -117,7 +121,7 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	[InlineData("/banks")]
 	public async Task Get_TabAddress_ServesBlazorShell(string path)
 	{
-		using var client = Factory.CreateClient();
+		using var client = await SignedInAsync(Factory);
 
 		using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
 		var html = await response.Content.ReadAsStringAsync();
@@ -132,16 +136,15 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 			.And.NotContain("Shop One");
 	}
 
-	/// <summary>Verifies the circuit's negotiation request is served in Development from a loopback peer, the way a
-	/// browser's own page sends it.</summary>
+	/// <summary>Verifies the circuit's negotiation request is served to the signed-in owner, the way a browser's own
+	/// page sends it.</summary>
 	/// <returns>A task that completes when verified.</returns>
 	[Fact]
-	public async Task PostNegotiate_DevelopmentSameOrigin_Served()
+	public async Task PostNegotiate_SignedInOwnerSameOrigin_Served()
 	{
-		using var client = Factory.CreateClient();
+		using var client = await SignedInAsync(Factory);
 
-		using var response = await SendWithIdentityAsync(client, HttpMethod.Post, new Uri(NegotiatePath, UriKind.Relative), identity: null,
-			request => request.Headers.Add("Sec-Fetch-Site", "same-origin"));
+		using var response = await RequestAsync(client, HttpMethod.Post, new Uri(NegotiatePath, UriKind.Relative), request => request.Headers.Add("Sec-Fetch-Site", "same-origin"));
 
 		response.StatusCode.Should().Be(HttpStatusCode.OK);
 	}
@@ -155,7 +158,7 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	{
 		using var connected = Factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
 			services.AddHttpClient<BackendClient>().ConfigurePrimaryHttpMessageHandler(() => new ConnectedBackendHandler())));
-		using var client = connected.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
+		using var client = await SignedInAsync(connected);
 
 		using var response = await client.GetAsync(new Uri("/callback?code=granted&state=known", UriKind.Relative));
 
@@ -171,7 +174,7 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	[Fact]
 	public async Task GetCallback_UnknownState_SettingsWithNoticeCookie()
 	{
-		using var client = Factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
+		using var client = await SignedInAsync(Factory);
 
 		using var response = await client.GetAsync(new Uri("/callback?code=unused&state=unknown-state", UriKind.Relative));
 
@@ -188,7 +191,7 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	[Fact]
 	public async Task Get_PageWithNoticeCookie_CookieClearedOnce()
 	{
-		using var client = Factory.CreateClient();
+		using var client = await SignedInAsync(Factory);
 		using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("/settings", UriKind.Relative));
 		request.Headers.Add("Cookie", "kbc-notice=Bank%20connection%20failed");
 
@@ -198,14 +201,69 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 		withNotice.StatusCode.Should().Be(HttpStatusCode.OK);
 		withNotice.Headers.GetValues("Set-Cookie").Should().ContainSingle(cookie => cookie.StartsWith("kbc-notice=;", StringComparison.Ordinal)
 			&& cookie.Contains("expires=Thu, 01 Jan 1970", StringComparison.OrdinalIgnoreCase));
-		without.Headers.Contains("Set-Cookie").Should().BeFalse();
+		(without.Headers.TryGetValues("Set-Cookie", out var cookies) ? cookies : []).Should().NotContain(cookie => cookie.StartsWith("kbc-notice=", StringComparison.Ordinal));
 	}
 	#endregion
 
 	#region Access Tests
-	/// <summary>Verifies that outside Development the web app lets in only a loopback request carrying the owner's
-	/// identity, on a tab address, on the circuit's negotiation and on the export: a missing or other identity and a
-	/// home-network caller sending the owner's header are refused.</summary>
+	/// <summary>Verifies an anonymous page, the export and the bank callback send the browser to the sign-in page, which
+	/// remembers where to return to.</summary>
+	/// <param name="path">The address, one a person opens in the browser.</param>
+	/// <param name="expectedReturn">The escaped return address the sign-in page is given.</param>
+	/// <returns>A task that completes when verified.</returns>
+	[Theory]
+	[InlineData("/overview", "%2Foverview")]
+	[InlineData("/export.csv", "%2Fexport.csv")]
+	[InlineData("/callback?code=granted&state=known", "%2Fcallback%3Fcode%3Dgranted%26state%3Dknown")]
+	[InlineData("/", "%2F")]
+	public async Task Get_AnonymousNavigation_RedirectsToSignIn(string path, string expectedReturn)
+	{
+		using var client = Anonymous(Factory);
+
+		using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
+
+		response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+		response.Headers.Location!.AbsolutePath.Should().Be("/signin");
+		response.Headers.Location.Query.Should().Be("?returnUrl=" + expectedReturn);
+	}
+
+	/// <summary>Verifies the circuit cannot be reached without signing in: its negotiation is answered with 401, not a
+	/// redirect it could not follow, and a WebSocket upgrade is not let through.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Circuit_Anonymous_Unauthorized()
+	{
+		using var client = Anonymous(Factory);
+
+		using var negotiate = await RequestAsync(client, HttpMethod.Post, new Uri(NegotiatePath, UriKind.Relative), request => request.Headers.Add("Sec-Fetch-Site", "same-origin"));
+		using var upgrade = await RequestAsync(client, HttpMethod.Get, new Uri("/_blazor", UriKind.Relative), request =>
+		{
+			request.Headers.Add("Connection", "Upgrade");
+			request.Headers.Add("Upgrade", "websocket");
+			request.Headers.Add("Sec-Fetch-Site", "same-origin");
+		});
+
+		negotiate.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+		upgrade.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+	}
+
+	/// <summary>Verifies a signed-in account that is not the owner is refused everywhere: pages go back to the sign-in page and
+	/// the circuit is answered with a status.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Request_SignedInNonOwner_Refused()
+	{
+		using var client = await SignedInAsync(Factory, "someone-else");
+
+		using var page = await client.GetAsync(new Uri("/overview", UriKind.Relative));
+		using var negotiate = await RequestAsync(client, HttpMethod.Post, new Uri(NegotiatePath, UriKind.Relative), request => request.Headers.Add("Sec-Fetch-Site", "same-origin"));
+
+		page.StatusCode.Should().Be(HttpStatusCode.Redirect);
+		page.Headers.Location!.AbsolutePath.Should().Be("/signin");
+		negotiate.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+	}
+
+	/// <summary>Verifies the signed-in owner passes on a page, on the circuit's negotiation and on the export.</summary>
 	/// <param name="path">The address, one the circuit or a download uses.</param>
 	/// <param name="method">The request method.</param>
 	/// <returns>A task that completes when verified.</returns>
@@ -213,31 +271,118 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	[InlineData("/overview", "GET")]
 	[InlineData("/export.csv", "GET")]
 	[InlineData("/_blazor/negotiate?negotiateVersion=1", "POST")]
-	public async Task Request_ProductionNonOwner_Forbidden(string path, string method)
+	public async Task Request_SignedInOwner_Served(string path, string method)
 	{
-		using var production = Production(IPAddress.Loopback);
-		using var client = production.CreateClient();
-		using var network = Production(IPAddress.Parse("192.168.1.20"));
-		using var networkClient = network.CreateClient();
-		var address = new Uri(path, UriKind.Relative);
-		var verb = new HttpMethod(method);
-		void SameOrigin(HttpRequestMessage request) => request.Headers.Add("Sec-Fetch-Site", "same-origin");
+		using var client = await SignedInAsync(Factory);
 
-		using var anonymous = await SendWithIdentityAsync(client, verb, address, identity: null, SameOrigin);
-		using var stranger = await SendWithIdentityAsync(client, verb, address, "someone@example.invalid", SameOrigin);
-		using var spoofed = await SendWithIdentityAsync(networkClient, verb, address, OwnerLogin, SameOrigin);
-		using var owner = await SendWithIdentityAsync(client, verb, address, OwnerLogin, SameOrigin);
+		using var response = await RequestAsync(client, new HttpMethod(method), new Uri(path, UriKind.Relative), request => request.Headers.Add("Sec-Fetch-Site", "same-origin"));
 
-		anonymous.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-		stranger.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-		spoofed.StatusCode.Should().Be(HttpStatusCode.Forbidden, "only Tailscale Serve on this PC may supply the identity");
-		owner.StatusCode.Should().Be(HttpStatusCode.OK, "the owner's own same-origin request, including the circuit's negotiation, must pass");
+		response.StatusCode.Should().Be(HttpStatusCode.OK);
 	}
 
-	/// <summary>Verifies a write from another site is refused even from the owner, while the owner's own same-origin
-	/// write (the circuit's negotiation, which a browser sends with <c>Sec-Fetch-Site: same-origin</c> and, under the
-	/// no-referrer policy, <c>Origin: null</c>) and a navigation typed into the address bar pass. Another port on this PC
-	/// and a forged origin without fetch metadata stay refused.</summary>
+	/// <summary>Verifies the static assets the shell loads need no sign-in.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Get_AnonymousStaticAsset_Served()
+	{
+		using var client = Anonymous(Factory);
+
+		using var response = await client.GetAsync(new Uri("/_framework/blazor.web.js", UriKind.Relative));
+
+		response.StatusCode.Should().Be(HttpStatusCode.OK);
+	}
+
+	/// <summary>Verifies the sign-in page is static HTML (no circuit script) that offers the configured provider and carries
+	/// the return address into the sign-in start.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Get_SignInPage_OffersConfiguredProviderStatically()
+	{
+		using var client = Anonymous(Factory);
+
+		using var response = await client.GetAsync(new Uri("/signin?returnUrl=%2Fsettings", UriKind.Relative));
+		var html = await response.Content.ReadAsStringAsync();
+
+		response.StatusCode.Should().Be(HttpStatusCode.OK);
+		response.Content.Headers.ContentType?.MediaType.Should().Be("text/html");
+		html.Should().Contain("Sign in with Google").And.Contain("/signin/start?provider=Google&amp;returnUrl=%2Fsettings").And.NotContain("blazor.web");
+	}
+
+	/// <summary>Verifies the sign-in start refuses a provider the host does not offer, so the address cannot be used to probe the API.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Get_SignInStartUnknownProvider_BadRequest()
+	{
+		using var client = Anonymous(Factory);
+
+		using var response = await client.GetAsync(new Uri("/signin/start?provider=Evil", UriKind.Relative));
+
+		response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+	}
+
+	/// <summary>Verifies a signed-in owner opening the sign-in page goes on to the page asked for, and that a return address
+	/// that points off this site is replaced by the root.</summary>
+	/// <param name="returnUrl">The requested return address.</param>
+	/// <param name="expected">Where the owner is sent.</param>
+	/// <returns>A task that completes when verified.</returns>
+	[Theory]
+	[InlineData("/settings", "/settings")]
+	[InlineData("//evil.example", "/")]
+	[InlineData("https://evil.example", "/")]
+	[InlineData("/\\evil.example", "/")]
+	public async Task Get_SignInPageSignedIn_RedirectsToLocalReturnUrl(string returnUrl, string expected)
+	{
+		using var client = await SignedInAsync(Factory);
+
+		using var response = await client.GetAsync(new Uri("/signin?returnUrl=" + Uri.EscapeDataString(returnUrl), UriKind.Relative));
+
+		response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+		response.Headers.Location!.OriginalString.Should().Be(expected);
+	}
+
+	/// <summary>Verifies the sign-out refuses a post without an antiforgery token, and with one ends the session: the cookie is
+	/// cleared and the next page asks to sign in again.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task PostSignOut_AntiforgeryToken_EndsTheSession()
+	{
+		using var client = await SignedInAsync(Factory);
+		var token = await client.GetStringAsync(new Uri(TestSignInStartupFilter.AntiforgeryRoute, UriKind.Relative));
+
+		using var without = await RequestAsync(client, HttpMethod.Post, new Uri("/signout", UriKind.Relative), request => request.Headers.Add("Sec-Fetch-Site", "same-origin"));
+		using var signedOut = await RequestAsync(client, HttpMethod.Post, new Uri("/signout", UriKind.Relative), request =>
+		{
+			request.Headers.Add("Sec-Fetch-Site", "same-origin");
+			request.Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["__RequestVerificationToken"] = token });
+		});
+		using var afterwards = await client.GetAsync(new Uri("/overview", UriKind.Relative));
+
+		without.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+		signedOut.StatusCode.Should().Be(HttpStatusCode.Redirect);
+		signedOut.Headers.Location!.OriginalString.Should().Be("/signin");
+		signedOut.Headers.GetValues("Set-Cookie").Should().Contain(cookie => cookie.StartsWith(WebAuthentication.CookieName + "=;", StringComparison.Ordinal));
+		afterwards.StatusCode.Should().Be(HttpStatusCode.Redirect);
+		afterwards.Headers.Location!.AbsolutePath.Should().Be("/signin");
+	}
+
+	/// <summary>Verifies the session cookie is script-proof, HTTPS-only and same-site Lax.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task SignIn_SessionCookie_HttpOnlySecureLax()
+	{
+		using var client = Anonymous(Factory);
+
+		using var response = await client.GetAsync(new Uri(TestSignInStartupFilter.SignInRoute, UriKind.Relative));
+
+		response.Headers.GetValues("Set-Cookie").Should().ContainSingle(cookie => cookie.StartsWith(WebAuthentication.CookieName + "=", StringComparison.Ordinal)
+			&& cookie.Contains("httponly", StringComparison.OrdinalIgnoreCase) && cookie.Contains("secure", StringComparison.OrdinalIgnoreCase)
+			&& cookie.Contains("samesite=lax", StringComparison.OrdinalIgnoreCase));
+	}
+
+	/// <summary>Verifies a write from another site is refused even from the signed-in owner (and from an anonymous caller),
+	/// while the owner's own same-origin write (the circuit's negotiation, which a browser sends with
+	/// <c>Sec-Fetch-Site: same-origin</c> and, under the no-referrer policy, <c>Origin: null</c>) and a navigation typed into
+	/// the address bar pass. Another port on this PC and a forged origin without fetch metadata stay refused.</summary>
 	/// <param name="site">The <c>Sec-Fetch-Site</c> header, or empty for none.</param>
 	/// <param name="origin">The <c>Origin</c> header, or empty for none.</param>
 	/// <param name="expected">The expected status.</param>
@@ -250,25 +395,16 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	[InlineData("cross-site", "https://evil.example", HttpStatusCode.Forbidden)]
 	[InlineData("", "null", HttpStatusCode.Forbidden)]
 	[InlineData("", "https://evil.example", HttpStatusCode.Forbidden)]
-	public async Task PostNegotiate_ProductionOwnerFetchMetadata_OnlyOwnPageWrites(string site, string origin, HttpStatusCode expected)
+	public async Task PostNegotiate_SignedInOwnerFetchMetadata_OnlyOwnPageWrites(string site, string origin, HttpStatusCode expected)
 	{
-		using var production = Production(IPAddress.Loopback);
-		using var client = production.CreateClient();
+		using var client = await SignedInAsync(Factory);
+		using var anonymous = Anonymous(Factory);
 
-		using var response = await SendWithIdentityAsync(client, HttpMethod.Post, new Uri(NegotiatePath, UriKind.Relative), OwnerLogin, request =>
-		{
-			if (site.Length > 0)
-			{
-				request.Headers.Add("Sec-Fetch-Site", site);
-			}
-
-			if (origin.Length > 0)
-			{
-				request.Headers.Add("Origin", origin);
-			}
-		});
+		using var response = await RequestAsync(client, HttpMethod.Post, new Uri(NegotiatePath, UriKind.Relative), request => AddFetchMetadata(request, site, origin));
+		using var anonymousResponse = await RequestAsync(anonymous, HttpMethod.Post, new Uri(NegotiatePath, UriKind.Relative), request => AddFetchMetadata(request, site, origin));
 
 		response.StatusCode.Should().Be(expected);
+		anonymousResponse.StatusCode.Should().Be(expected == HttpStatusCode.Forbidden ? HttpStatusCode.Forbidden : HttpStatusCode.Unauthorized);
 	}
 
 	/// <summary>Verifies a WebSocket upgrade to the Blazor circuit is judged like a write although it is a GET: a page on
@@ -282,21 +418,15 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	[InlineData("same-site", "https://localhost:17180", true)]
 	[InlineData("", "https://evil.example", true)]
 	[InlineData("same-origin", "https://localhost", false)]
-	public async Task GetCircuitUpgrade_ProductionOwnerFetchMetadata_OnlyOwnPageConnects(string site, string origin, bool refused)
+	public async Task GetCircuitUpgrade_SignedInOwnerFetchMetadata_OnlyOwnPageConnects(string site, string origin, bool refused)
 	{
-		using var production = Production(IPAddress.Loopback);
-		using var client = production.CreateClient();
+		using var client = await SignedInAsync(Factory);
 
-		using var response = await SendWithIdentityAsync(client, HttpMethod.Get, new Uri("/_blazor", UriKind.Relative), OwnerLogin, request =>
+		using var response = await RequestAsync(client, HttpMethod.Get, new Uri("/_blazor", UriKind.Relative), request =>
 		{
 			request.Headers.Add("Connection", "Upgrade");
 			request.Headers.Add("Upgrade", "websocket");
-			if (site.Length > 0)
-			{
-				request.Headers.Add("Sec-Fetch-Site", site);
-			}
-
-			request.Headers.Add("Origin", origin);
+			AddFetchMetadata(request, site, origin);
 		});
 
 		if (refused)
@@ -317,7 +447,7 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	[Fact]
 	public async Task GetExport_History_OldestFirstQuotedDownload()
 	{
-		using var client = Factory.CreateClient();
+		using var client = await SignedInAsync(Factory);
 
 		using var response = await client.GetAsync(new Uri("/export.csv", UriKind.Relative));
 		var lines = (await response.Content.ReadAsStringAsync()).Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -339,7 +469,7 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 		var backend = Factory.Services.GetRequiredService<BackendClient>();
 		var split = await backend.DecideAsync(new DecisionRequest("split", Id: "t1",
 			Parts: [new SplitPartRequest(10m, "bills", "Water bottle"), new SplitPartRequest(2.50m, "cash", "Cash back")]), CancellationToken.None);
-		using var client = Factory.CreateClient();
+		using var client = await SignedInAsync(Factory);
 
 		var export = (await client.GetStringAsync(new Uri("/export.csv", UriKind.Relative))).Split('\n', StringSplitOptions.RemoveEmptyEntries);
 		var item = (await backend.GetWorkspaceAsync(CancellationToken.None)).ToAnalysis().Items.Single(i => i.T.Id.Equals(new TxnId("t1")));
@@ -360,7 +490,7 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	{
 		using var unavailable = Factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
 			services.AddHttpClient<BackendClient>().ConfigurePrimaryHttpMessageHandler(() => new UnavailableBackendHandler())));
-		using var client = unavailable.CreateClient();
+		using var client = await SignedInAsync(unavailable);
 
 		using var response = await client.GetAsync(new Uri("/export.csv", UriKind.Relative));
 
@@ -380,7 +510,7 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	public async Task GetExport_BackendRefuses_ProblemWithSameStatus(HttpStatusCode status, string expected)
 	{
 		using var refusing = WithRefusingBackend("api/v1/workspace", status, "Bank access is not set up on the backend.");
-		using var client = refusing.CreateClient();
+		using var client = await SignedInAsync(refusing);
 
 		using var response = await client.GetAsync(new Uri("/export.csv", UriKind.Relative));
 
@@ -390,28 +520,42 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	#endregion
 
 	#region Private Helpers
-	/// <summary>Starts a web host outside Development with the owner configured, as Tailscale Serve on this PC or a
-	/// caller on the home network would reach it.</summary>
-	private WebApplicationFactory<Program> Production(IPAddress caller) => Factory.WithWebHostBuilder(builder => builder
-		.UseEnvironment("Production")
-		.UseSetting("Backend:OwnerLogin", OwnerLogin)
-		.ConfigureTestServices(services => services.AddTransient<IStartupFilter>(_ => new RemoteAddressStartupFilter(caller))));
+	/// <summary>Creates a client of a web host that is not signed in, over HTTPS so the secure cookies would be sent, without following redirects.</summary>
+	private static HttpClient Anonymous(WebApplicationFactory<Program> host) =>
+		host.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
+
+	/// <summary>Creates a client of a web host that holds the session cookie of an account, through the test-only sign-in route.</summary>
+	private static async Task<HttpClient> SignedInAsync(WebApplicationFactory<Program> host, string owner = WebAuthentication.OwnerId)
+	{
+		var client = Anonymous(host);
+		using var response = await client.GetAsync(new Uri($"{TestSignInStartupFilter.SignInRoute}?owner={Uri.EscapeDataString(owner)}", UriKind.Relative)).ConfigureAwait(false);
+		response.StatusCode.Should().Be(HttpStatusCode.OK);
+		return client;
+	}
+
+	/// <summary>Adds the browser's fetch metadata headers a test names; an empty value adds nothing.</summary>
+	private static void AddFetchMetadata(HttpRequestMessage request, string site, string origin)
+	{
+		if (site.Length > 0)
+		{
+			request.Headers.Add("Sec-Fetch-Site", site);
+		}
+
+		if (origin.Length > 0)
+		{
+			request.Headers.Add("Origin", origin);
+		}
+	}
 
 	/// <summary>Starts a web host whose backend answers one route with a problem and forwards the rest to the real API.</summary>
 	private WebApplicationFactory<Program> WithRefusingBackend(string route, HttpStatusCode status, string detail) =>
 		Factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services => services.AddHttpClient<BackendClient>()
 			.ConfigurePrimaryHttpMessageHandler(() => new RefusingBackendHandler(route, status, detail) { InnerHandler = Api.Server.CreateHandler() })));
 
-	/// <summary>Sends a request, carrying a Tailscale identity as Tailscale Serve would when one is given.</summary>
-	private static async Task<HttpResponseMessage> SendWithIdentityAsync(HttpClient client, HttpMethod method, Uri path, string? identity,
-		Action<HttpRequestMessage>? configure = null)
+	/// <summary>Sends a request the test can adjust; a POST carries an empty body unless the adjustment sets one.</summary>
+	private static async Task<HttpResponseMessage> RequestAsync(HttpClient client, HttpMethod method, Uri path, Action<HttpRequestMessage>? configure = null)
 	{
 		using var request = new HttpRequestMessage(method, path);
-		if (identity is not null)
-		{
-			request.Headers.Add("Tailscale-User-Login", identity);
-		}
-
 		if (method == HttpMethod.Post)
 		{
 			request.Content = new StringContent(string.Empty, System.Text.Encoding.UTF8, "text/plain");
@@ -442,29 +586,6 @@ public sealed class WebHostTests(BackendFixture fixture) : IClassFixture<Backend
 	#endregion
 
 	#region Nested Types
-	/// <summary>
-	/// Author      : Gihed Annabi
-	/// Date        : 11-2026
-	/// Purpose     : Sets the caller's address, which TestServer does not otherwise populate: loopback models Tailscale
-	///              Serve on this PC, another address a caller on the home network.
-	/// </summary>
-	/// <param name="address">The caller's address.</param>
-	private sealed class RemoteAddressStartupFilter(IPAddress address) : IStartupFilter
-	{
-		#region IStartupFilter Implementation
-		/// <inheritdoc />
-		public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
-		{
-			app.Use(async (context, continuation) =>
-			{
-				context.Connection.RemoteIpAddress = address;
-				await continuation(context).ConfigureAwait(false);
-			});
-			next(app);
-		};
-		#endregion
-	}
-
 	/// <summary>
 	/// Author      : Gihed Annabi
 	/// Date        : 11-2026

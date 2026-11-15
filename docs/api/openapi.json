@@ -78,7 +78,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/api/v1/categories": {
@@ -122,7 +127,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/api/v1/connection": {
@@ -163,7 +173,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/api/v1/sync": {
@@ -225,7 +240,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/health": {
@@ -310,7 +330,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/api/v1/consent": {
@@ -320,16 +345,6 @@
         ],
         "summary": "Starts an owner-bound read-only bank consent request.",
         "operationId": "beginConsent",
-        "parameters": [
-          {
-            "name": "Tailscale-User-Login",
-            "in": "header",
-            "description": "The proxy identity already checked by the access middleware.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "requestBody": {
           "description": "The bank selected from the catalogue.",
           "content": {
@@ -391,7 +406,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/api/v1/consent/callback": {
@@ -422,14 +442,6 @@
             "name": "error",
             "in": "query",
             "description": "A provider failure marker, never echoed in the response.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "Tailscale-User-Login",
-            "in": "header",
-            "description": "The proxy identity already checked by the access middleware.",
             "schema": {
               "type": "string"
             }
@@ -486,7 +498,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/api/v1/workspace": {
@@ -527,7 +544,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/api/v1/decisions": {
@@ -608,7 +630,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     }
   },
@@ -1429,6 +1456,13 @@
           }
         },
         "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "description": "The owner's access token from the API's own token service (ADR-0009).",
+        "scheme": "bearer"
       }
     }
   },
