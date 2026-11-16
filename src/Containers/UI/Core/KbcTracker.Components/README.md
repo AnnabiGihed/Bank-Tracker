@@ -27,6 +27,7 @@ style bundle (`_content/KbcTracker.Components/KbcTracker.Components.bundle.scp.c
 | `Features/FixedPayments/` | `FixedPaymentsPage` (`/fixed`), `FixedPaymentDialog`, `StatusPill`. |
 | `Features/Income/` | `IncomePage` (`/income?m&show`; `show` moves the focus to a section), `EarningsChart`. |
 | `Features/Subscriptions/` | `SubscriptionsPage` (`/subscriptions`), reusing `FixedPaymentDialog` and `StatusPill`. |
+| `Features/Debts/` | `DebtsPage` (`/debts`: a card per debt, schedule, payments counted, Plan it, Add debt, ADR-0010), `RepaymentPlanDialog` (opened from the Debts tab and, through `TabPageBase.OfferRepaymentPlanAsync`, after a credit is set to Loan received or Borrowed from people on the Income and Transactions tabs). |
 | `Features/Review/` | `ReviewPage` (`/review`). |
 | `Features/Categories/` | `CategoriesPage` (`/categories`) and `CategoryDialog`. |
 | `Features/Settings/` | `SettingsPage` (`/settings`): connection, sync, reconnect through `IBankConnectionLauncher`, history, CSV link. |

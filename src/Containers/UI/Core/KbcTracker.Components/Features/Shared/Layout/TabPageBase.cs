@@ -135,6 +135,33 @@ public abstract class TabPageBase : ComponentBase, IDisposable
 			Duration = 10000,
 		});
 	}
+
+	/// <summary>Opens the repayment plan form and sends the decision it returns, when the owner saves or skips.</summary>
+	/// <param name="dialogs">The service that opens dialogs.</param>
+	/// <param name="edit">The form to fill in.</param>
+	/// <returns>A task that completes when the dialog closed and its decision, if any, was sent.</returns>
+	protected async Task OpenPlanAsync(DialogService dialogs, RepaymentPlanEdit edit)
+	{
+		object? result = await dialogs.OpenAsync<RepaymentPlanDialog>(edit.Title,
+			new Dictionary<string, object?>(StringComparer.Ordinal) { [nameof(RepaymentPlanDialog.Edit)] = edit },
+			new DialogOptions { Width = "520px", CloseDialogOnOverlayClick = false });
+		if (result is DecisionRequest request)
+		{
+			await DecideAsync(request);
+		}
+	}
+
+	/// <summary>After a category decision succeeded, opens the repayment plan form when the payment is now a loan credit no debt tracks.</summary>
+	/// <param name="dialogs">The service that opens dialogs.</param>
+	/// <param name="creditId">The payment whose category was just set.</param>
+	/// <returns>A task that completes when nothing is to ask, or the dialog closed and its decision was sent.</returns>
+	protected async Task OfferRepaymentPlanAsync(DialogService dialogs, string creditId)
+	{
+		if (Store.Analysis is { } analysis && DebtsViewModel.PlanForCredit(analysis, creditId, Formats) is { } edit)
+		{
+			await OpenPlanAsync(dialogs, edit);
+		}
+	}
 	#endregion
 
 	#region IDisposable Implementation

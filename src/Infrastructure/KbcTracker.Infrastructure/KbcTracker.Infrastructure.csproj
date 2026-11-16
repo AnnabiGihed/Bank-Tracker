@@ -15,6 +15,7 @@
   <ItemGroup Label="Feature namespaces used across the project">
     <Using Include="KbcTracker.Application.Features.BankConnection.Abstractions" />
     <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.BankConnection.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />

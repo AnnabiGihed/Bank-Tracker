@@ -16,7 +16,10 @@ namespace KbcTracker.Domain.Features.Transactions.ValueObjects;
 /// <param name="CategoryConfirmed">Whether the user chose or confirmed the category, or the bank code makes it certain.</param>
 /// <param name="Recurring">The accepted fixed payment it was matched to, if any.</param>
 /// <param name="Split">The parts the user divided the payment into, or <see langword="null"/> when it is not split.</param>
-public sealed record TxnInfo(Txn T, Kind Kind, string SeriesKey, string Name, string[] Tokens, Category Category, bool CategoryConfirmed, RecurringPayment? Recurring, IReadOnlyList<TxnPart>? Split = null)
+/// <param name="Repayment">Whether the payment repays a loan (a bank loan instalment or a payment matched to a debt, ADR-0010):
+/// it is never spending.</param>
+public sealed record TxnInfo(Txn T, Kind Kind, string SeriesKey, string Name, string[] Tokens, Category Category, bool CategoryConfirmed, RecurringPayment? Recurring,
+	IReadOnlyList<TxnPart>? Split = null, bool Repayment = false)
 {
 	#region Properties
 	/// <summary>
@@ -31,9 +34,9 @@ public sealed record TxnInfo(Txn T, Kind Kind, string SeriesKey, string Name, st
 	public IReadOnlyList<TxnPart> Parts => Split ?? [new TxnPart(Category, T.Amount, null)];
 
 	/// <summary>
-	/// Gets a value indicating whether it is money out counted as spending.
+	/// Gets a value indicating whether it is money out counted as spending: loan repayments are not.
 	/// </summary>
-	public bool IsSpending => EffectiveType == CategoryType.Expense && T.Amount < 0;
+	public bool IsSpending => EffectiveType == CategoryType.Expense && T.Amount < 0 && !Repayment;
 
 	/// <summary>
 	/// Gets a value indicating whether it is money in counted as income.

@@ -8,6 +8,11 @@ namespace KbcTracker.ViewModels.Features.Shared;
 /// </summary>
 public static class CategoryOptions
 {
+	#region Constants
+	/// <summary>The id of the built-in Own transfers category.</summary>
+	private const string OwnTransfersId = "own-transfers";
+	#endregion
+
 	#region Public Methods
 	/// <summary>Lists categories in tree order.</summary>
 	/// <param name="analysis">The analysis that holds the category tree.</param>
@@ -62,6 +67,20 @@ public static class CategoryOptions
 	public static IReadOnlyList<CategoryOption> Spending(Analysis analysis, Formats formats) =>
 		[.. TreeOrder(analysis, ByName(formats), c => c.Type == CategoryType.Expense).Select(x => ToOption(x.Category, x.Depth))];
 
+	/// <summary>Lists the categories money in can have, grouped by type: the Income type (Refunds included), Loan received
+	/// with what lies below it (Borrowed from people included) and Own transfers. The Income tab offers only these.</summary>
+	/// <param name="analysis">The analysis that holds the category tree.</param>
+	/// <param name="formats">The formats whose culture decides the order of siblings.</param>
+	/// <returns>The groups, ordered by type.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="analysis"/> or <paramref name="formats"/> is <see langword="null"/>.</exception>
+	public static IReadOnlyList<CategoryGroup> Incoming(Analysis analysis, Formats formats)
+	{
+		ArgumentNullException.ThrowIfNull(analysis);
+		ArgumentNullException.ThrowIfNull(formats);
+		return [.. TreeOrder(analysis, ByName(formats), c => IsIncoming(analysis, c)).GroupBy(x => x.Category.Type).OrderBy(g => g.Key)
+			.Select(g => new CategoryGroup(TypeLabel(g.Key), g.Key, [.. g.Select(x => ToOption(x.Category, x.Depth))]))];
+	}
+
 	/// <summary>Lists a category's id followed by its ancestors' ids.</summary>
 	/// <param name="analysis">The analysis that holds the category tree.</param>
 	/// <param name="category">The category.</param>
@@ -95,5 +114,14 @@ public static class CategoryOptions
 		CategoryType.Savings => "Savings",
 		_ => "Transfer",
 	};
+	#endregion
+
+	#region Private Helpers
+	/// <summary>Determines whether money in can have the category: income, loan money received or an own transfer.</summary>
+	private static bool IsIncoming(Analysis analysis, Category category) =>
+		category.Type == CategoryType.Income
+		|| string.Equals(category.Id.Value, OwnTransfersId, StringComparison.Ordinal)
+		|| category.Id == CategoryId.LoanReceived
+		|| analysis.Tree.Ancestors(category.Id.Value).Any(a => a.Id == CategoryId.LoanReceived);
 	#endregion
 }

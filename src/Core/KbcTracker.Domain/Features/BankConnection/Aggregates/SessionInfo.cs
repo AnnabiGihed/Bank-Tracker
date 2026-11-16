@@ -22,6 +22,12 @@ public sealed class SessionInfo : LightweightAggregateRoot<BankSessionId>
 	/// The Enable Banking ids of the accounts the user gave access to.
 	/// </summary>
 	private readonly List<string> _accountUids = [];
+
+	/// <summary>
+	/// The IBAN, name and type of those accounts, as the bank sent them when the user connected; empty for a connection
+	/// made before they were kept, until the next reconnect.
+	/// </summary>
+	private readonly List<OwnAccount> _accounts = [];
 	#endregion
 
 	#region Properties
@@ -29,6 +35,12 @@ public sealed class SessionInfo : LightweightAggregateRoot<BankSessionId>
 	/// Gets the Enable Banking ids of the accounts the user gave access to; every one is synced.
 	/// </summary>
 	public IReadOnlyList<string> AccountUids => _accountUids.AsReadOnly();
+
+	/// <summary>
+	/// Gets the IBAN, name and type of the accounts, as far as the bank sent them; empty for a connection made before they
+	/// were kept.
+	/// </summary>
+	public IReadOnlyList<OwnAccount> Accounts => _accounts.AsReadOnly();
 
 	/// <summary>
 	/// Gets when the user connected.
@@ -72,10 +84,12 @@ public sealed class SessionInfo : LightweightAggregateRoot<BankSessionId>
 	/// <summary>
 	/// Initialises a new <see cref="SessionInfo"/> from already valid values.
 	/// </summary>
-	private SessionInfo(BankSessionId id, IEnumerable<string> accountUids, DateTimeOffset connectedAt, DateTimeOffset validUntil, DateTimeOffset? lastSync)
+	private SessionInfo(BankSessionId id, IEnumerable<string> accountUids, DateTimeOffset connectedAt, DateTimeOffset validUntil, DateTimeOffset? lastSync,
+		IEnumerable<OwnAccount>? accounts)
 		: base(id)
 	{
 		_accountUids.AddRange(accountUids);
+		_accounts.AddRange(accounts ?? []);
 		ConnectedAt = connectedAt;
 		ValidUntil = validUntil;
 		LastSync = lastSync;
@@ -91,14 +105,15 @@ public sealed class SessionInfo : LightweightAggregateRoot<BankSessionId>
 	/// <param name="connectedAt">When the user connected.</param>
 	/// <param name="validUntil">When the consent expires; after <paramref name="connectedAt"/>.</param>
 	/// <param name="lastSync">The last sync of the previous connection, kept so the history stays continuous.</param>
+	/// <param name="accounts">The IBAN, name and type of the accounts, or <see langword="null"/> when the bank sent none.</param>
 	/// <returns>The connection, or <see cref="SessionErrors.ValidityInvalid"/>.</returns>
 	/// <exception cref="ArgumentNullException"><paramref name="id"/> or <paramref name="accountUids"/> is <see langword="null"/>.</exception>
-	public static Result<SessionInfo> Connect(BankSessionId id, IEnumerable<string> accountUids, DateTimeOffset connectedAt, DateTimeOffset validUntil, DateTimeOffset? lastSync)
+	public static Result<SessionInfo> Connect(BankSessionId id, IEnumerable<string> accountUids, DateTimeOffset connectedAt, DateTimeOffset validUntil, DateTimeOffset? lastSync, IEnumerable<OwnAccount>? accounts = null)
 	{
 		ArgumentNullException.ThrowIfNull(id);
 		ArgumentNullException.ThrowIfNull(accountUids);
 		return validUntil > connectedAt
-			? new SessionInfo(id, accountUids, connectedAt, validUntil, lastSync)
+			? new SessionInfo(id, accountUids, connectedAt, validUntil, lastSync, accounts)
 			: Result.Failure<SessionInfo>(SessionErrors.ValidityInvalid);
 	}
 
@@ -112,13 +127,14 @@ public sealed class SessionInfo : LightweightAggregateRoot<BankSessionId>
 	/// <param name="lastSync">When the last successful sync ended, if any.</param>
 	/// <param name="lastError">The error of the last failed sync, if any.</param>
 	/// <param name="skippedTransactions">The stored count of left-out transactions.</param>
+	/// <param name="accounts">The stored account details, or <see langword="null"/> for a connection stored before they were kept.</param>
 	/// <returns>The connection.</returns>
 	/// <exception cref="ArgumentNullException"><paramref name="id"/> or <paramref name="accountUids"/> is <see langword="null"/>.</exception>
-	public static SessionInfo Rehydrate(BankSessionId id, IEnumerable<string> accountUids, DateTimeOffset connectedAt, DateTimeOffset validUntil, DateTimeOffset? lastSync, string? lastError, int skippedTransactions)
+	public static SessionInfo Rehydrate(BankSessionId id, IEnumerable<string> accountUids, DateTimeOffset connectedAt, DateTimeOffset validUntil, DateTimeOffset? lastSync, string? lastError, int skippedTransactions, IEnumerable<OwnAccount>? accounts = null)
 	{
 		ArgumentNullException.ThrowIfNull(id);
 		ArgumentNullException.ThrowIfNull(accountUids);
-		return new SessionInfo(id, accountUids, connectedAt, validUntil, lastSync) { LastError = lastError, SkippedTransactions = skippedTransactions };
+		return new SessionInfo(id, accountUids, connectedAt, validUntil, lastSync, accounts) { LastError = lastError, SkippedTransactions = skippedTransactions };
 	}
 	#endregion
 

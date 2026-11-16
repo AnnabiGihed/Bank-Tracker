@@ -75,8 +75,10 @@ public sealed class CategoryDefaultsTests
 		categories.Should().OnlyHaveUniqueItems(c => c.Id);
 		categories.Select(c => c.Id.Value).Should().Contain(
 			["other", "income", "refunds", "savings", "own-transfers", "loan-received", "loan", "bills", "bank-fees", "cash", "transfers", "groceries", "car", "housing", "car-fuel"]);
-		categories.Where(c => c.BuiltIn).Select(c => c.Id.Value).Should().HaveCount(11).And.Contain(
-			["income", "refunds", "savings", "own-transfers", "loan-received", "loan", "bills", "bank-fees", "cash", "transfers", "other"]);
+		categories.Where(c => c.BuiltIn).Select(c => c.Id.Value).Should().HaveCount(12).And.Contain(
+			["income", "refunds", "savings", "own-transfers", "loan-received", "borrowed-people", "loan", "bills", "bank-fees", "cash", "transfers", "other"]);
+		categories.Single(c => c.Id == CategoryId.BorrowedPeople).ParentId.Should().Be(CategoryId.LoanReceived);
+		categories.Single(c => c.Id == CategoryId.BorrowedPeople).Type.Should().Be(CategoryType.Transfer);
 		categories.Single(c => c.Id == new CategoryId("car-fuel")).ParentId.Should().Be(new CategoryId("car"));
 		categories.Single(c => c.Id == new CategoryId("car-fuel")).Coicop.Should().Be("07.2");
 		categories.Single(c => c.Id == new CategoryId("groceries")).Keywords.Should().Contain("AD ");
@@ -99,6 +101,24 @@ public sealed class CategoryDefaultsTests
 		restored.BuiltIn.Should().BeTrue();
 		tree.Roots().Should().Contain(restored);
 		tree.ValidateDeletion(CategoryId.LoanReceived.Value).IsFailure.Should().BeTrue();
+	}
+
+	/// <summary>
+	/// Verifies the stand-in for a database stored before Borrowed from people existed: a protected Transfer below Loan
+	/// received.
+	/// </summary>
+	[Fact]
+	public void CreateBorrowedPeople_OldTreeWithoutIt_IsProtectedTransferBelowLoanReceived()
+	{
+		var old = CategoryDefaults.CreateDefaults("BE").Where(c => c.Id != CategoryId.BorrowedPeople).ToList();
+		var restored = CategoryDefaults.CreateBorrowedPeople();
+		var tree = new CategoryTree([.. old, restored]);
+
+		restored.Type.Should().Be(CategoryType.Transfer);
+		restored.BuiltIn.Should().BeTrue();
+		restored.ParentId.Should().Be(CategoryId.LoanReceived);
+		tree.Ancestors(restored.Id.Value).Select(c => c.Id).Should().Equal(CategoryId.LoanReceived);
+		tree.ValidateDeletion(CategoryId.BorrowedPeople.Value).IsFailure.Should().BeTrue();
 	}
 
 	/// <summary>

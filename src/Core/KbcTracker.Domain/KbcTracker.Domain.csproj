@@ -24,10 +24,16 @@
   <ItemGroup Label="Feature namespaces used across the project">
     <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.BankConnection.Errors" />
+    <Using Include="KbcTracker.Domain.Features.BankConnection.Services" />
+    <Using Include="KbcTracker.Domain.Features.BankConnection.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Categories.Errors" />
     <Using Include="KbcTracker.Domain.Features.Categories.Services" />
     <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Debts.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Debts.Errors" />
+    <Using Include="KbcTracker.Domain.Features.Debts.Services" />
+    <Using Include="KbcTracker.Domain.Features.Debts.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.Errors" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.ValueObjects" />

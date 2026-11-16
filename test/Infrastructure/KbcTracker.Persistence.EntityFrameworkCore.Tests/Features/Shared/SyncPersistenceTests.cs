@@ -64,6 +64,55 @@ public sealed class SyncPersistenceTests(PostgreSqlFixture fixture) : DatabaseTe
 		history.Single(t => t.Id == new TxnId("old")).Raw.Should().Be(Samples.Txn("old").Raw);
 	}
 
+	/// <summary>Verifies a bank reference already used by another account is stored under the account's prefix, the stored
+	/// transaction keeps its id and data, and a second sync updates the prefixed copy instead of adding another.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task MergeAsync_IdTakenByAnotherAccount_PrefixedAndStoredOneKept()
+	{
+		await AddAsync(Samples.Txn("shared-ref"));
+		var scope = Services.CreateAsyncScope();
+		await using (scope)
+		{
+			var persistence = scope.ServiceProvider.GetRequiredService<IBankSyncPersistence>();
+			(await persistence.MergeAsync([OfAccount("savings", "shared-ref", 25m), OfAccount("savings", "own-ref", 5m)], CancellationToken.None)).Should().Be(2);
+			(await persistence.MergeAsync([OfAccount("savings", "shared-ref", 26m)], CancellationToken.None)).Should().Be(0);
+		}
+
+		var history = await ReadAsync(db => db.Transactions.OrderBy(t => t.Id).ToListAsync());
+		history.Select(t => t.Id.Value).Should().Equal("own-ref", "savings:shared-ref", "shared-ref");
+		history.Single(t => t.Id == new TxnId("shared-ref")).AccountUid.Should().Be("acc-1");
+		history.Single(t => t.Id == new TxnId("shared-ref")).Amount.Should().Be(Samples.Txn("shared-ref").Amount);
+		history.Single(t => t.Id == new TxnId("savings:shared-ref")).Amount.Should().Be(26m);
+	}
+
+	/// <summary>Verifies one batch holding the same bank reference for two accounts stores both, the second under its
+	/// account's prefix, and that syncing the same batch again, in any order, adds nothing and keeps every id.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task MergeAsync_SameReferenceOnTwoAccountsInOneBatch_BothKeptAndStableAcrossSyncs()
+	{
+		Txn[] batch = [OfAccount("savings", "ref", 7m), OfAccount("current", "ref", 5m), OfAccount("savings", "own", 1m)];
+		var scope = Services.CreateAsyncScope();
+		await using (scope)
+		{
+			var persistence = scope.ServiceProvider.GetRequiredService<IBankSyncPersistence>();
+			(await persistence.MergeAsync(batch, CancellationToken.None)).Should().Be(3);
+		}
+
+		var scopeAgain = Services.CreateAsyncScope();
+		await using (scopeAgain)
+		{
+			var persistence = scopeAgain.ServiceProvider.GetRequiredService<IBankSyncPersistence>();
+			(await persistence.MergeAsync([.. batch.Reverse()], CancellationToken.None)).Should().Be(0);
+		}
+
+		var history = await ReadAsync(db => db.Transactions.OrderBy(t => t.Id).ToListAsync());
+		history.Select(t => t.Id.Value).Should().Equal("own", "ref", "savings:ref");
+		history.Single(t => t.Id == new TxnId("ref")).AccountUid.Should().Be("current");
+		history.Single(t => t.Id == new TxnId("savings:ref")).Amount.Should().Be(7m);
+	}
+
 	/// <summary>Verifies staging is isolated until the unit of work commits, and queries page in stable order.</summary>
 	/// <returns>A task that completes when verified.</returns>
 	[Fact]
@@ -219,6 +268,10 @@ public sealed class SyncPersistenceTests(PostgreSqlFixture fixture) : DatabaseTe
 	#endregion
 
 	#region Private Helpers
+	/// <summary>Builds a bank transaction of another account.</summary>
+	private static Txn OfAccount(string accountUid, string id, decimal amount) => Txn.Rehydrate(new TxnId(id), accountUid, new DateOnly(2026, 11, 3),
+		Money.Rehydrate(amount, "EUR"), Counterparty.Rehydrate("Other", null), "Other account", new BankRecord("PMNT", "{}"));
+
 	/// <summary>Builds a revised bank transaction without changing its stable identity.</summary>
 	private static Txn Changed(string id, decimal amount) => Txn.Rehydrate(new TxnId(id), "acc-1", new DateOnly(2026, 11, 2),
 		Money.Rehydrate(amount, "EUR"), Counterparty.Rehydrate("Shop", null), "Updated", new BankRecord("PMNT", "{}"));

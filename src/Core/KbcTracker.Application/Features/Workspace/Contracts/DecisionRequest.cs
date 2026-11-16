@@ -21,7 +21,10 @@ namespace KbcTracker.Application.Features.Workspace.Contracts;
 /// existing one keeps its parent; an empty value makes an existing category top level.</param>
 /// <param name="Parts">For <c>split</c>: the parts the payment <see cref="Id"/> is divided into; they must add up to its
 /// amount.</param>
+/// <param name="Debt">For <c>addDebt</c> and <c>updateDebt</c> (ADR-0010): what the owner says about the debt. The debt itself
+/// is <see cref="Id"/> for <c>updateDebt</c>, <c>removeDebt</c>, <c>matchRepayment</c>, <c>unmatchRepayment</c> and
+/// <c>resetRepayment</c>; those last three name the payment in <see cref="Key"/>.</param>
 public sealed record DecisionRequest(string Action, string? Key = null, string? Id = null, string[]? Keys = null, string? Name = null,
 	string? CategoryId = null, string? Type = null, string? Color = null, string? Keywords = null,
 	decimal? Amount = null, int? Cadence = null, PayeeAssignmentSnapshot? Restore = null,
-	string? ParentId = null, IReadOnlyList<SplitPartRequest>? Parts = null);
+	string? ParentId = null, IReadOnlyList<SplitPartRequest>? Parts = null, DebtRequest? Debt = null);

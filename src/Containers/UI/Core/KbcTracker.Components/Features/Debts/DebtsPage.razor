@@ -1,0 +1,131 @@
+@page "/debts"
+@inherits TabPageBase
+
+<PageTitle>Debts</PageTitle>
+@if (_view is not null)
+{
+	<div class="toolbar">
+		<RadzenButton Text="Add debt" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small" Click="@AddDebtAsync" />
+	</div>
+
+	@if (_view.Unplanned.Count > 0)
+	{
+		<RadzenCard class="block" id="debts-unplanned">
+			<h2>Unplanned <span class="muted">loan money received that no debt tracks yet</span></h2>
+			<ul class="unplanned">
+				@foreach (var credit in _view.Unplanned)
+				{
+					<li>
+						<span class="muted">@credit.DateText</span>
+						<strong>@credit.Payer</strong>
+						<span class="income">@credit.AmountText</span>
+						<span class="muted">@credit.CategoryName</span>
+						<RadzenButton Text="Plan it" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Small" aria-label="@($"Plan the repayment of {credit.Payer} {credit.AmountText}")"
+							Click="@(() => PlanItAsync(credit))" />
+					</li>
+				}
+			</ul>
+		</RadzenCard>
+	}
+
+	@if (_view.Cards.Count == 0 && _view.Unplanned.Count == 0)
+	{
+		<p class="muted">@DebtsViewModel.EmptyMessage</p>
+	}
+
+	@foreach (var card in _view.Cards)
+	{
+		<RadzenCard class="@(card.IsActive ? "block debt" : "block debt done")" id="@("debt-" + card.Id)">
+			<header>
+				<h2>@card.Lender <span class="muted">@card.KindText</span></h2>
+				<span class="pill @ToneClass(card.Pill.Tone)">@card.Pill.Text</span>
+			</header>
+			<div class="progress" role="progressbar" aria-label="@($"Repaid of {card.Lender}")" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@card.ProgressPercent">
+				<div class="bar" style="width: @(card.ProgressPercent)%"></div>
+			</div>
+			<dl class="summary">
+				<div><dt>Repaid</dt><dd>@card.ProgressText</dd></div>
+				<div><dt>Remaining</dt><dd>@card.RemainingText</dd></div>
+				@if (card.NextText is { } next)
+				{
+					<div><dt>Next</dt><dd>@next</dd></div>
+				}
+			</dl>
+			@if (card.PlanText is { } plan)
+			{
+				<p class="muted">Plan: @plan</p>
+			}
+
+			<div class="buttons">
+				<RadzenButton Text="@(IsOpen(card) ? "Hide details" : "Details")" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+					aria-expanded="@(IsOpen(card) ? "true" : "false")" Click="@(() => Toggle(card))" />
+				<RadzenButton Text="Edit plan" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small" aria-label="@($"Edit plan of {card.Lender}")"
+					Click="@(() => EditPlanAsync(card))" />
+				<RadzenButton Text="Remove" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Size="ButtonSize.Small" aria-label="@($"Remove {card.Lender}")"
+					Click="@(() => RemoveAsync(card))" />
+			</div>
+
+			@if (IsOpen(card))
+			{
+				<div class="details">
+					<h3>Schedule</h3>
+					@if (card.Schedule.Count == 0)
+					{
+						<p class="muted">No plan yet. Use Edit plan to say how it is repaid.</p>
+					}
+					else
+					{
+						<table>
+							<caption class="sr-only">Schedule of @card.Lender</caption>
+							<tbody>
+								@foreach (var line in card.Schedule)
+								{
+									<tr>
+										<td>@line.DueText</td>
+										<td class="num">@line.AmountText</td>
+										<td><span class="pill @ToneClass(line.Tone)">@line.StateText</span></td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					}
+
+					<h3>Payments counted</h3>
+					@if (card.Payments.Count == 0)
+					{
+						<p class="muted">No repayment found yet.</p>
+					}
+					else
+					{
+						<ul class="payments">
+							@foreach (var payment in card.Payments)
+							{
+								<li>
+									<span class="muted">@payment.DateText</span>
+									<span>@payment.Name</span>
+									<span class="num">@payment.AmountText</span>
+									@if (payment.AddedByHand)
+									{
+										<span class="muted">added by you</span>
+									}
+									<RadzenButton Text="Not a repayment" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text" Size="ButtonSize.Small"
+										aria-label="@($"{payment.Name} {payment.DateText} is not a repayment of {card.Lender}")" Click="@(() => DecideAsync(payment.NotARepaymentRequest))" />
+								</li>
+							}
+						</ul>
+					}
+
+					@if (card.Addable.Count > 0)
+					{
+						<div class="add-payment">
+							<span id="@("add-label-" + card.Id)">Add a payment</span>
+							<RadzenDropDown TValue="string" Data="@card.Addable" TextProperty="@nameof(PaymentOption.Text)" ValueProperty="@nameof(PaymentOption.Id)"
+								Value="@string.Empty" ValueChanged="@(id => AddPaymentAsync(card, id))" AllowFiltering="true" Placeholder="Pick a payment"
+								InputAttributes="@(new Dictionary<string, object>(StringComparer.Ordinal) { ["aria-labelledby"] = "add-label-" + card.Id })" />
+						</div>
+					}
+				</div>
+			}
+		</RadzenCard>
+	}
+}

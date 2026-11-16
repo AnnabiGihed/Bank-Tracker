@@ -1,0 +1,29 @@
+.form {
+	display: grid;
+	gap: 6px;
+}
+
+.hint {
+	font-size: 0.85rem;
+}
+
+.preview {
+	margin: 8px 0 0;
+	padding: 6px 10px;
+	border: 1px solid var(--kt-line);
+	border-radius: 8px;
+	font-weight: 600;
+}
+
+.problems {
+	margin: 4px 0 0;
+	padding-left: 18px;
+	color: var(--kt-bad);
+}
+
+.actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 12px;
+}

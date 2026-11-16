@@ -142,4 +142,20 @@ public sealed class Txn : LightweightAggregateRoot<TxnId>
 		return new Txn(id, accountUid, date, money, counterparty, description, source);
 	}
 	#endregion
+
+	#region Public Methods
+	/// <summary>
+	/// Copies the transaction under another identifier. Used when the bank's reference is already taken by a transaction of
+	/// another account, so the two stay apart.
+	/// </summary>
+	/// <param name="id">The new identifier.</param>
+	/// <returns>The copy; this instance is unchanged.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="id"/> is <see langword="null"/>.</exception>
+	public Txn WithId(TxnId id)
+	{
+		ArgumentNullException.ThrowIfNull(id);
+		var party = ValueObjects.Counterparty.Rehydrate(Counterparty, CounterpartyIban);
+		return new Txn(id, AccountUid, Date, Money.Rehydrate(Amount, Currency), party, Description, new BankRecord(BankCode, Raw));
+	}
+	#endregion
 }

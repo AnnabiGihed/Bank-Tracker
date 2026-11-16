@@ -71,7 +71,10 @@ public sealed class PostgreSqlWorkspacePersistence(KbcTrackerDbContext db, IUnit
 			}
 		}
 
-		return new(transactions, categories, user, null);
+		// Read-only: the decisions never change the connection, but their analysis needs its accounts to recognise own transfers.
+		var session = await db.BankSessions.AsNoTracking().OrderByDescending(s => s.ConnectedAt).ThenBy(s => s.Id)
+			.FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+		return new(transactions, categories, user, session);
 	}
 
 	/// <inheritdoc />
@@ -111,6 +114,11 @@ public sealed class PostgreSqlWorkspacePersistence(KbcTrackerDbContext db, IUnit
 		if (!categories.Exists(c => c.Id == CategoryId.LoanReceived))
 		{
 			missing.Add(CategoryDefaults.CreateLoanReceived());
+		}
+
+		if (!categories.Exists(c => c.Id == CategoryId.BorrowedPeople))
+		{
+			missing.Add(CategoryDefaults.CreateBorrowedPeople());
 		}
 
 		return missing;

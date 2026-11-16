@@ -8,7 +8,8 @@ namespace KbcTracker.Persistence.EntityFrameworkCore.Features.Shared.Conversions
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Converters and comparers for the user's decisions stored as <c>jsonb</c>: payee categories,
-///              transaction categories, splits of payments, payee names and dismissed suggestions.
+///              transaction categories, splits of payments, debts, payee names and dismissed suggestions, and the accounts
+///              of the bank connection.
 ///
 ///              Each comparer compares and snapshots through the JSON text. Without a deep comparer EF Core would
 ///              see the same dictionary instance after an in-place change and never save it. Rebuilt dictionaries and
@@ -16,6 +17,13 @@ namespace KbcTracker.Persistence.EntityFrameworkCore.Features.Shared.Conversions
 /// </summary>
 internal static class JsonColumns
 {
+	#region Constants
+	/// <summary>
+	/// The shape of <see cref="StoredDebt"/> this version writes.
+	/// </summary>
+	private const int StoredDebtVersion = 2;
+	#endregion
+
 	#region Static Instances
 	/// <summary>
 	/// Converts the payee categories.
@@ -52,6 +60,30 @@ internal static class JsonColumns
 	/// </summary>
 	public static readonly ValueComparer<Dictionary<TxnId, PaymentSplit>> SplitsComparer =
 		new((a, b) => WriteSplits(a!) == WriteSplits(b!), v => WriteSplits(v).GetHashCode(StringComparison.Ordinal), v => ReadSplits(WriteSplits(v)));
+
+	/// <summary>
+	/// Converts the debts.
+	/// </summary>
+	public static readonly ValueConverter<List<Debt>, string> DebtsConverter =
+		new(value => WriteDebts(value), json => ReadDebts(json));
+
+	/// <summary>
+	/// Compares the debts by content.
+	/// </summary>
+	public static readonly ValueComparer<List<Debt>> DebtsComparer =
+		new((a, b) => WriteDebts(a!) == WriteDebts(b!), v => WriteDebts(v).GetHashCode(StringComparison.Ordinal), v => ReadDebts(WriteDebts(v)));
+
+	/// <summary>
+	/// Converts the accounts of a bank connection.
+	/// </summary>
+	public static readonly ValueConverter<List<OwnAccount>, string> AccountsConverter =
+		new(value => WriteAccounts(value), json => ReadAccounts(json));
+
+	/// <summary>
+	/// Compares the accounts of a bank connection by content.
+	/// </summary>
+	public static readonly ValueComparer<List<OwnAccount>> AccountsComparer =
+		new((a, b) => WriteAccounts(a!) == WriteAccounts(b!), v => WriteAccounts(v).GetHashCode(StringComparison.Ordinal), v => ReadAccounts(WriteAccounts(v)));
 
 	/// <summary>
 	/// Converts the payee names.
@@ -119,6 +151,52 @@ internal static class JsonColumns
 	private static Dictionary<TxnId, PaymentSplit> ReadSplits(string json) =>
 		(JsonSerializer.Deserialize<Dictionary<string, List<StoredSplitLine>>>(json) ?? [])
 			.ToDictionary(kv => new TxnId(kv.Key), kv => PaymentSplit.Rehydrate(kv.Value.Select(l => new SplitLine(l.Amount, new CategoryId(l.CategoryId), l.Label))));
+
+	/// <summary>
+	/// Writes the debts as a JSON array of <see cref="StoredDebt"/>; the manual payment lists are sorted so equal debts
+	/// give equal text.
+	/// </summary>
+	private static string WriteDebts(List<Debt> value) =>
+		JsonSerializer.Serialize(value.Select(d => new StoredDebt(
+			StoredDebtVersion, d.Id.Value, d.Kind.ToString(), d.Lender, d.Iban, d.ReceivedPaymentId?.Value, d.Principal, d.SeriesKey,
+			d.Plan is null ? null : new StoredRepaymentPlan(d.Plan.Amount, d.Plan.Start, d.Plan.Frequency?.ToString(), d.Plan.DayOfMonth, d.Plan.InstalmentAmount, d.Plan.Count),
+			[.. d.IncludedPayments.Select(p => p.Value).Order(StringComparer.Ordinal)],
+			[.. d.ExcludedPayments.Select(p => p.Value).Order(StringComparer.Ordinal)], d.BorrowedOn)));
+
+	/// <summary>
+	/// Reads the debts from JSON.
+	/// </summary>
+	private static List<Debt> ReadDebts(string json) =>
+		[.. (JsonSerializer.Deserialize<List<StoredDebt>>(json) ?? []).Select(d =>
+		{
+			var terms = new DebtTerms(Enum.Parse<DebtKind>(d.Kind), d.Lender, d.Iban, d.ReceivedPaymentId is null ? null : new TxnId(d.ReceivedPaymentId),
+				d.Principal, d.SeriesKey, ReadPlan(d.Plan), d.BorrowedOn ?? ReadPlan(d.Plan)?.Start ?? new DateOnly(RepaymentPlan.MinYear, 1, 1));
+			return Debt.Rehydrate(new DebtId(d.Id), terms, d.Included.Select(p => new TxnId(p)), d.Excluded.Select(p => new TxnId(p)));
+		})];
+
+	/// <summary>
+	/// Reads a stored repayment plan.
+	/// </summary>
+	private static RepaymentPlan? ReadPlan(StoredRepaymentPlan? plan)
+	{
+		if (plan is null)
+		{
+			return null;
+		}
+
+		RepaymentFrequency? frequency = plan.Frequency is null ? null : Enum.Parse<RepaymentFrequency>(plan.Frequency);
+		return RepaymentPlan.Rehydrate(plan.Amount, plan.Start, frequency, plan.DayOfMonth, plan.InstalmentAmount, plan.Count);
+	}
+
+	/// <summary>
+	/// Writes the accounts of a bank connection as JSON.
+	/// </summary>
+	private static string WriteAccounts(List<OwnAccount> value) => JsonSerializer.Serialize(value);
+
+	/// <summary>
+	/// Reads the accounts of a bank connection from JSON.
+	/// </summary>
+	private static List<OwnAccount> ReadAccounts(string json) => JsonSerializer.Deserialize<List<OwnAccount>>(json) ?? [];
 
 	/// <summary>
 	/// Writes the payee names as JSON.

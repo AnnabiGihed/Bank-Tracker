@@ -29,6 +29,18 @@ public sealed class IncomeViewModelTests
 	});
 	#endregion
 
+	#region Picker Tests
+	/// <summary>Verifies the category picker of the tab offers only categories money in can have.</summary>
+	[Fact]
+	public void CategoryGroups_OnlyIncomingCategories()
+	{
+		var ids = new IncomeViewModel(October(), "2026-10", Formats.Belgian).CategoryGroups.SelectMany(g => g.Options).Select(o => o.Id).ToList();
+
+		ids.Should().Contain(["income-salary", "refunds", "loan-received", "borrowed-people", "own-transfers"]);
+		ids.Should().NotContain(["bills", "trav"]);
+	}
+	#endregion
+
 	#region Section Tests
 	/// <summary>Verifies each section's payments and total equal the Overview figure of the month.</summary>
 	[Fact]

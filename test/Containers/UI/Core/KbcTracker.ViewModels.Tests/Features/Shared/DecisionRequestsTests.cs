@@ -22,6 +22,19 @@ public sealed class DecisionRequestsTests
 		DecisionRequests.Rename("DD:x", "Rent").Should().Be(new DecisionRequest("rename", Key: "DD:x", Name: "Rent"));
 	}
 
+	/// <summary>Verifies the debt decisions: the debt is the id, a payment is the key, the terms travel in the debt field.</summary>
+	[Fact]
+	public void DebtDecisions_IdKeyAndDebt_Shape()
+	{
+		var debt = new DebtRequest(DebtKind.PersonalLoan, "Friend", BorrowedOn: new DateOnly(2026, 10, 5), Principal: 100m);
+
+		DecisionRequests.AddDebt(debt).Should().Be(new DecisionRequest("addDebt", Debt: debt));
+		DecisionRequests.UpdateDebt("d1", debt).Should().Be(new DecisionRequest("updateDebt", Id: "d1", Debt: debt));
+		DecisionRequests.RemoveDebt("d1").Should().Be(new DecisionRequest("removeDebt", Id: "d1"));
+		DecisionRequests.MatchRepayment("d1", "t1").Should().Be(new DecisionRequest("matchRepayment", Id: "d1", Key: "t1"));
+		DecisionRequests.UnmatchRepayment("d1", "t1").Should().Be(new DecisionRequest("unmatchRepayment", Id: "d1", Key: "t1"));
+	}
+
 	/// <summary>Verifies confirming several payees sends their keys together.</summary>
 	[Fact]
 	public void ConfirmMany_Keys_SentTogether()

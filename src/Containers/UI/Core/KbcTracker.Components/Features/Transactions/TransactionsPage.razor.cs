@@ -143,6 +143,7 @@ public partial class TransactionsPage : TabPageBase
 		{
 			var categoryName = _categories.FirstOrDefault(c => string.Equals(c.Id, categoryId, StringComparison.Ordinal))?.Name ?? categoryId;
 			OfferOnlyThisOne(row.Name, categoryName, row.OnlyThisOneRequest(categoryId, response.PreviousAssignment));
+			await OfferRepaymentPlanAsync(Dialogs, row.Id);
 		}
 	}
 

@@ -58,6 +58,11 @@ namespace KbcTracker.Persistence.EntityFrameworkCore.Migrations
                         .HasColumnType("text[]")
                         .HasColumnName("AccountUids");
 
+                    b.Property<string>("_accounts")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("Accounts");
+
                     b.HasKey("Id");
 
                     b.ToTable("BankSessions", (string)null);
@@ -123,6 +128,11 @@ namespace KbcTracker.Persistence.EntityFrameworkCore.Migrations
 
                     b.Property<int>("Version")
                         .HasColumnType("integer");
+
+                    b.Property<string>("_debts")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("Debts");
 
                     b.Property<string>("_dismissedSuggestions")
                         .IsRequired()

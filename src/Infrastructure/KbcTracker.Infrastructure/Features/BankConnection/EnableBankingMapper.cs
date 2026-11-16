@@ -62,6 +62,39 @@ public static class EnableBankingMapper
 	/// <returns>The id; never blank.</returns>
 	public static string IdOf(string accountUid, JsonNode transaction) =>
 		Present(Text(transaction, "entry_reference")) ?? Present(Text(transaction, "transaction_id")) ?? ContentId(accountUid, transaction);
+
+	/// <summary>
+	/// Reads the accounts of a <c>POST /sessions</c> response: for each one the id, the IBAN (<c>account_id.iban</c>), the name
+	/// and the ISO cash account type (<c>cash_account_type</c>). An account sent as a bare id, or without those fields, keeps
+	/// them empty. Accounts are read from <c>accounts_data</c> when the response has it, otherwise from <c>accounts</c>.
+	/// </summary>
+	/// <param name="session">The session response as returned by the bank.</param>
+	/// <returns>The accounts in the order the bank sent them; empty when it sent none that has an id.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="session"/> is <see langword="null"/>.</exception>
+	public static IReadOnlyList<OwnAccount> Accounts(JsonNode session)
+	{
+		ArgumentNullException.ThrowIfNull(session);
+		var list = session["accounts_data"] as JsonArray ?? session["accounts"] as JsonArray;
+		var accounts = new List<OwnAccount>();
+		foreach (var account in list ?? [])
+		{
+			if (account is JsonValue bare)
+			{
+				var bareUid = bare.TryGetValue<string>(out var text) ? Present(text) : null;
+				if (bareUid is not null)
+				{
+					accounts.Add(new OwnAccount(bareUid, null, null, null));
+				}
+			}
+			else if (account is JsonObject details && Present(Text(details, "uid")) is { } uid)
+			{
+				accounts.Add(new OwnAccount(uid, OwnAccount.NormaliseIban(Text(details, "account_id", "iban")), Present(Text(details, "name")),
+					Present(Text(details, "cash_account_type"))));
+			}
+		}
+
+		return accounts;
+	}
 	#endregion
 
 	#region Private Helpers

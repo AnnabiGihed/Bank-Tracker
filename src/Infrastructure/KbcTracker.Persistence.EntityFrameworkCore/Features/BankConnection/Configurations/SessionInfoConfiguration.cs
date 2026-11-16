@@ -19,6 +19,9 @@ internal sealed class SessionInfoConfiguration : IEntityTypeConfiguration<Sessio
 		builder.Property(s => s.Id).ValueGeneratedNever();
 		builder.Ignore(s => s.AccountUids);
 		builder.PrimitiveCollection<List<string>>("_accountUids").HasColumnName("AccountUids").IsRequired();
+		builder.Ignore(s => s.Accounts);
+		builder.Property<List<OwnAccount>>("_accounts").HasColumnName("Accounts").HasColumnType("jsonb")
+			.HasConversion(JsonColumns.AccountsConverter, JsonColumns.AccountsComparer);
 		builder.Property(s => s.ConnectedAt);
 		builder.Property(s => s.ValidUntil);
 		builder.Property(s => s.LastSync);

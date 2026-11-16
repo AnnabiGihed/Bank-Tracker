@@ -7,10 +7,17 @@ namespace KbcTracker.Components.Features.Income;
 ///              loan money received, each with its payments, a category picker and confirm button like a Transactions
 ///              row, then the earnings of the last twelve months and the earnings by payer. The <c>show</c> query value
 ///              (<c>earnings</c>, <c>refunds</c> or <c>loan-received</c>) moves the focus, and so the view, to that
-///              section. The figures come from <see cref="IncomeViewModel"/>.
+///              section. The figures come from <see cref="IncomeViewModel"/>. The picker offers only the categories money in can
+///              have; setting a credit to Loan received or Borrowed from people opens the repayment plan form (ADR-0010).
 /// </summary>
 public partial class IncomePage : TabPageBase
 {
+	#region Injected Services
+	/// <summary>Gets or sets the service that opens dialogs.</summary>
+	[Inject]
+	public required DialogService Dialogs { get; set; }
+	#endregion
+
 	#region Parameters
 	/// <summary>Gets or sets the figure whose section is shown first, from the <c>show</c> query value.</summary>
 	[SupplyParameterFromQuery(Name = "show")]
@@ -22,7 +29,7 @@ public partial class IncomePage : TabPageBase
 	/// <summary>What the tab shows, or <see langword="null"/> until the workspace is loaded.</summary>
 	private IncomeViewModel? _view;
 
-	/// <summary>Every category a payment can be given, in tree order.</summary>
+	/// <summary>The categories money in can have, in tree order.</summary>
 	private IReadOnlyList<CategoryOption> _categories = [];
 
 	/// <summary>The headings of the sections, captured on render, to move the focus to one.</summary>
@@ -78,6 +85,7 @@ public partial class IncomePage : TabPageBase
 		{
 			var categoryName = _categories.FirstOrDefault(c => string.Equals(c.Id, categoryId, StringComparison.Ordinal))?.Name ?? categoryId;
 			OfferOnlyThisOne(row.Payer, categoryName, row.OnlyThisOneRequest(categoryId, response.PreviousAssignment));
+			await OfferRepaymentPlanAsync(Dialogs, row.Id);
 		}
 	}
 	#endregion

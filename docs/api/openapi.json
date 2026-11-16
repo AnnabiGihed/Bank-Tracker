@@ -645,13 +645,15 @@
         "required": [
           "availableMonths",
           "categories",
+          "debts",
           "fixed",
           "holderName",
           "items",
           "months",
           "review",
           "suggestions",
-          "today"
+          "today",
+          "unplannedLoanIds"
         ],
         "type": "object",
         "properties": {
@@ -703,6 +705,18 @@
           "today": {
             "type": "string",
             "format": "date"
+          },
+          "debts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DebtSnapshot"
+            }
+          },
+          "unplannedLoanIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false
@@ -874,6 +888,177 @@
         },
         "additionalProperties": false
       },
+      "DebtKind": {
+        "enum": [
+          "PersonalLoan",
+          "BankLoan"
+        ],
+        "type": "string"
+      },
+      "DebtRequest": {
+        "required": [
+          "kind",
+          "lender"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/DebtKind"
+          },
+          "lender": {
+            "type": "string"
+          },
+          "iban": {
+            "type": "string",
+            "nullable": true
+          },
+          "receivedPaymentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "principal": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "seriesKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "plan": {
+            "$ref": "#/components/schemas/RepaymentPlanRequest"
+          },
+          "borrowedOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DebtSnapshot": {
+        "required": [
+          "borrowedOn",
+          "excludedPaymentIds",
+          "id",
+          "includedPaymentIds",
+          "kind",
+          "lender",
+          "overdueAmount",
+          "overpaid",
+          "paid",
+          "paymentIds",
+          "principal",
+          "remaining",
+          "schedule",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DebtKind"
+          },
+          "lender": {
+            "type": "string"
+          },
+          "iban": {
+            "type": "string",
+            "nullable": true
+          },
+          "receivedPaymentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "principal": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "seriesKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "borrowedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/RepaymentPlanSnapshot"
+          },
+          "includedPaymentIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "excludedPaymentIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "state": {
+            "$ref": "#/components/schemas/DebtState"
+          },
+          "paid": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "remaining": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "overpaid": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "nextDueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "nextDueAmount": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "overdueAmount": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "oldestMissedDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "schedule": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleRow"
+            }
+          },
+          "paymentIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DebtState": {
+        "enum": [
+          "Overpaid",
+          "Repaid",
+          "NoPlan",
+          "Overdue",
+          "DueSoon",
+          "OnTrack"
+        ],
+        "type": "string"
+      },
       "DecisionRequest": {
         "required": [
           "action"
@@ -941,6 +1126,9 @@
               "$ref": "#/components/schemas/SplitPartRequest"
             },
             "nullable": true
+          },
+          "debt": {
+            "$ref": "#/components/schemas/DebtRequest"
           }
         },
         "additionalProperties": false
@@ -1169,6 +1357,92 @@
         },
         "additionalProperties": false
       },
+      "RepaymentFrequency": {
+        "enum": [
+          "Weekly",
+          "Monthly",
+          "Quarterly",
+          "Yearly"
+        ],
+        "type": "string"
+      },
+      "RepaymentPlanRequest": {
+        "required": [
+          "amount",
+          "start"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "start": {
+            "type": "string",
+            "format": "date"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/RepaymentFrequency"
+          },
+          "dayOfMonth": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "instalmentAmount": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RepaymentPlanSnapshot": {
+        "required": [
+          "amount",
+          "count",
+          "instalmentAmount",
+          "lastInstalmentAmount",
+          "start"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "start": {
+            "type": "string",
+            "format": "date"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/RepaymentFrequency"
+          },
+          "dayOfMonth": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "instalmentAmount": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastInstalmentAmount": {
+            "type": "number",
+            "format": "decimal"
+          }
+        },
+        "additionalProperties": false
+      },
       "ReviewSnapshot": {
         "required": [
           "categoryId",
@@ -1208,6 +1482,34 @@
           },
           "sample": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ScheduleRow": {
+        "required": [
+          "amount",
+          "covered",
+          "due",
+          "isPaid"
+        ],
+        "type": "object",
+        "properties": {
+          "due": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "covered": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "isPaid": {
+            "type": "boolean",
+            "readOnly": true
           }
         },
         "additionalProperties": false
@@ -1321,6 +1623,7 @@
           "id",
           "kind",
           "name",
+          "repayment",
           "seriesKey",
           "tokens"
         ],
@@ -1377,6 +1680,9 @@
               "$ref": "#/components/schemas/TxnPartSnapshot"
             },
             "nullable": true
+          },
+          "repayment": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

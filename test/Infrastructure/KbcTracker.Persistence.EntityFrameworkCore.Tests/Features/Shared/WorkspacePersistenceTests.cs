@@ -38,6 +38,30 @@ public sealed class WorkspacePersistenceTests(PostgreSqlFixture fixture) : Datab
 		(await ReadAsync(db => db.UserData.CountAsync())).Should().Be(0);
 	}
 
+	/// <summary>Verifies the workspace a decision loads carries the bank connection's accounts, so its analysis recognises own
+	/// transfers like the one the owner reads.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Workspace_LoadForUpdate_CarriesTheConnectionAccounts()
+	{
+		await AddAsync(UserData.Empty(), Samples.Session());
+		var scope = Services.CreateAsyncScope();
+		await using (scope)
+		{
+			var persistence = scope.ServiceProvider.GetRequiredService<IWorkspacePersistence>();
+			var lease = await persistence.TryAcquireWriteAsync(CancellationToken.None)
+				?? throw new InvalidOperationException("The first writer must acquire the lease.");
+			await using (lease)
+			{
+				var data = await persistence.LoadForUpdateAsync(CancellationToken.None)
+					?? throw new InvalidOperationException("An initialised database must load.");
+
+				data.Session.Should().NotBeNull();
+				data.Session.Accounts.Select(a => a.Iban).Should().Equal("BE00111122223333", "BE00444455556666");
+			}
+		}
+	}
+
 	/// <summary>Verifies an initialised database without categories gets the default category tree in the same save as the first
 	/// decision.</summary>
 	/// <returns>A task that completes when verified.</returns>
@@ -93,6 +117,38 @@ public sealed class WorkspacePersistenceTests(PostgreSqlFixture fixture) : Datab
 
 		(await ReadAsync(db => db.Categories.CountAsync())).Should().Be(old.Count + 1);
 		(await ReadAsync(db => db.Categories.SingleAsync(c => c.Id == CategoryId.LoanReceived))).BuiltIn.Should().BeTrue();
+	}
+
+	/// <summary>Verifies a database stored before the built-in <c>borrowed-people</c> category existed shows it on a read, below
+	/// Loan received, and stores it with the next decision.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Workspace_OldTreeWithoutBorrowedPeople_ReadShowsItAndDecisionAddsIt()
+	{
+		var old = CategoryDefaults.CreateDefaults("BE")
+			.Where(c => c.Id != CategoryId.BorrowedPeople).ToList();
+		await AddAsync([UserData.Empty(), .. old]);
+		var scope = Services.CreateAsyncScope();
+		await using (scope)
+		{
+			var persistence = scope.ServiceProvider.GetRequiredService<IWorkspacePersistence>();
+			var read = await persistence.ReadAsync(CancellationToken.None);
+			read.Categories.Should().Contain(c => c.Id == CategoryId.BorrowedPeople && c.ParentId == CategoryId.LoanReceived && c.Type == CategoryType.Transfer);
+			var lease = await persistence.TryAcquireWriteAsync(CancellationToken.None)
+				?? throw new InvalidOperationException("The first writer must acquire the lease.");
+			await using (lease)
+			{
+				var data = await persistence.LoadForUpdateAsync(CancellationToken.None)
+					?? throw new InvalidOperationException("An initialised database must load.");
+				data.User.DismissSuggestion("dismissed");
+				(await persistence.SaveAsync(CancellationToken.None)).IsSuccess.Should().BeTrue();
+			}
+		}
+
+		(await ReadAsync(db => db.Categories.CountAsync())).Should().Be(old.Count + 1);
+		var stored = await ReadAsync(db => db.Categories.SingleAsync(c => c.Id == CategoryId.BorrowedPeople));
+		stored.BuiltIn.Should().BeTrue();
+		stored.ParentId.Should().Be(CategoryId.LoanReceived);
 	}
 
 	/// <summary>Verifies independent backend scopes cannot overwrite user decisions simultaneously.</summary>

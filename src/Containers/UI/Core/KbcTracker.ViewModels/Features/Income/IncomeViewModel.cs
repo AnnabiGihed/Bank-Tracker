@@ -45,7 +45,7 @@ public sealed class IncomeViewModel
 		Payers = [.. window.SelectMany(m => analysis.Behind(m.Month, MonthFigure.Earnings)).GroupBy(i => i.SeriesKey, StringComparer.Ordinal)
 			.Select(g => new PayerRow(g.First().Name, g.Sum(i => i.T.Amount), formats.Money(g.Sum(i => i.T.Amount)), $"{formats.Number(g.Count())} payment(s)"))
 			.OrderByDescending(p => p.Total).ThenBy(p => p.Name, formats.NameComparer)];
-		CategoryGroups = CategoryOptions.Grouped(analysis, formats);
+		CategoryGroups = CategoryOptions.Incoming(analysis, formats);
 	}
 	#endregion
 
@@ -65,7 +65,7 @@ public sealed class IncomeViewModel
 	/// <summary>Gets what each payer paid in earnings over those months, the largest first.</summary>
 	public IReadOnlyList<PayerRow> Payers { get; }
 
-	/// <summary>Gets every category grouped by type, for the picker of a payment.</summary>
+	/// <summary>Gets the categories money in can have, grouped by type, for the picker of a payment.</summary>
 	public IReadOnlyList<CategoryGroup> CategoryGroups { get; }
 	#endregion
 

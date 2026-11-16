@@ -99,13 +99,14 @@ public sealed class AuthenticationTests(ApiFixture fixture) : IClassFixture<ApiF
 	[Fact]
 	public async Task Get_ExpiredToken_Unauthorized()
 	{
-		using var factory = fixture.CreateFactory("Production", configure: builder => builder.UseSetting("Authentication:AccessTokenSeconds", "1"));
+		var clock = new ShiftedClock();
+		using var factory = fixture.CreateFactory("Production", configure: builder => builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(clock)));
 		var token = await WebClientTokenHandler.FetchAsync(factory, CancellationToken.None);
 		using var client = factory.CreateClient();
 		client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 		using var fresh = await client.GetAsync(new Uri("/api/v1/connection", UriKind.Relative));
 
-		await Task.Delay(TimeSpan.FromSeconds(2));
+		clock.Advance(TimeSpan.FromHours(1));
 		using var expired = await client.GetAsync(new Uri("/api/v1/connection", UriKind.Relative));
 
 		fresh.StatusCode.Should().Be(HttpStatusCode.OK);

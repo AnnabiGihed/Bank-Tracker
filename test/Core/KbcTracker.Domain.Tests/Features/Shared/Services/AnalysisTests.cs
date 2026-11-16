@@ -401,8 +401,8 @@ public sealed class AnalysisTests
 
 		october.Income.Should().Be(2500m);
 		october.Fixed.Should().Be(13.99m);
-		october.Variable.Should().Be(940m + 375.50m);
-		october.Net.Should().Be(2500m - 13.99m - 940m - 375.50m);
+		october.Variable.Should().Be(940m, "The loan instalment of 375.50 is a repayment, never spending (ADR-0010).");
+		october.Net.Should().Be(2500m - 13.99m - 940m);
 		october.ByCategory["housing"].Should().Be(940m);
 	}
 

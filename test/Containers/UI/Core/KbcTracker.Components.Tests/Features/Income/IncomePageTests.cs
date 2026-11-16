@@ -76,6 +76,64 @@ public sealed class IncomePageTests : UiTestContext
 	}
 	#endregion
 
+	#region Picker And Plan Tests
+	/// <summary>Verifies the category picker offers only categories money in can have: no spending category.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Picker_Options_OnlyIncomingCategories()
+	{
+		Serve(November());
+
+		var page = Render<IncomePage>();
+
+		await page.WaitForAssertionAsync(() => page.Markup.Should().Contain("Acme Payroll"));
+		var ids = page.FindComponent<CategoryPicker>().Instance.Options.Select(o => o.Id).ToList();
+		ids.Should().Contain(["income-salary", "refunds", "loan-received", "borrowed-people", "own-transfers"]);
+		ids.Should().NotContain(["bills", "trav"]);
+	}
+
+	/// <summary>Verifies setting a credit to Borrowed from people opens the repayment plan form, and Skip for now adds the debt for that credit.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task ChangeCategory_ToBorrowed_OpensThePlanForm()
+	{
+		var credit = DebtTestData.FriendCredit("c1", new DateOnly(2026, 11, 2), 300m);
+		Serve(TestWorkspace.Analyse([credit], (user, _) => user.AssignTransactionCategory(credit.Id, new CategoryId("income-other"))));
+		Backend.Respond("/api/v1/decisions", HttpStatusCode.OK, "{}");
+		var host = RenderRadzenHost();
+		var page = Render<IncomePage>();
+		await page.WaitForAssertionAsync(() => page.Markup.Should().Contain(DebtTestData.Friend));
+
+		Serve(DebtTestData.Analyse([credit]));
+		var picking = PickCategoryAsync(page, CategoryId.BorrowedPeople.Value);
+
+		await host.WaitForAssertionAsync(() => host.Markup.Should().Contain("How is this repaid?"));
+		Backend.LastDecisionBody.Should().Contain("\"payeeCategory\"").And.Contain("\"borrowed-people\"");
+		host.Find("input#plan-lender").GetAttribute("value").Should().Be(DebtTestData.Friend);
+		await ButtonWithText(host, "Skip for now").ClickAsync();
+		await picking;
+
+		await host.WaitForAssertionAsync(() => Backend.LastDecisionBody.Should().Contain("\"addDebt\"").And.Contain("\"c1\""));
+	}
+
+	/// <summary>Verifies setting a credit to a category that is no loan opens no form.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task ChangeCategory_ToIncome_OpensNoPlanForm()
+	{
+		Serve(TestWorkspace.Analyse([TestWorkspace.Payment("t3", new DateOnly(2026, 11, 1), 2500m, "Acme Payroll", "Salary November")]));
+		Backend.Respond("/api/v1/decisions", HttpStatusCode.OK, "{}");
+		var host = RenderRadzenHost();
+		var page = Render<IncomePage>();
+		await page.WaitForAssertionAsync(() => page.Markup.Should().Contain("Acme Payroll"));
+
+		await PickCategoryAsync(page, "income-other");
+
+		await host.WaitForAssertionAsync(() => Backend.LastDecisionBody.Should().Contain("\"payeeCategory\""));
+		host.Markup.Should().NotContain("How is this repaid?");
+	}
+	#endregion
+
 	#region Decision Tests
 	/// <summary>Verifies Confirm sends the confirm decision of the payer.</summary>
 	/// <returns>A task that completes when verified.</returns>

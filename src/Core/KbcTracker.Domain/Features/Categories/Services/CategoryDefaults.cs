@@ -29,6 +29,11 @@ public static class CategoryDefaults
 	/// The colour of the built-in category of a loan payout.
 	/// </summary>
 	public const string LoanReceivedColor = "#8d6e63";
+
+	/// <summary>
+	/// The name of the built-in category of money borrowed from people, below Loan received.
+	/// </summary>
+	public const string BorrowedPeopleName = "Borrowed from people";
 	#endregion
 
 	#region Static Instances
@@ -46,6 +51,13 @@ public static class CategoryDefaults
 	/// <returns>A top-level, built-in category of type <see cref="CategoryType.Transfer"/> without keywords.</returns>
 	public static Category CreateLoanReceived() =>
 		Category.Rehydrate(CategoryId.LoanReceived, LoanReceivedName, CategoryType.Transfer, LoanReceivedColor, [], builtIn: true);
+
+	/// <summary>
+	/// Creates the built-in <c>borrowed-people</c> category below Loan received, for a database stored before it existed.
+	/// </summary>
+	/// <returns>A built-in category of type <see cref="CategoryType.Transfer"/> with the colour of its parent and no keywords.</returns>
+	public static Category CreateBorrowedPeople() =>
+		Category.Rehydrate(CategoryId.BorrowedPeople, BorrowedPeopleName, CategoryType.Transfer, LoanReceivedColor, [], builtIn: true, CategoryId.LoanReceived);
 
 	/// <summary>
 	/// Creates the categories a new database starts with: the default tree with the worldwide keywords and, for

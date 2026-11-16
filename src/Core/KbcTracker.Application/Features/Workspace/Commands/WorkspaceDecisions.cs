@@ -38,6 +38,12 @@ internal sealed class WorkspaceDecisions(WorkspaceData data, IWorkspacePersisten
 		"txnOnly" when Has(request.Key) && Has(request.Id) && Has(request.CategoryId) => UnknownCategory(request.CategoryId) ?? AssignTransaction(request),
 		"split" when Has(request.Id) && request.Parts is not null => Split(request.Id!, request.Parts),
 		"unsplit" when Has(request.Id) => FromResult(data.User.RemoveSplit(new TxnId(request.Id!))),
+		"addDebt" when request.Debt is not null => DebtDecisions.Add(data, Analyse, request),
+		"updateDebt" when Has(request.Id) && request.Debt is not null => DebtDecisions.Update(data, Analyse, request),
+		"removeDebt" when Has(request.Id) => DebtDecisions.Remove(data, request.Id!),
+		"matchRepayment" when Has(request.Id) && Has(request.Key) => DebtDecisions.Match(data, request.Id!, request.Key!),
+		"unmatchRepayment" when Has(request.Id) && Has(request.Key) => DebtDecisions.Unmatch(data, request.Id!, request.Key!),
+		"resetRepayment" when Has(request.Id) && Has(request.Key) => DebtDecisions.Reset(data, request.Id!, request.Key!),
 		"confirm" => Confirm(request),
 		"rename" when Has(request.Key) => FromResult(data.User.RenamePayee(request.Key!, request.Name)),
 		"saveCategory" => CategoryDecisions.Save(data, persistence, request),
@@ -156,7 +162,7 @@ internal sealed class WorkspaceDecisions(WorkspaceData data, IWorkspacePersisten
 	}
 
 	/// <summary>Computes decision candidates using the complete backend source records.</summary>
-	private Analysis Analyse() => new(data.Transactions, data.Categories, data.User, DateOnly.FromDateTime(clock.GetLocalNow().Date));
+	private Analysis Analyse() => new(data.Transactions, data.Categories, data.User, DateOnly.FromDateTime(clock.GetLocalNow().Date), data.Session?.Accounts);
 
 	/// <summary>Refuses a chosen category that does not exist, so a decision never points to nothing.</summary>
 	/// <returns>The failure, or <see langword="null"/> when no category was chosen or it exists.</returns>

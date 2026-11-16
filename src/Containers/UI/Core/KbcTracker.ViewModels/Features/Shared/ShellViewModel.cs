@@ -38,6 +38,7 @@ public sealed class ShellViewModel
 			new("income", "Income", 0),
 			new("fixed", "Fixed payments", analysis.Suggestions.Count(s => !s.IsSubscription)),
 			new("subscriptions", "Subscriptions", analysis.Suggestions.Count(s => s.IsSubscription)),
+			new("debts", "Debts", analysis.UnplannedLoans.Count + analysis.Debts.Count(d => d.State == DebtState.Overdue)),
 			new("transactions", "Transactions", 0),
 			new("review", "To review", analysis.Review.Count),
 			new("categories", "Categories", 0),
@@ -80,8 +81,8 @@ public sealed class ShellViewModel
 	#region Public Methods
 	/// <summary>Tells whether a tab is about one month, and so shows the month selector.</summary>
 	/// <param name="tabId">The id of the tab.</param>
-	/// <returns><see langword="false"/> for Settings and To review, which are not tied to a month.</returns>
-	public static bool ShowsMonthSelector(string tabId) => tabId is not ("settings" or "review");
+	/// <returns><see langword="false"/> for Settings, To review and Debts, which are not tied to a month.</returns>
+	public static bool ShowsMonthSelector(string tabId) => tabId is not ("settings" or "review" or "debts");
 	#endregion
 
 	#region Private Helpers

@@ -14,6 +14,9 @@
     <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Categories.Services" />
     <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Debts.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Debts.Errors" />
+    <Using Include="KbcTracker.Domain.Features.Debts.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.Overview.ValueObjects" />
@@ -25,6 +28,7 @@
     <Using Include="KbcTracker.Shared.Features.Backend" />
     <Using Include="KbcTracker.ViewModels.Features.BankConnection" />
     <Using Include="KbcTracker.ViewModels.Features.Categories" />
+    <Using Include="KbcTracker.ViewModels.Features.Debts" />
     <Using Include="KbcTracker.ViewModels.Features.FixedPayments" />
     <Using Include="KbcTracker.ViewModels.Features.Income" />
     <Using Include="KbcTracker.ViewModels.Features.Overview" />
@@ -34,6 +38,7 @@
     <Using Include="KbcTracker.ViewModels.Features.Shared" />
     <Using Include="KbcTracker.ViewModels.Features.Transactions" />
     <Using Include="KbcTracker.ViewModels.Tests.Features.Shared" />
+    <Using Include="KbcTracker.ViewModels.Tests.Features.Debts" />
   </ItemGroup>
 
 </Project>
