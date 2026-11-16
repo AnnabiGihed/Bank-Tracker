@@ -4,3 +4,6 @@ TestResults/
 # Enable Banking private keys must never be committed; keep them outside the repository.
 *.pem
 /.vs
+
+# Visual Studio per-user settings (device, debug target); never shared.
+*.user
