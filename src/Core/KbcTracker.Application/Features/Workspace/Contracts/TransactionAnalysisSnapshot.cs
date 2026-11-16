@@ -22,8 +22,10 @@ namespace KbcTracker.Application.Features.Workspace.Contracts;
 /// <param name="CategoryConfirmed">Whether categorisation is confirmed.</param>
 /// <param name="RecurringId">The matching fixed-payment identifier.</param>
 /// <param name="Parts">The parts of a split payment, or <see langword="null"/> when it is not split.</param>
+/// <param name="Repayment">Whether the payment repays a loan, so it is never spending.</param>
 public sealed record TransactionAnalysisSnapshot(string Id, DateOnly Date, decimal Amount, string Currency, string Counterparty,
-	string Description, Kind Kind, string SeriesKey, string Name, string[] Tokens, string CategoryId, bool CategoryConfirmed, string? RecurringId, IReadOnlyList<TxnPartSnapshot>? Parts = null)
+	string Description, Kind Kind, string SeriesKey, string Name, string[] Tokens, string CategoryId, bool CategoryConfirmed, string? RecurringId, IReadOnlyList<TxnPartSnapshot>? Parts = null,
+	bool Repayment = false)
 {
 	#region Public Methods
 	/// <summary>Copies an already understood transaction, excluding its raw bank source.</summary>
@@ -32,7 +34,7 @@ public sealed record TransactionAnalysisSnapshot(string Id, DateOnly Date, decim
 	public static TransactionAnalysisSnapshot From(TxnInfo item) => new(item.T.Id.Value, item.T.Date, item.T.Amount,
 		item.T.Currency, item.T.Counterparty, item.T.Description, item.Kind, item.SeriesKey, item.Name, [.. item.Tokens],
 		item.Category.Id.Value, item.CategoryConfirmed, item.Recurring?.Id.Value,
-		item.Split?.Select(TxnPartSnapshot.From).ToList());
+		item.Split?.Select(TxnPartSnapshot.From).ToList(), item.Repayment);
 
 	/// <summary>Rebuilds the classified item without rerunning classification on incomplete source data.</summary>
 	/// <param name="categories">The snapshot definitions.</param>
@@ -43,7 +45,7 @@ public sealed record TransactionAnalysisSnapshot(string Id, DateOnly Date, decim
 		var transaction = Txn.Rehydrate(new TxnId(Id), "display-only", Date, Money.Rehydrate(Amount, Currency),
 			KbcTracker.Domain.Features.Transactions.ValueObjects.Counterparty.Rehydrate(Counterparty, null), Description, BankRecord.None);
 		return new(transaction, Kind, SeriesKey, Name, Tokens, categories[CategoryId], CategoryConfirmed,
-			RecurringId is null ? null : recurring[RecurringId], Parts?.Select(p => p.ToDomain(categories)).ToList());
+			RecurringId is null ? null : recurring[RecurringId], Parts?.Select(p => p.ToDomain(categories)).ToList(), Repayment);
 	}
 	#endregion
 }

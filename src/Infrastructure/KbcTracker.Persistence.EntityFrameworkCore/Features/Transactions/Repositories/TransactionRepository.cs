@@ -29,19 +29,33 @@ internal sealed class TransactionRepository(KbcTrackerDbContext dbContext) : ITr
 	public async Task<int> StageMergeAsync(IEnumerable<Txn> incoming, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(incoming);
-		var byId = new Dictionary<TxnId, Txn>();
+		var batch = new Dictionary<(string AccountUid, TxnId Id), Txn>();
 		foreach (var transaction in incoming)
 		{
-			byId[transaction.Id] = transaction;
+			batch[(transaction.AccountUid, transaction.Id)] = transaction;
 		}
 
-		var ids = byId.Keys.ToArray();
+		// The bank's reference is unique within an account only, so one of another account can hold the id: such a
+		// transaction is stored under the account's id as a prefix, and the one already stored is never rewritten.
+		// The same rule applies inside one batch, so the choice is the same on every sync of the same transactions.
+		var ids = batch.Values.Select(t => t.Id).Concat(batch.Values.Select(PrefixedId)).Distinct().ToArray();
 		var existing = await dbContext.Transactions.Where(t => ids.Contains(t.Id))
 			.ToDictionaryAsync(t => t.Id, cancellationToken).ConfigureAwait(false);
+		var claimed = new Dictionary<TxnId, string>();
 		var added = 0;
-		foreach (var transaction in byId.Values)
+		foreach (var received in batch.Values.OrderBy(t => t.AccountUid, StringComparer.Ordinal).ThenBy(t => t.Id.Value, StringComparer.Ordinal))
 		{
-			if (existing.TryGetValue(transaction.Id, out var stored))
+			var transaction = received;
+			existing.TryGetValue(transaction.Id, out var stored);
+			var owner = stored?.AccountUid ?? (claimed.TryGetValue(transaction.Id, out var claimant) ? claimant : null);
+			if (owner is not null && !string.Equals(owner, transaction.AccountUid, StringComparison.Ordinal))
+			{
+				transaction = transaction.WithId(PrefixedId(transaction));
+				existing.TryGetValue(transaction.Id, out stored);
+			}
+
+			claimed[transaction.Id] = transaction.AccountUid;
+			if (stored is not null)
 			{
 				dbContext.Entry(stored).CurrentValues.SetValues(transaction);
 			}
@@ -54,5 +68,12 @@ internal sealed class TransactionRepository(KbcTrackerDbContext dbContext) : ITr
 
 		return added;
 	}
+	#endregion
+
+	#region Private Helpers
+	/// <summary>
+	/// Gives the id a transaction gets when its bank reference is taken by another account: the account's id before it.
+	/// </summary>
+	private static TxnId PrefixedId(Txn transaction) => new($"{transaction.AccountUid}:{transaction.Id.Value}");
 	#endregion
 }

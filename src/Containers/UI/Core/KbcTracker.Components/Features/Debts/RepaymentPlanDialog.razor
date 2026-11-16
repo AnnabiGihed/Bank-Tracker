@@ -1,0 +1,104 @@
+<div class="form">
+	<span id="plan-kind-label">Borrowed from</span>
+	<RadzenRadioButtonList TValue="DebtKind" Value="@Edit.Kind" ValueChanged="@(kind => Edit.Kind = kind)" Orientation="Orientation.Horizontal"
+		AriaLabelledBy="plan-kind-label">
+		<Items>
+			<RadzenRadioButtonListItem Text="A person" Value="DebtKind.PersonalLoan" />
+			<RadzenRadioButtonListItem Text="A bank" Value="DebtKind.BankLoan" />
+		</Items>
+	</RadzenRadioButtonList>
+
+	<label for="plan-lender">Lender</label>
+	<RadzenTextBox Value="@Edit.Lender" ValueChanged="@(lender => Edit.Lender = lender)" Immediate="true" Name="plan-lender" id="plan-lender" />
+
+	<label for="plan-iban">IBAN <span class="muted">(optional, it recognises the repayments)</span></label>
+	<RadzenTextBox Value="@Edit.Iban" ValueChanged="@(iban => Edit.Iban = iban)" Immediate="true" Name="plan-iban" id="plan-iban" />
+
+	<span id="plan-borrowed-label">Borrowed on</span>
+	<RadzenDatePicker TValue="DateOnly?" Value="@Edit.BorrowedOn" ValueChanged="@(day => Edit.BorrowedOn = day)" DateFormat="dd/MM/yyyy"
+		InputAttributes="@BorrowedInputAttributes" />
+
+	<span id="plan-amount-label">Amount to repay (€)</span>
+	<RadzenNumeric TValue="decimal?" Value="@Edit.AmountToRepay" ValueChanged="@(amount => Edit.AmountToRepay = amount)" Min="0" Step="0.01"
+		InputAttributes="@AmountInputAttributes" />
+	<span class="muted hint">@Edit.AmountHint</span>
+
+	@if (Edit.ShowsSeries)
+	{
+		<span id="plan-series-label">Loan instalments</span>
+		<RadzenDropDown TValue="string" Data="@Edit.SeriesChoices" TextProperty="@nameof(LoanSeriesChoice.Text)" ValueProperty="@nameof(LoanSeriesChoice.Key)"
+			Value="@Edit.SeriesKey" ValueChanged="@(key => Edit.SeriesKey = key)" AllowClear="true" Placeholder="Not linked"
+			InputAttributes="@SeriesInputAttributes" />
+	}
+
+	<span id="plan-shape-label">Repaid</span>
+	<RadzenRadioButtonList TValue="RepaymentShape" Value="@Edit.Shape" ValueChanged="@(shape => Edit.Shape = shape)" Orientation="Orientation.Horizontal"
+		AriaLabelledBy="plan-shape-label">
+		<Items>
+			<RadzenRadioButtonListItem Text="One payment" Value="RepaymentShape.OnePayment" />
+			<RadzenRadioButtonListItem Text="Instalments" Value="RepaymentShape.Instalments" />
+		</Items>
+	</RadzenRadioButtonList>
+
+	<span id="plan-date-label">@Edit.DateLabel</span>
+	<RadzenDatePicker TValue="DateOnly?" Value="@Edit.PaymentDate" ValueChanged="@(day => Edit.PaymentDate = day)" DateFormat="dd/MM/yyyy"
+		InputAttributes="@DateInputAttributes" />
+
+	@if (Edit.IsInstalments)
+	{
+		<span id="plan-frequency-label">How often</span>
+		<RadzenDropDown TValue="RepaymentFrequency" Data="@Frequencies" TextProperty="Item2" ValueProperty="Item1" Value="@Edit.Frequency"
+			ValueChanged="@(frequency => Edit.Frequency = frequency)" InputAttributes="@FrequencyInputAttributes" />
+
+		@if (Edit.DayOfMonth is { } day)
+		{
+			<span class="muted" data-testid="plan-day">Falls on day @day of the month, from the first payment.</span>
+		}
+
+		<span id="plan-input-label">Size the payments by</span>
+		<RadzenRadioButtonList TValue="InstalmentInput" Value="@Edit.Input" ValueChanged="@(input => Edit.Input = input)" Orientation="Orientation.Horizontal"
+			AriaLabelledBy="plan-input-label">
+			<Items>
+				<RadzenRadioButtonListItem Text="Amount each time" Value="InstalmentInput.AmountEach" />
+				<RadzenRadioButtonListItem Text="Number of payments" Value="InstalmentInput.Count" />
+			</Items>
+		</RadzenRadioButtonList>
+
+		@if (Edit.Input == InstalmentInput.AmountEach)
+		{
+			<span id="plan-each-label">Amount each time (€)</span>
+			<RadzenNumeric TValue="decimal?" Value="@Edit.InstalmentAmount" ValueChanged="@(each => Edit.InstalmentAmount = each)" Min="0" Step="0.01"
+				InputAttributes="@EachInputAttributes" />
+		}
+		else
+		{
+			<span id="plan-count-label">Number of payments</span>
+			<RadzenNumeric TValue="int?" Value="@Edit.Count" ValueChanged="@(count => Edit.Count = count)" Min="1" Max="@RepaymentPlan.MaxCount" Step="1"
+				InputAttributes="@CountInputAttributes" />
+		}
+	}
+
+	@if (Edit.PreviewText is { } preview)
+	{
+		<p class="preview" data-testid="plan-preview" aria-live="polite">@preview</p>
+	}
+
+	@if (Edit.Problems.Count > 0)
+	{
+		<ul class="problems" data-testid="plan-problems">
+			@foreach (var problem in Edit.Problems)
+			{
+				<li>@problem</li>
+			}
+		</ul>
+	}
+
+	<div class="actions">
+		<RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" />
+		@if (Edit.IsNew)
+		{
+			<RadzenButton Text="Skip for now" ButtonStyle="ButtonStyle.Light" Disabled="@(!Edit.CanSkip)" Click="@Skip" />
+		}
+		<RadzenButton Text="Save" Disabled="@(!Edit.IsValid)" Click="@Save" />
+	</div>
+</div>

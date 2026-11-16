@@ -18,6 +18,22 @@ public sealed class OverviewPageTests : UiTestContext
 	]);
 	#endregion
 
+	#region Debt Notice Tests
+	/// <summary>Verifies the notice words the loan credits without a plan and links to the Debts tab.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Notice_LoanCreditWithoutPlan_LinksToDebts()
+	{
+		Serve(DebtTestData.Analyse([DebtTestData.FriendCredit("c1", new DateOnly(2026, 11, 2), 300m), TestWorkspace.Payment("t1", new DateOnly(2026, 11, 3), -5m, "Kiosk")]));
+
+		var page = Render<OverviewPage>();
+
+		await page.WaitForAssertionAsync(() => page.Find("div.notice"));
+		page.Find("div.notice").TextContent.Should().Contain("1 loan credit without a plan");
+		page.Find("div.notice a[href^='/debts']").TextContent.Should().Contain("Check debts");
+	}
+	#endregion
+
 	#region Content Tests
 	/// <summary>Verifies the key figures show the month's income and spending, formatted by the view model.</summary>
 	/// <returns>A task that completes when verified.</returns>

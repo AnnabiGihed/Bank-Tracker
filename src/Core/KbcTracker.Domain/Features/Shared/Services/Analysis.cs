@@ -76,6 +76,7 @@ public sealed partial class Analysis
 	private readonly DateOnly _today;
 	private readonly CategoryKeywordMatcher _matcher;
 	private readonly IncomingEvidence _incoming;
+	private readonly OwnAccountDirectory _ownAccounts = OwnAccountDirectory.None;
 	#endregion
 
 	#region Constructors
@@ -88,7 +89,9 @@ public sealed partial class Analysis
 	/// <param name="user">Everything the user decided: fixed payments, payee categories, dismissals and names.</param>
 	/// <param name="today">The reference date for "late" and "still active" checks; defaults to the local date.
 	/// Tests pass a fixed date so results do not depend on when they run.</param>
-	public Analysis(IEnumerable<Txn> txns, IEnumerable<Category> categories, UserData user, DateOnly? today = null)
+	/// <param name="accounts">The owner's accounts the bank connection covers: a payment to or from one of their IBANs is an own
+	/// transfer, and one into a savings account is saved money. <see langword="null"/> for none (the holder name decides).</param>
+	public Analysis(IEnumerable<Txn> txns, IEnumerable<Category> categories, UserData user, DateOnly? today = null, IEnumerable<OwnAccount>? accounts = null)
 	{
 		_today = today ?? DateOnly.FromDateTime(DateTime.Today);
 		CategoryList = [.. categories];
@@ -97,14 +100,23 @@ public sealed partial class Analysis
 		_matcher = new CategoryKeywordMatcher(CategoryList, Tree);
 
 		var parsed = txns.Select(t => (Txn: t, Fields: BankFields.From(t))).ToList();
+		_ownAccounts = new OwnAccountDirectory(accounts ?? []);
 		_incoming = IncomingEvidence.From(parsed.Select(p => (p.Txn, p.Fields)));
 		HolderName = parsed.Where(p => p.Txn.Amount < 0).Select(p => p.Fields.DebtorName).OfType<string>()
 			.Where(n => !string.IsNullOrWhiteSpace(n))
 			.GroupBy(Norm, StringComparer.Ordinal).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault() ?? "";
 
 		var active = user.Recurring.Where(r => r.Active).ToList();
-		Items = parsed.Select(p => Understand(p.Txn, p.Fields, user, active))
+		var understood = parsed.Select(p => Understand(p.Txn, p.Fields, user, active))
 			.OrderByDescending(i => i.T.Date).ThenBy(i => i.T.Amount).ToList();
+
+		// The repayments are found among the understood payments, then flagged on them; the ledger is computed again over the
+		// flagged payments so the debts refer to the same instances as Items.
+		var repayments = DebtLedger.Compute(user.Debts, understood, _today, Tree).RepaymentIds;
+		Items = understood.Select(i => (i.Kind == Kind.Loan || repayments.Contains(i.T.Id)) && !HasOwnSpending(i, user) ? i with { Repayment = true } : i).ToList();
+		var ledger = DebtLedger.Compute(user.Debts, Items, _today, Tree);
+		Debts = ledger.Debts;
+		UnplannedLoans = ledger.Unplanned;
 
 		Fixed = active.Select(r => new FixedRow(
 				r,
@@ -141,6 +153,8 @@ public sealed partial class Analysis
 		Months = state.Months;
 		AvailableMonths = state.AvailableMonths.ToList();
 		HolderName = state.HolderName;
+		Debts = state.Debts ?? [];
+		UnplannedLoans = state.UnplannedLoans ?? [];
 	}
 	#endregion
 
@@ -203,6 +217,16 @@ public sealed partial class Analysis
 	/// own transfers. Empty when there is no money out.
 	/// </summary>
 	public string HolderName { get; }
+
+	/// <summary>
+	/// Gets where every debt the user tracks stands, in the order the debts were added (ADR-0010).
+	/// </summary>
+	public IReadOnlyList<DebtStatus> Debts { get; }
+
+	/// <summary>
+	/// Gets the loan credits (money in under Loan received, Borrowed from people included) that no debt tracks, newest first.
+	/// </summary>
+	public IReadOnlyList<TxnInfo> UnplannedLoans { get; }
 	#endregion
 
 	#region Public Methods
@@ -343,6 +367,13 @@ public sealed partial class Analysis
 	}
 
 	/// <summary>
+	/// Determines whether the owner kept a payment as spending: a split, or a category chosen for the payment or its payee,
+	/// wins over the repayment rule (ADR-0010).
+	/// </summary>
+	private static bool HasOwnSpending(TxnInfo item, UserData user) =>
+		item.IsSplit || user.TxnCategories.ContainsKey(item.T.Id) || (user.Payees.TryGetValue(item.SeriesKey, out var payee) && payee.CategoryId is not null);
+
+	/// <summary>
 	/// Turns the user's split of a payment into parts signed like the payment. A split that no longer adds up to the
 	/// payment gets one more "Difference" part on the payment's own category (or <c>other</c> when that is no longer a
 	/// spending category), so totals always match the bank.
@@ -374,7 +405,8 @@ public sealed partial class Analysis
 	{
 		var debit = txn.Amount < 0;
 		var otherName = debit ? fields.CreditorName : fields.DebtorName;
-		var own = HolderName.Length > 0 && otherName is not null && string.Equals(Norm(otherName), HolderName, StringComparison.Ordinal);
+		var ownByName = HolderName.Length > 0 && otherName is not null && string.Equals(Norm(otherName), HolderName, StringComparison.Ordinal);
+		var own = ownByName || OwnAccountOf(txn, fields) is not null;
 		var kind = (fields.Code, fields.SubCode, debit) switch
 		{
 			("CSLN", _, true) => Kind.Loan,
@@ -406,6 +438,22 @@ public sealed partial class Analysis
 		}
 
 		return kind;
+	}
+
+	/// <summary>
+	/// Finds the own account on the other side of a payment, by the counterparty's IBAN.
+	/// </summary>
+	/// <returns>The account, or <see langword="null"/> when the other side is not one of the owner's accounts.</returns>
+	private OwnAccount? OwnAccountOf(Txn txn, BankFields fields) =>
+		_ownAccounts.Find((txn.Amount < 0 ? fields.CreditorIban : fields.DebtorIban) ?? txn.CounterpartyIban);
+
+	/// <summary>
+	/// Tells whether a transfer out of an account goes into an own savings account (ADR-0010).
+	/// </summary>
+	private bool IsSavingsTransfer(Txn txn, BankFields fields)
+	{
+		var target = OwnAccountOf(txn, fields);
+		return txn.Amount < 0 && target is not null && _ownAccounts.IsSaving(txn.AccountUid, target);
 	}
 
 	/// <summary>
@@ -511,6 +559,7 @@ public sealed partial class Analysis
 	{
 		Kind.Loan => "loan",
 		Kind.SavingsPlan or Kind.SpareChange => "savings",
+		Kind.OwnTransferOut when IsSavingsTransfer(txn, fields) => "savings",
 		Kind.BankFee => "bank-fees",
 		Kind.OwnTransferOut or Kind.OwnTransferIn or Kind.CashDeposit => "own-transfers",
 		Kind.LoanReceived => CategoryId.LoanReceived.Value,
@@ -775,14 +824,15 @@ public sealed partial class Analysis
 			.OrderByDescending(r => Math.Abs(r.Total)).ToList();
 
 	/// <summary>
-	/// Computes the totals of one month. Credits in an expense category reduce spending. Income is earnings only:
+	/// Computes the totals of one month. Credits in an expense category reduce spending; loan repayments (bank loan
+	/// instalments and payments matched to a debt) are no spending. Income is earnings only:
 	/// refunds (the built-in Refunds category and below) and loan money are summed apart and counted in no total. A
 	/// split payment is spending as a whole and its parts feed the totals by category.
 	/// </summary>
 	private MonthSummary BuildMonth(string month)
 	{
 		var inMonth = Items.Where(i => string.Equals(i.Month, month, StringComparison.Ordinal)).ToList();
-		var spend = inMonth.Where(i => i.EffectiveType == CategoryType.Expense).ToList();
+		var spend = inMonth.Where(i => i.EffectiveType == CategoryType.Expense && !i.Repayment).ToList();
 		var earnings = inMonth.Where(i => IsBehind(i, MonthFigure.Earnings)).ToList();
 		return new MonthSummary(month,
 			earnings.Sum(i => i.T.Amount),

@@ -14,6 +14,9 @@ namespace KbcTracker.Domain.Features.Shared.ValueObjects;
 /// <param name="AvailableMonths">The selectable months.</param>
 /// <param name="HolderName">The normalised holder name.</param>
 /// <param name="Today">The analysis date.</param>
+/// <param name="Debts">The status of every debt, or <see langword="null"/> for none.</param>
+/// <param name="UnplannedLoans">The loan credits no debt tracks, or <see langword="null"/> for none.</param>
 public sealed record AnalysisState(IReadOnlyList<TxnInfo> Items, IReadOnlyList<Category> Categories,
 	IReadOnlyList<FixedRow> Fixed, IReadOnlyList<Suggestion> Suggestions, IReadOnlyList<ReviewItem> Review,
-	IReadOnlyList<MonthSummary> Months, IReadOnlyList<string> AvailableMonths, string HolderName, DateOnly Today);
+	IReadOnlyList<MonthSummary> Months, IReadOnlyList<string> AvailableMonths, string HolderName, DateOnly Today,
+	IReadOnlyList<DebtStatus>? Debts = null, IReadOnlyList<TxnInfo>? UnplannedLoans = null);

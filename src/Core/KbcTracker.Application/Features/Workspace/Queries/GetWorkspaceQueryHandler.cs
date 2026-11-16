@@ -23,7 +23,7 @@ internal sealed class GetWorkspaceQueryHandler(IWorkspacePersistence persistence
 		ArgumentNullException.ThrowIfNull(request);
 		var data = await persistence.ReadAsync(cancellationToken).ConfigureAwait(false);
 		var today = DateOnly.FromDateTime(clock.GetLocalNow().Date);
-		var analysis = new Analysis(data.Transactions, data.Categories, data.User, today);
+		var analysis = new Analysis(data.Transactions, data.Categories, data.User, today, data.Session?.Accounts);
 		var session = data.Session;
 		return Result.Success(new WorkspaceSnapshot(AnalysisSnapshot.From(analysis, today),
 			new ConnectionStatus(session is not null, session?.ValidUntil, session?.LastSync, session?.SkippedTransactions ?? 0, session?.LastError is not null),

@@ -47,7 +47,7 @@ public sealed class ShellViewModelTests
 
 		var shell = new ShellViewModel(analysis, null, "2026-11", Formats.Belgian, Now);
 
-		shell.Tabs.Select(t => t.Id).Should().Equal("overview", "income", "fixed", "subscriptions", "transactions", "review", "categories", "settings");
+		shell.Tabs.Select(t => t.Id).Should().Equal("overview", "income", "fixed", "subscriptions", "debts", "transactions", "review", "categories", "settings");
 		shell.Tabs.Single(t => string.Equals(t.Id, "fixed", StringComparison.Ordinal)).Badge.Should().Be(analysis.Suggestions.Count(s => !s.IsSubscription));
 		shell.Tabs.Single(t => string.Equals(t.Id, "subscriptions", StringComparison.Ordinal)).Badge.Should().Be(analysis.Suggestions.Count(s => s.IsSubscription));
 		shell.Tabs.Single(t => string.Equals(t.Id, "review", StringComparison.Ordinal)).Badge.Should().Be(analysis.Review.Count);
@@ -55,6 +55,7 @@ public sealed class ShellViewModelTests
 		ShellViewModel.ShowsMonthSelector("overview").Should().BeTrue();
 		ShellViewModel.ShowsMonthSelector("settings").Should().BeFalse();
 		ShellViewModel.ShowsMonthSelector("review").Should().BeFalse();
+		ShellViewModel.ShowsMonthSelector("debts").Should().BeFalse();
 	}
 
 	/// <summary>Verifies the status says "Not connected" without a session, and otherwise when the bank was read and

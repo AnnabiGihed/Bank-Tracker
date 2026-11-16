@@ -12,6 +12,9 @@ public static class TabRoutes
 	/// <summary>The address of the bank picker.</summary>
 	public const string Banks = "/banks";
 
+	/// <summary>The address of the Debts tab.</summary>
+	public const string Debts = "/debts";
+
 	/// <summary>The address of the tab opened first.</summary>
 	public const string Overview = "/overview";
 	#endregion

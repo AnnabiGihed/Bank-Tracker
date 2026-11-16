@@ -32,8 +32,11 @@ public sealed class PostgreSqlBankConsentPersistence(KbcTrackerDbContext dbConte
 
 		var current = await sessions.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
 		var now = clock.GetUtcNow();
+
+		// A bank that sends no account details at a reconnect must not make the stored IBANs and types disappear.
+		IReadOnlyList<OwnAccount>? accounts = session.Accounts is { Count: > 0 } ? session.Accounts : current?.Accounts;
 		var replacement = SessionInfo.Connect(new BankSessionId(session.SessionId), session.AccountUids, now,
-			now.AddDays(settings.ConsentDays), current?.LastSync);
+			now.AddDays(settings.ConsentDays), current?.LastSync, accounts);
 		if (replacement.IsFailure)
 		{
 			return Result.Failure<ConnectionStatus>(replacement.Error);
@@ -48,6 +51,7 @@ public sealed class PostgreSqlBankConsentPersistence(KbcTrackerDbContext dbConte
 		{
 			dbContext.Entry(existing).CurrentValues.SetValues(replacement.Value);
 			dbContext.Entry(existing).Property<List<string>>("_accountUids").CurrentValue = session.AccountUids.ToList();
+			dbContext.Entry(existing).Property<List<OwnAccount>>("_accounts").CurrentValue = (accounts ?? []).ToList();
 		}
 
 		var saved = await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

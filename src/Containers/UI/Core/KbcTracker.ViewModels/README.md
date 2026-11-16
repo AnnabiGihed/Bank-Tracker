@@ -12,7 +12,7 @@ only draws it. The logic moved here from the old page classes of `KbcTracker.Web
 | `Features/Shared/BackendProblem.cs`, `BackendResult.cs`, `BackendCall.cs` | Turn a failed call into the message to show: access refused (403), conflict with the backend's own reason (409), unavailable (503), or a refused action with its safe message. |
 | `Features/Shared/DecisionRequests.cs` | The `DecisionRequest` of every action (`confirm`, `payeeCategory`, `txnOnly`, `accept`, `dismiss`, `mark`, `removeFixed`, `updateFixed`, `saveCategory`, `deleteCategory`, `split`, `unsplit`, `rename`). |
 | `Features/Shared/ShellViewModel.cs` | The frame around every tab: sync status, month selector, tabs with badges, sync banner. |
-| `Features/Shared/CategoryOptions.cs` | Category pickers: tree order, grouped by type, indented by level. |
+| `Features/Shared/CategoryOptions.cs` | Category pickers: tree order, grouped by type, indented by level; `Incoming` offers only what money in can have (Income, Loan received and below, Own transfers), used by the Income tab. |
 | `Features/Shared/CsvExport.cs` | The CSV export, moved from the web host. |
 | `Features/Shared/IBankConnectionLauncher.cs`, `IExportSaver.cs` | Ports a host implements: open the bank's consent page, hand over an exported file. |
 | `Features/Overview/` | `OverviewViewModel`: notice (`AttentionNotice`, with `WaitingSuggestions` and one `SuggestionLink` per tab that has suggestions), five key figures, the last twelve months, `CategoryDrillDown` (doughnut data, path), fixed payments, biggest expenses. |
@@ -20,6 +20,7 @@ only draws it. The logic moved here from the old page classes of `KbcTracker.Web
 | `Features/FixedPayments/` | `FixedPaymentsViewModel` (suggestions, month totals, rows with status; subscriptions left out), `FixedPaymentEdit`. |
 | `Features/Income/` | `IncomeViewModel` (earnings, refunds and loan received sections from `Analysis.Behind`, earnings of 12 months, earnings by payer), `MonthFigureNames` (the `show` query words). |
 | `Features/Subscriptions/` | `SubscriptionsViewModel` (suggestions, rows with cost per month and year, last and next charge, totals). |
+| `Features/Debts/` | `DebtsViewModel` (cards active and most urgent first, status pills, schedule lines, unplanned credits, the plan forms it opens), `RepaymentPlanEdit` (the plan form: prefill from a credit or debt, live preview via `RepaymentPlanText`, validation with the domain's messages, `addDebt`/`updateDebt` requests, "Skip for now"), `DebtCard` and its row types. The Overview's `DebtNotice` lives in `Features/Overview/`. |
 | `Features/Review/` | `ReviewViewModel` (direction filter, confirm all shown). |
 | `Features/Categories/` | `CategoriesViewModel` (tree per type with roll-up totals, bars, comparison, expanded rows), `CategoryEdit` (the create, move, edit and delete form). |
 | `Features/Settings/` | `SettingsViewModel` (connection status, history). |

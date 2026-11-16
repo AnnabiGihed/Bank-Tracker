@@ -99,7 +99,7 @@ public sealed class CategoryTreeUpgradeTests(PostgreSqlFixture fixture) : Databa
 	{
 		var edited = Category.Rehydrate(new CategoryId("transport-fuel"), "My fuel", CategoryType.Expense, "#111111", ["MYPUMP", "SHELL"], builtIn: false);
 		var flat = FlatDefaults(editedCar: false).Where(e => e is not Category c || c.Id != new CategoryId("transport-fuel")).ToList();
-		var user = UserData.Rehydrate([], [], [KeyValuePair.Create("CARD:MYPUMP", new PayeeAssignment(new CategoryId("transport-fuel"), Confirmed: true))], [], [], []);
+		var user = UserData.Rehydrate([], [], [KeyValuePair.Create("CARD:MYPUMP", new PayeeAssignment(new CategoryId("transport-fuel"), Confirmed: true))], [], [], [], []);
 		await AddAsync([.. flat, edited, user]);
 
 		(await UpgradeAsync()).IsSuccess.Should().BeTrue();
@@ -256,7 +256,8 @@ public sealed class CategoryTreeUpgradeTests(PostgreSqlFixture fixture) : Databa
 			[KeyValuePair.Create(new TxnId("t4"), PaymentSplit.Rehydrate([
 				new SplitLine(30m, new CategoryId("transport-fuel"), "Fuel"),
 				new SplitLine(10m, new CategoryId("utilities-telecom"), null),
-				new SplitLine(5m, new CategoryId("groceries"), null)]))]);
+				new SplitLine(5m, new CategoryId("groceries"), null)]))],
+				[]);
 	}
 	#endregion
 }

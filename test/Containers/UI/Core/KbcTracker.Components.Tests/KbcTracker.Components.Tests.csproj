@@ -16,6 +16,7 @@
   <ItemGroup Label="Shared test doubles of the view model tests">
     <Compile Include="..\KbcTracker.ViewModels.Tests\Features\Shared\StubBackend.cs" Link="Features\Shared\StubBackend.cs" />
     <Compile Include="..\KbcTracker.ViewModels.Tests\Features\Shared\TestWorkspace.cs" Link="Features\Shared\TestWorkspace.cs" />
+    <Compile Include="..\KbcTracker.ViewModels.Tests\Features\Debts\DebtTestData.cs" Link="Features\Debts\DebtTestData.cs" />
   </ItemGroup>
 
   <ItemGroup Label="Feature namespaces used across the project">
@@ -26,6 +27,7 @@
     <Using Include="KbcTracker.Application.Features.Workspace.Contracts" />
     <Using Include="KbcTracker.Components.Features.BankConnection" />
     <Using Include="KbcTracker.Components.Features.Categories" />
+    <Using Include="KbcTracker.Components.Features.Debts" />
     <Using Include="KbcTracker.Components.Features.FixedPayments" />
     <Using Include="KbcTracker.Components.Features.Income" />
     <Using Include="KbcTracker.Components.Features.Overview" />
@@ -41,6 +43,9 @@
     <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Categories.Services" />
     <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Debts.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Debts.Errors" />
+    <Using Include="KbcTracker.Domain.Features.Debts.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
@@ -51,6 +56,7 @@
     <Using Include="KbcTracker.Shared.Features.Backend" />
     <Using Include="KbcTracker.ViewModels.Features.BankConnection" />
     <Using Include="KbcTracker.ViewModels.Features.Categories" />
+    <Using Include="KbcTracker.ViewModels.Features.Debts" />
     <Using Include="KbcTracker.ViewModels.Features.FixedPayments" />
     <Using Include="KbcTracker.ViewModels.Features.Income" />
     <Using Include="KbcTracker.ViewModels.Features.Overview" />
@@ -59,6 +65,7 @@
     <Using Include="KbcTracker.ViewModels.Features.Subscriptions" />
     <Using Include="KbcTracker.ViewModels.Features.Shared" />
     <Using Include="KbcTracker.ViewModels.Features.Transactions" />
+    <Using Include="KbcTracker.ViewModels.Tests.Features.Debts" />
     <Using Include="KbcTracker.ViewModels.Tests.Features.Shared" />
     <Using Include="Microsoft.AspNetCore.Components" />
     <Using Include="Microsoft.Extensions.DependencyInjection" />

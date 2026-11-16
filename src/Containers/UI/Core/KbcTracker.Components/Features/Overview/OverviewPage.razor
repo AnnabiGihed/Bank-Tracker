@@ -25,6 +25,13 @@ else if (_view is not null)
 				{
 					<li>@review <RadzenLink Path="@TabRoutes.Tab("review", Month)" Text="Review categories" /></li>
 				}
+				@if (attention.Debts is { } debts)
+				{
+					@foreach (var line in debts.Lines)
+					{
+						<li>@line <RadzenLink Path="@TabRoutes.Tab("debts", Month)" Text="@DebtNotice.CheckText" /></li>
+					}
+				}
 			</ul>
 		</div>
 	}

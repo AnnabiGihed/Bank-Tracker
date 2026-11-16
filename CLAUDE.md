@@ -48,7 +48,8 @@ Each project's `README.md` maps its types; read it before working in that projec
 
 - `src/Core/KbcTracker.Domain` — aggregates on Pivot types (`Create` validates and returns `Result`, `Rehydrate`
   takes stored data as is; string ids derive from `StronglyTypedStringId`); `UserData` holds every user decision and
-  changes only through its behaviours; `Analysis` is the brain (classification, series keys, categories,
+  changes only through its behaviours; `Features/Debts` holds `Debt`, `RepaymentPlan` and
+  `DebtLedger` (ADR-0010); `Analysis` is the brain (classification, series keys, categories,
   suggestions, matching, month summaries, review queue).
 - `src/Core/KbcTracker.Application` — mediator commands and queries: sync (`SyncService`), consent, workspace and
   decisions, with their ports; `Shared/BackendErrors.NotInitialized`.
@@ -57,7 +58,8 @@ Each project's `README.md` maps its types; read it before working in that projec
 - `src/Infrastructure/KbcTracker.Persistence.EntityFrameworkCore` — PostgreSQL context, mappings, repositories,
   advisory locks, `DataImporter`, `Migrations/` (`dotnet ef migrations add`).
 - `src/Containers/API/KbcTracker.ApiService` — the backend: controllers, `AutomaticBankSync`, maintenance commands,
-  `Features/Authentication` (OpenIddict token service, owner allow-list, provider callback). Contract: `docs/api/openapi.json`.
+  `Features/Authentication` (OpenIddict token service, owner allow-list, provider callback). Contract:
+  `docs/api/openapi.json`.
 - `src/Containers/UI/Core/KbcTracker.Shared` — `BackendClient`, the typed API client.
 - `src/Containers/UI/Core/KbcTracker.ViewModels` — workspace store, one view model per tab, formats, CSV export and
   backend-problem texts; plain .NET, shared by both front ends (ADR-0008).
@@ -67,7 +69,8 @@ Each project's `README.md` maps its types; read it before working in that projec
   `BackendClient`, plus `/callback` and `/export.csv`; stores nothing.
 - `src/Containers/UI/Hosting/KbcTracker.Mobile` — MAUI Blazor Hybrid Android app (`com.BankTracker.mobile`) hosting
   the same components; bank connect and CSV export stay in the web app.
-- `src/Containers/Aspire/Hosting/KbcTracker.AppHost` — Aspire AppHost (ADR-0005); `Aspire/Defaults/KbcTracker.ServiceDefaults`
+- `src/Containers/Aspire/Hosting/KbcTracker.AppHost` — Aspire AppHost (ADR-0005);
+  `Aspire/Defaults/KbcTracker.ServiceDefaults`
   — OpenTelemetry for both hosts (no health endpoints, no HTTP retries: they would replay the bank's one-time code).
 
 Tests (xUnit + AwesomeAssertions + NSubstitute) mirror `src/`, plus `test/KbcTracker.E2E.Tests` (web + API in
@@ -103,7 +106,8 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
   name), at most the largest earlier payment = refund > the same payer crediting 26–35 days apart =
   `income-salary` > income. Series keys: only card refunds (`CCRD`) use `CARD:`; other refunds and suggested loan
   payouts keep `FROM:<iban>`; `LOANIN` is for `CAJT`/`LDAS` payouts. User decisions still win. The
-  Overview's Income, Refunds and Loan received figures open the Income tab (`/income?show=earnings|refunds|loan-received`)
+  Overview's Income, Refunds and Loan received figures open the Income tab
+  (`/income?show=earnings|refunds|loan-received`)
   with exactly the payments behind them (`Analysis.Behind`, the rule `MonthSummary` adds up with); the tab also shows
   earnings by payer and the last 12 months.
 - Subscriptions (tab `/subscriptions`): an accepted or suggested recurring payment whose payments are all card payments
@@ -124,6 +128,20 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
   stored tree without it gets it from `PostgreSqlWorkspacePersistence` like `other`; deleting a node moves its payments
   to its parent. KBC sends no merchant category code (field
   empty).
+- Debts (ADR-0010, Proposed; tab `/debts`): a `Debt` is a user decision in `UserData` (personal or bank, lender name and
+  optional IBAN, amount received, `BorrowedOn` = day the money arrived, optional `LOAN:` series, repayment plan: one
+  payment or instalments). Setting a credit to Loan received or to the built-in "Borrowed from people" (under Loan
+  received, Transfer type) offers the plan form. Matching: debits on or after `BorrowedOn`, oldest first, until covered:
+  the `LOAN:` series for a bank loan, transfers to the lender's IBAN (name without IBAN) for a person; a payment counts
+  for one debt; manual additions always count, exclusions never. Matched repayments and `Kind.Loan` instalments are
+  never
+  spending unless the payment is split or the owner categorised it. The Income tab's picker offers income, the Loan
+  received sub-tree and own transfers only.
+- Second account (`docs/how-to/add-an-account.md`): the IBANs of the linked accounts are own IBANs, so a transfer to or
+  from one is an own transfer (the holder name stays the fallback). A transfer into a savings account (only an account
+  KBC types `SVGS`; with no type it stays an own
+  transfer) counts as Saved; money back from it and its credit are
+  ignored. A transaction id that collides with another account's gets the account id as prefix (`<account id>:<ref>`).
 - A payment can be split into categorised parts (ADR-0007): a user decision in `UserData` (never on the bank's `Txn`),
   2–100 lines of amount (> 0, 2 decimals) + expense category + optional label, adding up exactly to the payment. A
   split wins over every other category and counts as spending and as confirmed, but `TxnInfo.Category` stays the
@@ -166,5 +184,5 @@ domain tests are skipped without the local data. Decisions: `docs/adr/`. User do
   upgrade runs on the owner's database.
 - Next: the API on a VPS with authentication (a new ADR: login for the API and both apps, domain and TLS, the bank key
   on the server, backups off the server, the bank's redirect URL); then the Android app's SQLite cache.
-  Later: savings account, salary/quarterly/yearly detection, notifications.
+  Later: salary/quarterly/yearly detection, notifications.
   Later ideas: budgets per category.

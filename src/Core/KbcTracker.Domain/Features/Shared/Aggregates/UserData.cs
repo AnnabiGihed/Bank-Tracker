@@ -6,7 +6,7 @@ namespace KbcTracker.Domain.Features.Shared.Aggregates;
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Everything the user decided in the UI: accepted fixed payments, dismissed suggestions, categories
-///              per payee and per transaction, splits of payments and payee names.
+///              per payee and per transaction, splits of payments, payee names and debts with their repayment plans.
 ///
 ///              Kept apart from the transactions so a re-sync never overwrites a decision. The single instance
 ///              (<see cref="UserDataId.Current"/>) owns the fixed payments; keys are compared ordinally, as they are
@@ -44,6 +44,11 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 	/// The names the user gave to payees, by series key.
 	/// </summary>
 	private readonly Dictionary<string, string> _payeeNames = new(StringComparer.Ordinal);
+
+	/// <summary>
+	/// The debts the user tracks, in the order they were added.
+	/// </summary>
+	private readonly List<Debt> _debts = [];
 	#endregion
 
 	#region Properties
@@ -76,6 +81,11 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 	/// Gets the names the user gave to payees, by series key.
 	/// </summary>
 	public IReadOnlyDictionary<string, string> PayeeNames => _payeeNames.AsReadOnly();
+
+	/// <summary>
+	/// Gets the debts the user tracks (ADR-0010), in the order they were added.
+	/// </summary>
+	public IReadOnlyList<Debt> Debts => _debts.AsReadOnly();
 	#endregion
 
 	#region Constructors
@@ -104,6 +114,7 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 	/// <param name="txnCategories">The category of single transactions.</param>
 	/// <param name="payeeNames">The names given to payees.</param>
 	/// <param name="splits">How single payments are divided into parts.</param>
+	/// <param name="debts">The debts the user tracks.</param>
 	/// <returns>The decisions.</returns>
 	/// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
 	public static UserData Rehydrate(
@@ -112,8 +123,10 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 		IEnumerable<KeyValuePair<string, PayeeAssignment>> payees,
 		IEnumerable<KeyValuePair<TxnId, CategoryId>> txnCategories,
 		IEnumerable<KeyValuePair<string, string>> payeeNames,
-		IEnumerable<KeyValuePair<TxnId, PaymentSplit>> splits)
+		IEnumerable<KeyValuePair<TxnId, PaymentSplit>> splits,
+		IEnumerable<Debt> debts)
 	{
+		ArgumentNullException.ThrowIfNull(debts);
 		ArgumentNullException.ThrowIfNull(recurring);
 		ArgumentNullException.ThrowIfNull(dismissedSuggestions);
 		ArgumentNullException.ThrowIfNull(payees);
@@ -144,6 +157,7 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 			user._splits[txnId] = split;
 		}
 
+		user._debts.AddRange(debts);
 		return user;
 	}
 	#endregion
@@ -375,6 +389,139 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 	}
 	#endregion
 
+	#region Debts
+	/// <summary>
+	/// Starts tracking a debt.
+	/// </summary>
+	/// <param name="id">The new debt's identifier.</param>
+	/// <param name="terms">What the user says about the debt.</param>
+	/// <returns>Success, or the <see cref="DebtErrors"/> that rejects the terms, for instance
+	/// <see cref="DebtErrors.ReceivedPaymentTaken"/> when another debt tracks the received payment.</returns>
+	/// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
+	public Result AddDebt(DebtId id, DebtTerms terms)
+	{
+		ArgumentNullException.ThrowIfNull(id);
+		ArgumentNullException.ThrowIfNull(terms);
+		if (IsTrackedByOther(terms.ReceivedPaymentId, id))
+		{
+			return Result.Failure(DebtErrors.ReceivedPaymentTaken);
+		}
+
+		var debt = Debt.Create(id, terms);
+		if (debt.IsFailure)
+		{
+			return Result.Failure(debt.Error, debt.ResultExceptionType);
+		}
+
+		_debts.Add(debt.Value);
+		return Result.Success();
+	}
+
+	/// <summary>
+	/// Replaces what the user said about a debt, keeping the payments added or excluded by hand.
+	/// </summary>
+	/// <param name="id">The debt.</param>
+	/// <param name="terms">The new terms.</param>
+	/// <returns>Success, <see cref="DebtErrors.NotFound"/> as a <see cref="ResultExceptionType.NotFound"/> failure, or the
+	/// <see cref="DebtErrors"/> that rejects the terms.</returns>
+	/// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
+	public Result UpdateDebt(DebtId id, DebtTerms terms)
+	{
+		ArgumentNullException.ThrowIfNull(id);
+		ArgumentNullException.ThrowIfNull(terms);
+		var debt = _debts.Find(d => d.Id == id);
+		if (debt is null)
+		{
+			return Result.Failure(DebtErrors.NotFound, ResultExceptionType.NotFound);
+		}
+
+		return IsTrackedByOther(terms.ReceivedPaymentId, id) ? Result.Failure(DebtErrors.ReceivedPaymentTaken) : debt.Revise(terms);
+	}
+
+	/// <summary>
+	/// Stops tracking a debt.
+	/// </summary>
+	/// <param name="id">The debt.</param>
+	/// <returns>Success, or <see cref="DebtErrors.NotFound"/> as a <see cref="ResultExceptionType.NotFound"/> failure.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="id"/> is <see langword="null"/>.</exception>
+	public Result RemoveDebt(DebtId id)
+	{
+		ArgumentNullException.ThrowIfNull(id);
+		return _debts.RemoveAll(d => d.Id == id) > 0
+			? Result.Success()
+			: Result.Failure(DebtErrors.NotFound, ResultExceptionType.NotFound);
+	}
+
+	/// <summary>
+	/// Says that a payment repays a debt, whatever the automatic matching finds.
+	/// </summary>
+	/// <param name="id">The debt.</param>
+	/// <param name="paymentId">The payment.</param>
+	/// <returns>Success, <see cref="DebtErrors.NotFound"/> as a <see cref="ResultExceptionType.NotFound"/> failure, or
+	/// <see cref="DebtErrors.PaymentTaken"/> when another debt already includes the payment.</returns>
+	/// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
+	public Result IncludeRepayment(DebtId id, TxnId paymentId)
+	{
+		ArgumentNullException.ThrowIfNull(id);
+		ArgumentNullException.ThrowIfNull(paymentId);
+		var debt = _debts.Find(d => d.Id == id);
+		if (debt is null)
+		{
+			return Result.Failure(DebtErrors.NotFound, ResultExceptionType.NotFound);
+		}
+
+		if (_debts.Exists(d => d.Id != id && d.IncludedPayments.Contains(paymentId)))
+		{
+			return Result.Failure(DebtErrors.PaymentTaken);
+		}
+
+		debt.Include(paymentId);
+		return Result.Success();
+	}
+
+	/// <summary>
+	/// Says that a payment does not repay a debt, whatever the automatic matching finds.
+	/// </summary>
+	/// <param name="id">The debt.</param>
+	/// <param name="paymentId">The payment.</param>
+	/// <returns>Success, or <see cref="DebtErrors.NotFound"/> as a <see cref="ResultExceptionType.NotFound"/> failure.</returns>
+	/// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
+	public Result ExcludeRepayment(DebtId id, TxnId paymentId)
+	{
+		ArgumentNullException.ThrowIfNull(id);
+		ArgumentNullException.ThrowIfNull(paymentId);
+		var debt = _debts.Find(d => d.Id == id);
+		if (debt is null)
+		{
+			return Result.Failure(DebtErrors.NotFound, ResultExceptionType.NotFound);
+		}
+
+		debt.Exclude(paymentId);
+		return Result.Success();
+	}
+
+	/// <summary>
+	/// Forgets what the user said about a payment and a debt, so the automatic matching decides again.
+	/// </summary>
+	/// <param name="id">The debt.</param>
+	/// <param name="paymentId">The payment.</param>
+	/// <returns>Success, or <see cref="DebtErrors.NotFound"/> as a <see cref="ResultExceptionType.NotFound"/> failure.</returns>
+	/// <exception cref="ArgumentNullException">An argument is <see langword="null"/>.</exception>
+	public Result ResetRepayment(DebtId id, TxnId paymentId)
+	{
+		ArgumentNullException.ThrowIfNull(id);
+		ArgumentNullException.ThrowIfNull(paymentId);
+		var debt = _debts.Find(d => d.Id == id);
+		if (debt is null)
+		{
+			return Result.Failure(DebtErrors.NotFound, ResultExceptionType.NotFound);
+		}
+
+		debt.Reset(paymentId);
+		return Result.Success();
+	}
+	#endregion
+
 	#region Payees
 	/// <summary>
 	/// Gives a payee the name the user prefers to the one read from the bank label.
@@ -394,5 +541,13 @@ public sealed class UserData : LightweightAggregateRoot<UserDataId>
 		_payeeNames[seriesKey] = name.Trim();
 		return Result.Success();
 	}
+	#endregion
+
+	#region Private Helpers
+	/// <summary>
+	/// Determines whether a debt other than the given one tracks a received payment.
+	/// </summary>
+	private bool IsTrackedByOther(TxnId? receivedPaymentId, DebtId except) =>
+		receivedPaymentId is not null && _debts.Exists(d => d.Id != except && d.ReceivedPaymentId == receivedPaymentId);
 	#endregion
 }

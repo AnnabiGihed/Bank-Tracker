@@ -38,6 +38,17 @@ What you decided yourself (per payment, per payee or through a fixed payment) al
 The Overview's Income, Refunds and Loan received figures open the Transactions tab with exactly the payments they add
 up.
 
+Repayments of a [debt](../how-to/track-a-debt.md) and bank-loan instalments (`CSLN`) are never spending: a payment
+matched
+to a debt, or a loan instalment, counts in no spending total unless you split it or chose its category yourself. Money
+borrowed from a person (category Borrowed from people, under Loan received) is not income either.
+
+Your own IBANs, as KBC sends them for the linked accounts, mark a transfer to or from them as an own transfer. A
+transfer
+into a savings account (only an own account KBC types `SVGS`; without a type the transfer stays an own transfer) counts
+as Saved;
+money back from it and the matching credit on it are ignored.
+
 The account holder is the name that most often pays money out. Transfers to or from that name are own transfers:
 they count neither as spending nor as income.
 

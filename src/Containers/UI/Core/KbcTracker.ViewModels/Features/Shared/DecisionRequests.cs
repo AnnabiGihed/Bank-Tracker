@@ -100,5 +100,33 @@ public static class DecisionRequests
 	/// <param name="categoryId">The category.</param>
 	/// <returns>The <c>deleteCategory</c> request.</returns>
 	public static DecisionRequest DeleteCategory(string categoryId) => new("deleteCategory", Id: categoryId);
+
+	/// <summary>Starts tracking a debt (ADR-0010).</summary>
+	/// <param name="debt">What the owner says about the debt.</param>
+	/// <returns>The <c>addDebt</c> request; its answer carries the new debt's id.</returns>
+	public static DecisionRequest AddDebt(DebtRequest debt) => new("addDebt", Debt: debt);
+
+	/// <summary>Replaces what the owner said about a debt.</summary>
+	/// <param name="debtId">The debt.</param>
+	/// <param name="debt">The new terms.</param>
+	/// <returns>The <c>updateDebt</c> request.</returns>
+	public static DecisionRequest UpdateDebt(string debtId, DebtRequest debt) => new("updateDebt", Id: debtId, Debt: debt);
+
+	/// <summary>Stops tracking a debt.</summary>
+	/// <param name="debtId">The debt.</param>
+	/// <returns>The <c>removeDebt</c> request.</returns>
+	public static DecisionRequest RemoveDebt(string debtId) => new("removeDebt", Id: debtId);
+
+	/// <summary>Says that a payment repays a debt.</summary>
+	/// <param name="debtId">The debt.</param>
+	/// <param name="paymentId">The payment, money out.</param>
+	/// <returns>The <c>matchRepayment</c> request.</returns>
+	public static DecisionRequest MatchRepayment(string debtId, string paymentId) => new("matchRepayment", Id: debtId, Key: paymentId);
+
+	/// <summary>Says that a payment does not repay a debt.</summary>
+	/// <param name="debtId">The debt.</param>
+	/// <param name="paymentId">The payment, money out.</param>
+	/// <returns>The <c>unmatchRepayment</c> request.</returns>
+	public static DecisionRequest UnmatchRepayment(string debtId, string paymentId) => new("unmatchRepayment", Id: debtId, Key: paymentId);
 	#endregion
 }

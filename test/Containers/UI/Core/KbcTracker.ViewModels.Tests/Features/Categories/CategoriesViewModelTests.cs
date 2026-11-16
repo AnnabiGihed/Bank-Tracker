@@ -28,6 +28,24 @@ public sealed class CategoriesViewModelTests
 	#endregion
 
 	#region Total Tests
+	/// <summary>Verifies a bank loan instalment is no spending in the category totals, as in the month summary.</summary>
+	[Fact]
+	public void Cards_LoanInstalment_NotInSpendingTotals()
+	{
+		var analysis = TestWorkspace.Analyse(
+		[
+			DebtTestData.LoanInstalment("l1", new DateOnly(2026, 10, 5), 300m, "726-0000000-01"),
+			TestWorkspace.Payment("t1", new DateOnly(2026, 10, 6), -2m, "Kiosk"),
+		]);
+
+		var categories = new CategoriesViewModel(analysis, "2026-10", Formats.Belgian);
+
+		categories.Cards.Single(c => c.Type == CategoryType.Expense).Rows.Where(r => r.ParentId.Length == 0).Sum(r => r.Value)
+			.Should().Be(analysis.MonthData("2026-10").Spent);
+		analysis.MonthData("2026-10").ByCategory.Should().NotContainKey("loan");
+		Row(categories, "loan").Value.Should().Be(0m);
+	}
+
 	/// <summary>Verifies a parent's total rolls up its sub-categories, the child follows its parent, and the card adds up the top level only.</summary>
 	[Fact]
 	public void Cards_RollUp_ParentSumsChildAndChildFollowsParent()

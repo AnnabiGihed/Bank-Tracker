@@ -3,11 +3,13 @@ namespace KbcTracker.ViewModels.Features.Overview;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
-/// Purpose     : The banner that points to the fixed payment and subscription suggestions to check and the payees to review.
+/// Purpose     : The banner that points to the fixed payment and subscription suggestions to check, the payees to review and the
+///              debts that need a look (payments due, repayments overdue, loan credits without a plan).
 /// </summary>
 /// <param name="Suggestions">The suggestions that wait, fixed payments and subscriptions.</param>
 /// <param name="ReviewCount">How many payees have an automatic category to confirm.</param>
-public sealed record AttentionNotice(WaitingSuggestions Suggestions, int ReviewCount)
+/// <param name="Debts">What is to say about debts, or <see langword="null"/> for nothing.</param>
+public sealed record AttentionNotice(WaitingSuggestions Suggestions, int ReviewCount, DebtNotice? Debts = null)
 {
 	#region Properties
 	/// <summary>Gets the words about the suggestions, or <see langword="null"/> when there are none.</summary>

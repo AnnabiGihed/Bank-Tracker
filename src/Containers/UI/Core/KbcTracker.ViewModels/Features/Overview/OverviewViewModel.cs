@@ -46,7 +46,8 @@ public sealed class OverviewViewModel
 			.Where(x => x.State.Status is not (FixedStatus.NotStarted or FixedStatus.NotThisMonth) || x.State.Paid > 0).ToList();
 		var open = fixedRows.Where(x => x.State.Status is FixedStatus.Due or FixedStatus.Late).ToList();
 		var waiting = new WaitingSuggestions(analysis.Suggestions.Count(s => !s.IsSubscription), analysis.Suggestions.Count(s => s.IsSubscription));
-		Attention = waiting.Total > 0 || analysis.Review.Count > 0 ? new AttentionNotice(waiting, analysis.Review.Count) : null;
+		var debts = DebtNotice.From(analysis, formats, today);
+		Attention = waiting.Total > 0 || analysis.Review.Count > 0 || debts is not null ? new AttentionNotice(waiting, analysis.Review.Count, debts) : null;
 		Kpis =
 		[
 			new("income", "Income", formats.Money(current.Income), EarningsBreakdown(current, formats), MonthFigure.Earnings),
@@ -79,7 +80,7 @@ public sealed class OverviewViewModel
 	/// <summary>Gets what the empty tab says: to connect a bank, or to sync.</summary>
 	public string EmptyMessage { get; }
 
-	/// <summary>Gets the banner that points to the fixed payment and subscription suggestions and the payees to review, or <see langword="null"/> when there are none.</summary>
+	/// <summary>Gets the banner that points to the fixed payment and subscription suggestions, the payees to review and the debts to look at, or <see langword="null"/> when there are none.</summary>
 	public AttentionNotice? Attention { get; }
 
 	/// <summary>Gets the five key figures: income, spent, fixed payments, saved and invested, left over.</summary>

@@ -1,3 +1,5 @@
+using KbcTracker.Domain.Features.BankConnection.ValueObjects;
+
 namespace KbcTracker.Persistence.EntityFrameworkCore.Tests.Features.Shared;
 
 /// <summary>
@@ -38,11 +40,12 @@ internal static class Samples
 		Category.Rehydrate(new CategoryId("groceries"), "Groceries", CategoryType.Expense, "#3454d1", ["AD ", "DELHAIZE"], builtIn: false);
 
 	/// <summary>
-	/// A bank connection with two accounts.
+	/// A bank connection with two accounts, the second without a name or a type.
 	/// </summary>
 	/// <returns>The connection.</returns>
 	public static SessionInfo Session() =>
-		SessionInfo.Rehydrate(new BankSessionId("session-1"), ["current", "savings"], BrusselsMorning, BrusselsMorning.AddDays(180), BrusselsMorning, lastError: null, skippedTransactions: 2);
+		SessionInfo.Rehydrate(new BankSessionId("session-1"), ["current", "savings"], BrusselsMorning, BrusselsMorning.AddDays(180), BrusselsMorning, lastError: null, skippedTransactions: 2,
+			[new OwnAccount("current", "BE00111122223333", "Current account", "CACC"), new OwnAccount("savings", "BE00444455556666", null, null)]);
 
 	/// <summary>
 	/// Decisions with one accepted fixed payment, one of each kind of choice and a split payment.
@@ -64,7 +67,19 @@ internal static class Samples
 			[KeyValuePair.Create("CARD:SHOP ONE", new PayeeAssignment(new CategoryId("groceries"), Confirmed: true))],
 			[KeyValuePair.Create(new TxnId("t1"), new CategoryId("car"))],
 			[KeyValuePair.Create("CARD:SHOP ONE", "Shop One")],
-			[KeyValuePair.Create(new TxnId("t2"), PaymentSplit.Rehydrate([new SplitLine(50m, new CategoryId("groceries"), "Meat"), new SplitLine(34.30m, new CategoryId("car"), null)]))]);
+			[KeyValuePair.Create(new TxnId("t2"), PaymentSplit.Rehydrate([new SplitLine(50m, new CategoryId("groceries"), "Meat"), new SplitLine(34.30m, new CategoryId("car"), null)]))],
+				[Debt()]);
+		}
+
+		/// <summary>
+		/// A loan from a friend repaid in instalments, with a payment added and one excluded by hand.
+		/// </summary>
+		/// <returns>The debt.</returns>
+		public static Debt Debt()
+		{
+			var plan = RepaymentPlan.Instalments(1000.00m, new DateOnly(2026, 12, 31), RepaymentFrequency.Monthly, 31, 300.00m, null).Value;
+			var terms = new DebtTerms(DebtKind.PersonalLoan, "Friend", "BE00111122223333", new TxnId("t9"), 1000.00m, null, plan, new DateOnly(2026, 9, 1));
+			return Domain.Features.Debts.Aggregates.Debt.Rehydrate(new DebtId("friend"), terms, [new TxnId("t3")], [new TxnId("t4")]);
 	}
 	#endregion
 }

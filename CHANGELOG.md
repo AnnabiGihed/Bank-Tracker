@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Debts and repayment plans ([ADR-0010](docs/adr/0010-track-debts-and-their-repayment-plans.md), proposed): a Debts tab
+  (`/debts`) with each debt's plan (one payment or instalments), schedule, matched repayments and progress, a plan form
+  offered when a credit becomes Loan received or Borrowed from people, and an Overview notice for debts due, overdue or
+  without a plan. See [Track a debt](docs/how-to/track-a-debt.md).
+- A built-in category Borrowed from people, under Loan received: money lent by a person is not income.
+- Second account support: your own IBANs make own transfers, transfers into a savings account count as Saved, and a
+  transaction id another account already uses gets the account id as prefix
+  (see [Add an account](docs/how-to/add-an-account.md)).
 - Owner sign-in ([ADR-0009](docs/adr/0009-authenticate-the-owner-with-external-openid-connect-providers.md), proposed):
   the backend runs an OpenIddict token service and signs the owner in through Google (Microsoft and Apple are
   configuration), accepting only the issuer and subject in `Authentication:Owners`. Every API endpoint but `/health`
@@ -95,6 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Loan instalments and repayments matched to a debt no longer count as spending, unless split or categorised by you.
+- The Income tab's category picker offers only income, Loan received (with Borrowed from people) and Own transfers.
 - The Android emulator reaches the backend at `http://localhost:5080/` through `adb reverse tcp:5080 tcp:5080`
   instead of `http://10.0.2.2:5080/`.
 - Money in is told apart better, as suggestions you confirm: payroll transfers (employer and employee markers, pay

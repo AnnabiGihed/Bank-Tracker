@@ -26,7 +26,7 @@ public sealed class EnableBankingConsentSource(EnableBankingClient client) : IBa
 	public async Task<BankConsentSession> CompleteAsync(string code, CancellationToken cancellationToken)
 	{
 		var session = await client.CreateSessionAsync(code, cancellationToken).ConfigureAwait(false);
-		return new BankConsentSession(session.SessionId, session.AccountUids.ToArray());
+		return new BankConsentSession(session.SessionId, session.AccountUids.ToArray(), EnableBankingMapper.Accounts(session.Raw));
 	}
 	#endregion
 }

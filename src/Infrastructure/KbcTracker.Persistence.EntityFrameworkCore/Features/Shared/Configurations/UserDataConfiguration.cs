@@ -26,6 +26,7 @@ internal sealed class UserDataConfiguration : IEntityTypeConfiguration<UserData>
 		builder.Ignore(u => u.TxnCategories);
 		builder.Ignore(u => u.Splits);
 		builder.Ignore(u => u.PayeeNames);
+		builder.Ignore(u => u.Debts);
 
 		builder.Property<HashSet<string>>("_dismissedSuggestions").HasColumnName("DismissedSuggestions").HasColumnType("jsonb")
 			.HasConversion(JsonColumns.SignaturesConverter, JsonColumns.SignaturesComparer);
@@ -35,6 +36,8 @@ internal sealed class UserDataConfiguration : IEntityTypeConfiguration<UserData>
 			.HasConversion(JsonColumns.TxnCategoriesConverter, JsonColumns.TxnCategoriesComparer);
 		builder.Property<Dictionary<TxnId, PaymentSplit>>("_splits").HasColumnName("TxnSplits").HasColumnType("jsonb")
 			.HasConversion(JsonColumns.SplitsConverter, JsonColumns.SplitsComparer);
+		builder.Property<List<Debt>>("_debts").HasColumnName("Debts").HasColumnType("jsonb")
+			.HasConversion(JsonColumns.DebtsConverter, JsonColumns.DebtsComparer);
 		builder.Property<Dictionary<string, string>>("_payeeNames").HasColumnName("PayeeNames").HasColumnType("jsonb")
 			.HasConversion(JsonColumns.NamesConverter, JsonColumns.NamesComparer);
 

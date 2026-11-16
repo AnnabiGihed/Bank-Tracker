@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using KbcTracker.Domain.Features.BankConnection.ValueObjects;
 
 namespace KbcTracker.Infrastructure.Tests.Features.BankConnection;
 
@@ -136,6 +137,45 @@ public sealed class EnableBankingMapperTests
 		var map = () => EnableBankingMapper.Map("acc-1", JsonNode.Parse(json)!);
 
 		map.Should().Throw<InvalidDataException>().WithMessage("*Txn.Currency.Invalid*");
+	}
+	#endregion
+
+	#region Account Tests
+	/// <summary>
+	/// Verifies that the accounts of a session response keep their IBAN (compacted), name and cash account type.
+	/// </summary>
+	[Fact]
+	public void Accounts_SessionWithDetails_IbanNameAndTypeKept()
+	{
+		var json = """{"session_id":"s","accounts":[{"uid":"acc-1","account_id":{"iban":"be00 1111 2222 3333"},"name":"Current","cash_account_type":"CACC"},{"uid":"acc-2","account_id":{"iban":"BE00444455556666"},"cash_account_type":"SVGS"}]}""";
+
+		var accounts = EnableBankingMapper.Accounts(JsonNode.Parse(json)!);
+
+		accounts.Should().Equal(
+			new OwnAccount("acc-1", "BE00111122223333", "Current", "CACC"),
+			new OwnAccount("acc-2", "BE00444455556666", null, "SVGS"));
+	}
+
+	/// <summary>
+	/// Verifies that bare account ids, objects without an id and a response without accounts give no details instead of failing.
+	/// </summary>
+	[Fact]
+	public void Accounts_BareIdsAndMissingFields_NoDetails()
+	{
+		EnableBankingMapper.Accounts(JsonNode.Parse("""{"accounts":["acc-1",{"name":"No id"},{"uid":"acc-3"}]}""")!)
+			.Should().Equal(new OwnAccount("acc-1", null, null, null), new OwnAccount("acc-3", null, null, null));
+		EnableBankingMapper.Accounts(JsonNode.Parse("""{"session_id":"s"}""")!).Should().BeEmpty();
+	}
+
+	/// <summary>
+	/// Verifies that the details are read from <c>accounts_data</c> when the response lists bare ids under <c>accounts</c>.
+	/// </summary>
+	[Fact]
+	public void Accounts_AccountsDataPresent_DetailsReadFromIt()
+	{
+		var json = """{"accounts":["acc-1"],"accounts_data":[{"uid":"acc-1","account_id":{"iban":"BE00111122223333"},"cash_account_type":"SVGS"}]}""";
+
+		EnableBankingMapper.Accounts(JsonNode.Parse(json)!).Should().Equal(new OwnAccount("acc-1", "BE00111122223333", null, "SVGS"));
 	}
 	#endregion
 }

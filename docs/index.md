@@ -16,7 +16,7 @@ through an API; the web app and the Android app show it.
 | Type | Pages |
 | --- | --- |
 | Tutorial | [Get started](tutorials/get-started.md) |
-| How-to | [Run the backend](how-to/run-the-backend.md), [Keep syncing every day](how-to/sync-every-day.md), [Reconnect the bank](how-to/reconnect-the-bank.md), [Add an account](how-to/add-an-account.md), [Set up sign-in](how-to/set-up-sign-in.md), [Run the Android app](how-to/run-the-android-app.md), [Run the tests](how-to/run-the-tests.md) |
+| How-to | [Run the backend](how-to/run-the-backend.md), [Keep syncing every day](how-to/sync-every-day.md), [Reconnect the bank](how-to/reconnect-the-bank.md), [Add an account](how-to/add-an-account.md), [Track a debt](how-to/track-a-debt.md), [Set up sign-in](how-to/set-up-sign-in.md), [Run the Android app](how-to/run-the-android-app.md), [Run the tests](how-to/run-the-tests.md) |
 | Reference | [Configuration](reference/configuration.md), [Command line](reference/command-line.md), [Tabs](reference/tabs.md), [Stored data](reference/data-folder.md), [API contract](api/openapi.json) |
 | Explanation | [How payments are classified](explanation/payment-classification.md), [Sign-in](explanation/sign-in.md), [Architecture](explanation/architecture.md) |
 | Decisions | [Architecture Decision Records](adr/README.md) |

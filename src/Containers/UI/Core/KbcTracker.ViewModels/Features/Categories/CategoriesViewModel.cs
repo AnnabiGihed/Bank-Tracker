@@ -132,9 +132,10 @@ public sealed class CategoriesViewModel
 
 	#region Private Helpers
 	/// <summary>Adds up what the given transactions amount to per category, including everything below it: spending and
-	/// savings as positive amounts, income as positive income. A split payment counts each part in its own category.</summary>
+	/// savings as positive amounts, income as positive income. A split payment counts each part in its own category; a loan
+	/// repayment is no spending, as in the month summary.</summary>
 	private static IReadOnlyDictionary<string, decimal> RolledTotals(Analysis analysis, IEnumerable<TxnInfo> items) =>
-		analysis.Tree.RollUp(items.SelectMany(i => i.Parts).GroupBy(p => p.Category.Id.Value, StringComparer.Ordinal).ToDictionary(
+		analysis.Tree.RollUp(items.Where(i => !(i.Repayment && i.EffectiveType == CategoryType.Expense)).SelectMany(i => i.Parts).GroupBy(p => p.Category.Id.Value, StringComparer.Ordinal).ToDictionary(
 			g => g.Key,
 			g => g.Sum(p => p.Category.Type == CategoryType.Income ? p.Amount : -p.Amount),
 			StringComparer.Ordinal));

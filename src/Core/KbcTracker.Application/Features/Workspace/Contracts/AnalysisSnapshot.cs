@@ -18,9 +18,12 @@ namespace KbcTracker.Application.Features.Workspace.Contracts;
 /// <param name="AvailableMonths">The month selector values.</param>
 /// <param name="HolderName">The normalised account holder name.</param>
 /// <param name="Today">The date used to compute the analysis.</param>
+/// <param name="Debts">The debts the owner tracks and where each stands (ADR-0010).</param>
+/// <param name="UnplannedLoanIds">The loan credits no debt tracks, newest first.</param>
 public sealed record AnalysisSnapshot(IReadOnlyList<TransactionAnalysisSnapshot> Items, IReadOnlyList<CategorySnapshot> Categories,
 	IReadOnlyList<FixedPaymentSnapshot> Fixed, IReadOnlyList<SuggestionSnapshot> Suggestions, IReadOnlyList<ReviewSnapshot> Review,
-	IReadOnlyList<MonthSummary> Months, IReadOnlyList<string> AvailableMonths, string HolderName, DateOnly Today)
+	IReadOnlyList<MonthSummary> Months, IReadOnlyList<string> AvailableMonths, string HolderName, DateOnly Today,
+	IReadOnlyList<DebtSnapshot> Debts, IReadOnlyList<string> UnplannedLoanIds)
 {
 	#region Public Methods
 	/// <summary>Copies the complete analysis while omitting private bank source fields.</summary>
@@ -30,10 +33,12 @@ public sealed record AnalysisSnapshot(IReadOnlyList<TransactionAnalysisSnapshot>
 	public static AnalysisSnapshot From(Analysis analysis, DateOnly today) => new(
 		analysis.Items.Select(TransactionAnalysisSnapshot.From).ToArray(), analysis.CategoryList.Select(CategorySnapshot.From).ToArray(),
 		analysis.Fixed.Select(FixedPaymentSnapshot.From).ToArray(), analysis.Suggestions.Select(SuggestionSnapshot.From).ToArray(),
-		analysis.Review.Select(ReviewSnapshot.From).ToArray(), analysis.Months, analysis.AvailableMonths.ToArray(), analysis.HolderName, today);
+		analysis.Review.Select(ReviewSnapshot.From).ToArray(), analysis.Months, analysis.AvailableMonths.ToArray(), analysis.HolderName, today,
+		analysis.Debts.Select(DebtSnapshot.From).ToArray(), analysis.UnplannedLoans.Select(i => i.T.Id.Value).ToArray());
 
 	/// <summary>Restores the backend result for rendering without rerunning bank classification.</summary>
-	/// <returns>The analysis with shared category and fixed-payment references.</returns>
+	/// <returns>The analysis with shared category and fixed-payment references. A snapshot from an older backend, which has no
+	/// debts, restores them as empty.</returns>
 	public Analysis ToAnalysis()
 	{
 		var categories = Categories.Select(c => c.ToDomain()).ToDictionary(c => c.Id.Value, StringComparer.Ordinal);
@@ -41,7 +46,8 @@ public sealed record AnalysisSnapshot(IReadOnlyList<TransactionAnalysisSnapshot>
 		var items = Items.Select(i => i.ToDomain(categories, recurring)).ToDictionary(i => i.T.Id.Value, StringComparer.Ordinal);
 		return Analysis.Rehydrate(new AnalysisState(items.Values.ToArray(), categories.Values.ToArray(),
 			Fixed.Select(f => f.ToDomain(categories, items, recurring)).ToArray(), Suggestions.Select(s => s.ToDomain(items)).ToArray(),
-			Review.Select(r => r.ToDomain(categories)).ToArray(), Months, AvailableMonths, HolderName, Today));
+			Review.Select(r => r.ToDomain(categories)).ToArray(), Months, AvailableMonths, HolderName, Today,
+			(Debts ?? []).Select(d => d.ToDomain(items)).ToArray(), (UnplannedLoanIds ?? []).Select(id => items[id]).ToArray()));
 	}
 	#endregion
 }

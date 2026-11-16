@@ -32,8 +32,11 @@
 
   <ItemGroup Label="Feature namespaces used across the project">
     <Using Include="KbcTracker.Domain.Features.BankConnection.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.BankConnection.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.Categories.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Categories.ValueObjects" />
+    <Using Include="KbcTracker.Domain.Features.Debts.Aggregates" />
+    <Using Include="KbcTracker.Domain.Features.Debts.ValueObjects" />
     <Using Include="KbcTracker.Domain.Features.FixedPayments.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Shared.Aggregates" />
     <Using Include="KbcTracker.Domain.Features.Shared.ValueObjects" />

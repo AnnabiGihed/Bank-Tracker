@@ -48,6 +48,41 @@ public sealed class UserDataChangeTests(PostgreSqlFixture fixture) : DatabaseTes
 	}
 
 	/// <summary>
+	/// Verifies that adding, correcting and removing debts on a loaded aggregate reaches the database: the debts live in
+	/// one JSON column, so only the deep comparer lets EF Core see an in-place change.
+	/// </summary>
+	/// <returns>A task that completes when the test has run.</returns>
+	[Fact]
+	public async Task DebtBehaviours_OnLoadedDecisions_Saved()
+	{
+		await AddAsync(Samples.Decisions());
+		var terms = new DebtTerms(DebtKind.PersonalLoan, "Brother", null, null, 400m, null, null, new DateOnly(2026, 10, 1));
+
+		var result = await SaveAsync(async db =>
+		{
+			var user = await db.UserData.SingleAsync().ConfigureAwait(false);
+			user.AddDebt(new DebtId("brother"), terms);
+			user.IncludeRepayment(new DebtId("brother"), new TxnId("t5"));
+			user.ExcludeRepayment(new DebtId("friend"), new TxnId("t6"));
+			user.ResetRepayment(new DebtId("friend"), new TxnId("t4"));
+			user.UpdateDebt(new DebtId("friend"), new DebtTerms(DebtKind.PersonalLoan, "Friend renamed", null, null, 900m, null, null, new DateOnly(2026, 10, 1)));
+		});
+		var read = await ReadAsync(db => db.UserData.SingleAsync());
+
+		result.IsSuccess.Should().BeTrue(result.IsFailure ? result.Error.Message : "");
+		read.Debts.Select(d => d.Id.Value).Should().Equal("friend", "brother");
+		read.Debts[0].Lender.Should().Be("Friend renamed");
+		read.Debts[0].Plan.Should().BeNull();
+		read.Debts[0].IncludedPayments.Should().BeEquivalentTo([new TxnId("t3")]);
+		read.Debts[0].ExcludedPayments.Should().BeEquivalentTo([new TxnId("t6")]);
+		read.Debts[1].IncludedPayments.Should().BeEquivalentTo([new TxnId("t5")]);
+
+		var removed = await SaveAsync(async db => (await db.UserData.SingleAsync().ConfigureAwait(false)).RemoveDebt(new DebtId("brother")));
+		removed.IsSuccess.Should().BeTrue();
+		(await ReadAsync(db => db.UserData.SingleAsync())).Debts.Select(d => d.Id.Value).Should().Equal("friend");
+	}
+
+	/// <summary>
 	/// Verifies that saving decisions loaded before another save fails instead of overwriting it.
 	/// </summary>
 	/// <returns>A task that completes when the test has run.</returns>

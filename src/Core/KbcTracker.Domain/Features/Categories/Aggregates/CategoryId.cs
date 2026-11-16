@@ -20,5 +20,10 @@ public sealed record CategoryId(string Value) : StronglyTypedStringId<CategoryId
 	/// The built-in category of a loan payout: money in that is neither income nor spending.
 	/// </summary>
 	public static readonly CategoryId LoanReceived = new("loan-received");
+
+	/// <summary>
+	/// The built-in category below Loan received for money borrowed from people: never income.
+	/// </summary>
+	public static readonly CategoryId BorrowedPeople = new("borrowed-people");
 	#endregion
 }

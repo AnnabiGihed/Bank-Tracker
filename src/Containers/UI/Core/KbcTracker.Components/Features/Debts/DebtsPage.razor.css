@@ -1,0 +1,122 @@
+.toolbar {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: 12px;
+}
+
+.block {
+	margin-bottom: 12px;
+}
+
+.debt.done {
+	opacity: 0.8;
+}
+
+header {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 8px;
+}
+
+h2 {
+	margin: 0 0 8px;
+	font-size: 1.05rem;
+}
+
+h3 {
+	margin: 12px 0 4px;
+	font-size: 0.95rem;
+}
+
+.progress {
+	height: 8px;
+	margin: 4px 0 10px;
+	border-radius: 999px;
+	background: var(--kt-bg);
+	overflow: hidden;
+}
+
+.bar {
+	height: 100%;
+	background: var(--kt-ok);
+}
+
+.summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 32px;
+	margin: 0;
+}
+
+.summary dt {
+	color: var(--kt-muted);
+}
+
+.summary dd {
+	margin: 0;
+	font-size: 1.1rem;
+	font-weight: 600;
+}
+
+.buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 8px;
+}
+
+.unplanned,
+.payments {
+	display: grid;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.unplanned li,
+.payments li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.add-payment {
+	display: grid;
+	gap: 4px;
+	margin-top: 8px;
+}
+
+.num {
+	text-align: right;
+}
+
+.pill {
+	display: inline-block;
+	padding: 1px 10px;
+	border: 1px solid var(--kt-line);
+	border-radius: 999px;
+	font-size: 0.85rem;
+	white-space: nowrap;
+}
+
+.pill.ok {
+	border-color: var(--kt-ok);
+	color: var(--kt-ok);
+}
+
+.pill.due {
+	border-color: var(--kt-warn);
+	color: var(--kt-warn);
+}
+
+.pill.bad {
+	border-color: var(--kt-bad);
+	color: var(--kt-bad);
+}
+
+.pill.nil {
+	color: var(--kt-muted);
+}
