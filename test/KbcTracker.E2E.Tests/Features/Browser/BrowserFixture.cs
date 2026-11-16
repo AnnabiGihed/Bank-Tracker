@@ -4,7 +4,6 @@ using KbcTracker.Domain.Features.Shared.Aggregates;
 using KbcTracker.Domain.Features.Transactions.Aggregates;
 using KbcTracker.Domain.Features.Transactions.ValueObjects;
 using KbcTracker.Persistence.EntityFrameworkCore.Features.Shared;
-using KbcTracker.Shared.Features.Backend;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -13,6 +12,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using KbcTracker.ApiService.Features.Authentication;
+using KbcTracker.E2E.Tests.Features.Authentication;
 using ApiProgram = KbcTracker.ApiService.Program;
 
 namespace KbcTracker.E2E.Tests.Features.Browser;
@@ -100,12 +101,18 @@ public sealed class BrowserFixture : IAsyncLifetime
 	#endregion
 
 	#region Public Methods
-	/// <summary>Opens a fresh browser context with tracing on, so a failing test can keep what happened.</summary>
+	/// <summary>Opens a fresh browser context, signed in as the owner through the test-only route, with tracing on, so a failing test
+	/// can keep what happened.</summary>
 	/// <returns>The context, which the caller disposes.</returns>
 	public async Task<IBrowserContext> NewContextAsync()
 	{
 		var context = await Browser.NewContextAsync(new BrowserNewContextOptions { BaseURL = WebAddress.ToString() }).ConfigureAwait(false);
 		await context.Tracing.StartAsync(new TracingStartOptions { Screenshots = true, Snapshots = true, Sources = false }).ConfigureAwait(false);
+
+		// The test-only sign-in route issues the product's own session cookie; the browser then keeps it like a real sign-in.
+		var page = await context.NewPageAsync().ConfigureAwait(false);
+		await page.GotoAsync(TestSignInStartupFilter.SignInRoute).ConfigureAwait(false);
+		await page.CloseAsync().ConfigureAwait(false);
 		return context;
 	}
 
@@ -134,14 +141,13 @@ public sealed class BrowserFixture : IAsyncLifetime
 		var api = new WebApplicationFactory<ApiProgram>().WithWebHostBuilder(builder => builder
 			.UseEnvironment("Development")
 			.UseSetting("ConnectionStrings:KbcTracker", _database.CreateConnectionString())
-			.UseSetting("AutoSyncHours", "0"));
+			.UseSetting("AutoSyncHours", "0")
+			.UseTestSignIn());
 		_api = api;
 		await SeedAsync().ConfigureAwait(false);
 		var configured = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
 			.UseEnvironment("Development")
-			.UseSetting("Backend:BaseUrl", "http://localhost/")
-			.ConfigureTestServices(services => services.AddHttpClient<BackendClient>()
-				.ConfigurePrimaryHttpMessageHandler(() => api.Server.CreateHandler())));
+			.UseApiHost(api));
 		configured.UseKestrel(options => options.Listen(IPAddress.Loopback, 0));
 		_web = configured;
 		configured.StartServer();
@@ -170,6 +176,9 @@ public sealed class BrowserFixture : IAsyncLifetime
 			db.Categories.AddRange(CategoryDefaults.CreateDefaults("BE"));
 			db.UserData.Add(UserData.Empty());
 			await db.SaveChangesAsync().ConfigureAwait(false);
+
+			// The host started before the migration found no token tables; register the sign-in clients now.
+			await scope.ServiceProvider.GetRequiredService<OpenIddictClientSeeder>().SeedAsync(CancellationToken.None).ConfigureAwait(false);
 		}
 	}
 

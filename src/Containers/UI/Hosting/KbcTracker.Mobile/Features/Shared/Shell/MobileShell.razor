@@ -1,1 +1,13 @@
-<KbcTrackerRouter />
+@{
+	RenderFragment account = @<MobileAccountMenu />;
+}
+@if (Session.State == SessionState.SignedIn)
+{
+	<CascadingValue Name="AccountMenu" Value="@account" IsFixed="true">
+		<KbcTrackerRouter />
+	</CascadingValue>
+}
+else if (Session.State == SessionState.SignedOut)
+{
+	<SignInScreen />
+}

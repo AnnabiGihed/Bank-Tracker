@@ -17,7 +17,7 @@ public sealed class AppHostModelTests
 	{
 		var resources = await ReadResourcesAsync();
 
-		resources.Select(r => r.Name).Should().Contain(["postgres-password", "postgres", "KbcTracker", "migrate", "seed", "api", "web"]);
+		resources.Select(r => r.Name).Should().Contain(["postgres-password", "web-client-secret", "postgres", "KbcTracker", "migrate", "seed", "api", "web"]);
 		resources.Select(r => r.Name).Should().NotContain(["import-json", "initialize"], "the database is seeded on start, not filled by hand");
 	}
 
@@ -70,6 +70,43 @@ public sealed class AppHostModelTests
 
 		(await ArgumentsAsync(Resource(resources, "migrate"))).Should().Equal("--migrate");
 		(await ArgumentsAsync(Resource(resources, "seed"))).Should().Equal("--initialize");
+	}
+
+	/// <summary>Verifies the web client's secret is a generated, persisted secret parameter, so it is stable across starts and
+	/// never written to a file of the repository.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Model_WebClientSecret_PersistedSecretParameter()
+	{
+		var secret = Resource(await ReadResourcesAsync(), "web-client-secret").Should().BeOfType<ParameterResource>().Subject;
+
+		secret.Secret.Should().BeTrue();
+		secret.Default?.GetType().Name.Should().Be("UserSecretsParameterDefault", "a persisted parameter is generated once and stored in the user secrets");
+	}
+
+	/// <summary>Verifies the API and the web app are given the same web client secret, under the setting each reads.</summary>
+	/// <param name="name">The host's resource name.</param>
+	/// <returns>A task that completes when verified.</returns>
+	[Theory]
+	[InlineData("api")]
+	[InlineData("web")]
+	public async Task Model_Hosts_ReceiveWebClientSecret(string name)
+	{
+		var environment = await EnvironmentAsync(name);
+
+		environment.Should().ContainKey("Authentication__Clients__Web__Secret");
+		environment["Authentication__Clients__Web__Secret"].Should().BeOfType<ParameterResource>().Which.Name.Should().Be("web-client-secret");
+	}
+
+	/// <summary>Verifies the web app signs in at the address the browser reaches the API at (<c>localhost</c>, which the provider's
+	/// redirect address needs), while it calls the API itself on the IPv4 loopback address.</summary>
+	/// <returns>A task that completes when verified.</returns>
+	[Fact]
+	public async Task Model_Web_SignsInAtLocalhostAuthority()
+	{
+		var environment = await EnvironmentAsync("web");
+
+		environment.Should().ContainKey("Authentication__Authority").And.ContainKey("Backend__BaseUrl");
 	}
 
 	/// <summary>Verifies the history lives in a named volume of a container that outlives the AppHost.</summary>

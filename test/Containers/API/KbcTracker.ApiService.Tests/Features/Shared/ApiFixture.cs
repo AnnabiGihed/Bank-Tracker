@@ -25,8 +25,8 @@ namespace KbcTracker.ApiService.Tests.Features.Shared;
 public sealed class ApiFixture : IAsyncLifetime
 {
 	#region Constants
-	/// <summary>The fake owner identity used only by local test requests.</summary>
-	public const string OwnerLogin = "owner@example.invalid";
+	/// <summary>The secret of the <c>web</c> client in tests; the API's tokens are real, only this secret is a stand-in.</summary>
+	public const string WebSecret = "test-web-client-secret-not-used-anywhere-else";
 	/// <summary>A marker proving API responses do not disclose provider session credentials.</summary>
 	public const string PrivateSession = "private-session-do-not-expose";
 	/// <summary>A marker proving raw bank JSON is not serialized to clients.</summary>
@@ -43,12 +43,19 @@ public sealed class ApiFixture : IAsyncLifetime
 	public async Task InitializeAsync()
 	{
 		await _database.StartAsync().ConfigureAwait(false);
+
+		// Migrated before the host starts, so its start-up registration of the sign-in clients finds the tables.
+		var migrating = new KbcTrackerDbContext(new DbContextOptionsBuilder<KbcTrackerDbContext>().UseNpgsql(_database.GetConnectionString()).Options);
+		await using (migrating.ConfigureAwait(false))
+		{
+			await migrating.Database.MigrateAsync().ConfigureAwait(false);
+		}
+
 		_factory = CreateFactory("Development");
 		var scope = _factory.Services.CreateAsyncScope();
 		await using (scope.ConfigureAwait(false))
 		{
 			var db = scope.ServiceProvider.GetRequiredService<KbcTrackerDbContext>();
-			await db.Database.MigrateAsync().ConfigureAwait(false);
 			var now = DateTimeOffset.UtcNow;
 			db.Transactions.Add(Transaction("historical"));
 			db.UserData.Add(UserData.Empty());
@@ -72,18 +79,29 @@ public sealed class ApiFixture : IAsyncLifetime
 	#endregion
 
 	#region Public Methods
-	/// <summary>Creates a caller-owned HTTP client for the development host.</summary>
+	/// <summary>Creates a caller-owned HTTP client for the development host that carries the <c>web</c> client's access token,
+	/// obtained from the API's own token endpoint.</summary>
 	/// <returns>The client.</returns>
-	public HttpClient CreateClient() => (_factory ?? throw new InvalidOperationException("The API is not started.")).CreateClient();
+	public HttpClient CreateClient() => CreateAuthorizedClient(_factory ?? throw new InvalidOperationException("The API is not started."));
+
+	/// <summary>Creates a client of the given host that carries the <c>web</c> client's access token.</summary>
+	/// <param name="factory">The API host.</param>
+	/// <returns>The client.</returns>
+	public static HttpClient CreateAuthorizedClient(WebApplicationFactory<Program> factory)
+	{
+		ArgumentNullException.ThrowIfNull(factory);
+		return factory.CreateDefaultClient(new WebClientTokenHandler(factory));
+	}
 
 	/// <summary>Creates a separate environment over the same isolated test database.</summary>
 	/// <param name="environment">The ASP.NET Core environment name.</param>
 	/// <param name="consentSource">An optional provider double for consent requests.</param>
 	/// <param name="databaseName">An optional isolated database within the disposable container.</param>
 	/// <param name="transactionSource">An optional bank double for transaction downloads, to inspect its calls.</param>
+	/// <param name="configure">Optional extra settings or test services for this host only.</param>
 	/// <returns>A caller-owned factory.</returns>
 	public WebApplicationFactory<Program> CreateFactory(string environment, IBankConsentSource? consentSource = null, string? databaseName = null,
-		IBankTransactionSource? transactionSource = null)
+		IBankTransactionSource? transactionSource = null, Action<IWebHostBuilder>? configure = null)
 	{
 		var connection = new Npgsql.NpgsqlConnectionStringBuilder(_database.GetConnectionString());
 		if (databaseName is not null)
@@ -92,23 +110,30 @@ public sealed class ApiFixture : IAsyncLifetime
 		}
 
 		var bank = transactionSource ?? DownloadingSource();
-		return new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
-			.UseEnvironment(environment)
-			.UseSetting("AutoSyncHours", "0")
-			.UseSetting("ConnectionStrings:KbcTracker", connection.ConnectionString)
-			.UseSetting("BackendAccess:OwnerLogin", OwnerLogin)
-			.ConfigureTestServices(services =>
-			{
-				services.RemoveAll<IBankTransactionSource>();
-				services.AddSingleton(bank);
-				if (consentSource is not null)
+		return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+		{
+			builder.UseEnvironment(environment)
+				.UseSetting("AutoSyncHours", "0")
+				.UseSetting("ConnectionStrings:KbcTracker", connection.ConnectionString)
+				.UseSetting("Authentication:Clients:Web:Secret", WebSecret)
+				.UseSetting("Authentication:Owners:0:Issuer", TestSignInStartupFilter.Issuer)
+				.UseSetting("Authentication:Owners:0:Subject", TestSignInStartupFilter.ProviderSubject)
+				.UseSetting("Authentication:Signing:Path", TestCertificates.SigningPath)
+				.UseSetting("Authentication:Encryption:Path", TestCertificates.EncryptionPath)
+				.ConfigureTestServices(services =>
 				{
-					services.RemoveAll<IBankConsentSource>();
-					services.AddSingleton(consentSource);
-				}
+					services.RemoveAll<IBankTransactionSource>();
+					services.AddSingleton(bank);
+					if (consentSource is not null)
+					{
+						services.RemoveAll<IBankConsentSource>();
+						services.AddSingleton(consentSource);
+					}
 
-				services.AddTransient<IStartupFilter, LoopbackTestStartupFilter>();
-			}));
+					services.AddTransient<IStartupFilter, TestSignInStartupFilter>();
+				});
+			configure?.Invoke(builder);
+		});
 	}
 	#endregion
 

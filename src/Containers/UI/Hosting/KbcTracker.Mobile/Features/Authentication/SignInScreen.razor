@@ -1,0 +1,15 @@
+<main class="signin">
+	<h1>KBC Tracker</h1>
+	@if (Session.Message is { } message)
+	{
+		<p role="alert">@message</p>
+	}
+	@if (Session.Providers.Count == 0)
+	{
+		<p role="alert">No sign-in provider is configured (setting SignIn:Providers).</p>
+	}
+	@foreach (var provider in Session.Providers)
+	{
+		<button type="button" class="rz-button rz-button-md rz-variant-filled rz-primary rz-shade-default" disabled="@Session.IsBusy" @onclick="() => SignInAsync(provider)">Sign in with @provider</button>
+	}
+</main>

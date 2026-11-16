@@ -12,8 +12,9 @@ way below runs each program yourself against a PostgreSQL server you provide.
 The AppHost starts PostgreSQL in Docker, applies the migrations, then starts the backend and the web app
 ([ADR-0005](../adr/0005-run-the-app-on-the-pc-with-aspire.md)). You also need Docker running.
 
-1. Store the Enable Banking settings in the backend's user secrets, once. The AppHost provides the database, so
-   skip the connection string:
+1. Set up sign-in once ([Set up sign-in](set-up-sign-in.md)): the Google client and the owner list, stored in the
+   backend's user secrets. The AppHost provides the web app's client secret and the database.
+1. Store the Enable Banking settings in the backend's user secrets, once. Skip the connection string:
 
    ```powershell
    $project = 'src/Containers/API/KbcTracker.ApiService'
@@ -35,7 +36,7 @@ The AppHost starts PostgreSQL in Docker, applies the migrations, then starts the
    console log of `migrate`: a failed migration keeps the backend from starting until it is fixed.
 1. On the first run, `seed` gives the new database the default categories and empty decisions; on later runs it
    leaves your data alone.
-1. Open <https://localhost:5001>.
+1. Open <https://localhost:5001> and sign in with the owner's account.
 
 PostgreSQL keeps running in its container after you stop the AppHost, and your data stays in the Docker volume
 `kbctracker-postgres`. Its password is generated on the first run and kept in the AppHost's user secrets as
@@ -47,8 +48,8 @@ secrets only applies when you start the backend on its own.
 
 ## Run it yourself
 
-Set it up in this order: configure, migrate, import or initialise, start the backend, start the web app. You need
-a PostgreSQL database.
+Set it up in this order: configure (sign-in included), migrate, import or initialise, start the backend, start the
+web app. You need a PostgreSQL database.
 
 ### Configure
 
@@ -62,8 +63,17 @@ dotnet user-secrets set "EnableBanking:ApplicationId" "<application-id>" --proje
 dotnet user-secrets set "EnableBanking:PrivateKeyPath" "<full-path-of-the-pem-file>" --project $project
 ```
 
-Replace the placeholders locally. Never commit the connection string or the private key. The other settings are in
-[Configuration](../reference/configuration.md).
+Then set up sign-in as in [Set up sign-in](set-up-sign-in.md): the Google client, the owner list, and the secret
+both programs share:
+
+```powershell
+dotnet user-secrets set "Authentication:Clients:Web:Secret" "<long-random-value>" --project $project
+dotnet user-secrets set "Authentication:Authority" "http://localhost:5080/" --project src/Containers/UI/Hosting/KbcTracker.Web
+dotnet user-secrets set "Authentication:Clients:Web:Secret" "<same-value>" --project src/Containers/UI/Hosting/KbcTracker.Web
+```
+
+Replace the placeholders locally. Never commit the connection string, the private key or a secret. The other settings
+are in [Configuration](../reference/configuration.md).
 
 ### Prepare the database
 
@@ -105,34 +115,30 @@ The backend listens on <http://127.0.0.1:5080>; `BackendPort` changes the port, 
 loopback. In Development, <http://127.0.0.1:5080/swagger> shows the API. The committed
 [OpenAPI contract](../api/openapi.json) describes every endpoint.
 
-Then start the web app in a second terminal:
+Without sign-in settings the backend starts but nobody can use it, and the web app refuses to start without its client
+secret. Then start the web app in a second terminal:
 
 ```powershell
 dotnet run --project src/Containers/UI/Hosting/KbcTracker.Web
 ```
 
 The web app is a Blazor app: it keeps a live connection to its host while a tab is open. It reaches the backend at
-`Backend:BaseUrl`. When the backend is down, its pages say so; they never fall back to local data. To use the
-Android app against this backend, see [Run the Android app](run-the-android-app.md).
+`Backend:BaseUrl`. Open <https://localhost:5001>; the sign-in page sends you to Google. When the backend is down, its
+pages say so; they never fall back to local data. To use the Android app against this backend, see [Run the Android app](run-the-android-app.md).
 
 ## Understand the access boundary
 
-Development allows local requests without a login. Outside Development, both programs accept a request only from
-a loopback peer that carries a `Tailscale-User-Login` header equal to the configured owner
-(`BackendAccess:OwnerLogin` for the backend, `Backend:OwnerLogin` for the web app). A blank owner denies access.
-Browser writes from another origin are refused. `/health` reports only that the process runs; it does not check
-the database or the bank. Swagger is available only in Development.
-
-The identity header is trusted only because Tailscale Serve must be the only remote route to the loopback
-listeners; a local process can supply it too. Never expose a listener directly or use Funnel. Add the tailnet
-host name to `AllowedHosts` before you serve the apps through Tailscale.
+Both programs let in only the owner ([Sign-in](../explanation/sign-in.md)). Every API endpoint except `/health` and the
+sign-in endpoints needs a token of the owner, or of the web app's own client. The web app sends everything else to its
+sign-in page: pages, the live connection, `/callback` and `/export.csv`. Browser writes from another origin are
+refused. `/health` reports only that the process runs; it does not check the database or the bank. Swagger is
+available only in Development. The listeners stay on loopback; a server needs a TLS front end first.
 
 ## What is not built yet
 
-- Docker Compose, Tailscale Serve and automated backups. Until then, run the app with the AppHost or yourself on
+- Docker Compose and automated backups. Until then, run the app with the AppHost or yourself on
   your PC, and back up with `pg_dump`.
-- Not yet verified: that Docker publishes the backend on loopback only, which Host header Tailscale Serve passes,
-  and that Enable Banking accepts a `*.ts.net` redirect URL.
+- Hosting on a server: its domain and TLS, the bank key on the server and the bank's redirect URL.
 - The Android app's production backend (it only works against your PC in the emulator) and its SQLite cache.
 
 ## Refresh the contract

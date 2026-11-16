@@ -6,7 +6,9 @@ namespace KbcTracker.Shared.Features.Backend;
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
 /// Purpose     : Registers the typed backend client for either UI host with one set of rules: a checked base address,
-///              a generous timeout for a sync, and the owner identity header when one is configured.
+///              and a generous timeout for a sync. The returned builder is the extension point of each host: the web app and
+///              the Android app add a <see cref="DelegatingHandler"/> that sets the access token (see
+///              <see cref="WithAccessTokenHandler{THandler}"/>).
 /// </summary>
 public static class BackendClientRegistration
 {
@@ -14,7 +16,7 @@ public static class BackendClientRegistration
 	/// <summary>Registers <see cref="BackendClient"/> as a typed HTTP client. The settings are checked when the client
 	/// is first created, so a host fails there, with a message that names the setting, rather than at startup.</summary>
 	/// <param name="services">The service collection of the host.</param>
-	/// <param name="options">Where the backend listens and who the owner is.</param>
+	/// <param name="options">Where the backend listens.</param>
 	/// <returns>The builder of the client, so a host or a test can replace its message handler.</returns>
 	/// <exception cref="ArgumentNullException"><paramref name="services"/> or <paramref name="options"/> is <see langword="null"/>.</exception>
 	public static IHttpClientBuilder AddBackendClient(this IServiceCollection services, BackendOptions options)
@@ -31,11 +33,19 @@ public static class BackendClientRegistration
 
 			http.BaseAddress = uri;
 			http.Timeout = TimeSpan.FromMinutes(5);
-			if (!string.IsNullOrWhiteSpace(options.OwnerLogin))
-			{
-				http.DefaultRequestHeaders.Add(BackendOptions.OwnerHeader, options.OwnerLogin);
-			}
 		});
+	}
+
+	/// <summary>Adds the host's handler that puts an access token on every backend request.</summary>
+	/// <typeparam name="THandler">The handler, registered by the caller as a transient service.</typeparam>
+	/// <param name="builder">The builder returned by <see cref="AddBackendClient"/>.</param>
+	/// <returns>The same builder.</returns>
+	/// <exception cref="ArgumentNullException"><paramref name="builder"/> is <see langword="null"/>.</exception>
+	public static IHttpClientBuilder WithAccessTokenHandler<THandler>(this IHttpClientBuilder builder)
+		where THandler : DelegatingHandler
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		return builder.AddHttpMessageHandler<THandler>();
 	}
 	#endregion
 }

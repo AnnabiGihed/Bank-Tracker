@@ -17,6 +17,8 @@
     <!-- Security pin of a package the line above brings in transitively; see Directory.Packages.props. -->
     <PackageReference Include="Microsoft.AspNetCore.WebUtilities" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <!-- The EF Core stores of the token service (ADR-0009): the context maps its tables. -->
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" />
   </ItemGroup>
 
   <ItemGroup>

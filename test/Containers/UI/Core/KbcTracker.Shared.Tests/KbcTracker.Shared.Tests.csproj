@@ -6,6 +6,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Feature namespaces used across the project">
+    <Using Include="KbcTracker.Shared.Features.Authentication" />
     <Using Include="KbcTracker.Shared.Features.Backend" />
   </ItemGroup>
 

@@ -1,0 +1,5 @@
+<form class="account" method="post" action="@WebAuthentication.SignOutPath">
+	<span class="account-name">@UserName</span>
+	<input type="hidden" name="@TokenField" value="@Token" />
+	<button type="submit" class="rz-button rz-button-md rz-variant-outlined rz-base rz-shade-default">Sign out</button>
+</form>

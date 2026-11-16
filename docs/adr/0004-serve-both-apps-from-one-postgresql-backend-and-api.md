@@ -1,6 +1,6 @@
 # ADR-0004: Serve the web app and the Android app from one PostgreSQL backend and API
 
-- Status: Proposed
+- Status: Proposed (its "Network protection, no login" part is superseded by ADR-0009)
 - Date: 2026-11-10
 - Deciders: Gihed Annabi
 - Supersedes: ADR-0003

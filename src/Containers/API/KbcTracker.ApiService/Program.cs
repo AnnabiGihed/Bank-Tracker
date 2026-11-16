@@ -1,9 +1,9 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using KbcTracker.ApiService.Features.Authentication;
 using KbcTracker.ApiService.Features.BankConnection;
 using KbcTracker.ApiService.Features.Shared;
-using KbcTracker.ApiService.Features.Shared.Security;
 using KbcTracker.Application.Features.BankConnection.Abstractions;
 using KbcTracker.Application.Features.BankConnection.Consent;
 using KbcTracker.Application.Features.BankConnection.Services;
@@ -22,7 +22,7 @@ namespace KbcTracker.ApiService;
 /// <summary>
 /// Author      : Gihed Annabi
 /// Date        : 11-2026
-/// Purpose     : Hosts PostgreSQL-backed application endpoints independently of either UI.
+/// Purpose     : Hosts PostgreSQL-backed application endpoints independently of either UI, behind the owner's sign-in.
 /// </summary>
 public sealed class Program
 {
@@ -59,7 +59,8 @@ public sealed class Program
 		}
 
 		app.UseExceptionHandler();
-		app.UseMiddleware<TailnetAccessMiddleware>();
+		app.UseAuthentication();
+		app.UseAuthorization();
 		if (app.Environment.IsDevelopment())
 		{
 			app.UseSwagger();
@@ -98,7 +99,7 @@ public sealed class Program
 		builder.Services.AddTransient<IBankConsentSource, EnableBankingConsentSource>();
 		builder.Services.AddScoped<IBankConsentPersistence, PostgreSqlBankConsentPersistence>();
 		builder.Services.AddSingleton(new BankConsentSettings(bank.ConsentDays));
-		builder.Services.Configure<BackendAccessOptions>(builder.Configuration.GetSection(BackendAccessOptions.SectionName));
+		builder.Services.AddOwnerAuthentication(builder.Configuration, builder.Environment);
 		builder.Services.AddControllers()
 			.AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 		builder.Services.AddProblemDetails();
@@ -114,6 +115,13 @@ public sealed class Program
 			options.CustomOperationIds(api => api.ActionDescriptor is ControllerActionDescriptor action
 				? JsonNamingPolicy.CamelCase.ConvertName(action.ActionName)
 				: null);
+			options.AddSecurityDefinition(BearerSecurityOperationFilter.SchemeName, new OpenApiSecurityScheme
+			{
+				Type = SecuritySchemeType.Http,
+				Scheme = "bearer",
+				Description = "The owner's access token from the API's own token service (ADR-0009).",
+			});
+			options.OperationFilter<BearerSecurityOperationFilter>();
 		});
 	}
 	#endregion

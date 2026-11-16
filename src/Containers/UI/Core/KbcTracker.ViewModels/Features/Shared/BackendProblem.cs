@@ -44,7 +44,7 @@ public sealed record BackendProblem(int Status, string Title, string Detail)
 		return (exception as HttpRequestException)?.StatusCode switch
 		{
 			HttpStatusCode.Forbidden => new(403, "Backend refused access.",
-				"The backend did not accept this web app. Check that Backend:OwnerLogin matches the backend's owner, and that the web app runs on the same PC."),
+				"The backend did not accept this web app. Check the web client secret, and that you signed in with an account listed in Authentication:Owners."),
 			HttpStatusCode.Conflict => new(409, "The backend refused this request.",
 				exception is BackendRefusedException { Message: { Length: > 0 } reason } ? reason : NoReason),
 			_ => new(503, "Backend unavailable.", "Start the backend and check its connection settings."),

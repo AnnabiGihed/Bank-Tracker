@@ -23,6 +23,18 @@
          2.3.14 or later itself. -->
     <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="2.3.14" />
   </ItemGroup>
+  <ItemGroup Label="Sign-in (ADR-0009)">
+    <!-- The API's own token service and its client toward the external OpenID Connect providers (Google first). -->
+    <PackageVersion Include="OpenIddict.AspNetCore" Version="7.7.2" />
+    <PackageVersion Include="OpenIddict.EntityFrameworkCore" Version="7.7.2" />
+    <PackageVersion Include="OpenIddict.Client.WebIntegration" Version="7.7.2" />
+    <!-- The web app signs the owner in against the API with OpenID Connect. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.14" />
+    <!-- Security pin: OpenIddict's data-protection token format brings Microsoft.AspNetCore.DataProtection 10.0.11 and
+         through it System.Security.Cryptography.Xml 10.0.11, which GHSA-7hqp-7c5m-4vq6, GHSA-c399-9853-6jmj and
+         GHSA-r955-8q5j-3h83 (high severity) affect. Remove once the chain resolves a patched version itself. -->
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.14" />
+  </ItemGroup>
   <ItemGroup Label="Aspire (ADR-0005)">
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.5" />
     <!-- OpenTelemetry pinned to the version Pivot.Framework.Containers.API 2.1.0 resolves, so the API sees one version. -->

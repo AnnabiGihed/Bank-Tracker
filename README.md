@@ -9,7 +9,7 @@ Enable Banking, finds your fixed payments and shows your spending per month. Bui
 KbcTracker runs as one PostgreSQL backend and API on Pivot.Framework, used by the local web app and, later, an
 Android app ([ADR-0004][adr-0004], proposed). The backend owns the history, your decisions, the bank key and the
 sync; the web app is a client of its API and stores nothing. An Aspire AppHost starts the database, the backend and
-the web app together on your PC ([ADR-0005][adr-0005]); Docker Compose, Tailscale Serve and backups are not built
+the web app together on your PC ([ADR-0005][adr-0005]); Docker Compose and backups are not built
 yet.
 
 ## Run locally

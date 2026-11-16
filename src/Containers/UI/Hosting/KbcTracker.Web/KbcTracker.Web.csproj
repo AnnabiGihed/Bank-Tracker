@@ -10,6 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The owner signs in against the API's token service with OpenID Connect (ADR-0009). -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\..\..\Core\KbcTracker.Application\KbcTracker.Application.csproj" />
     <ProjectReference Include="..\..\Core\KbcTracker.Shared\KbcTracker.Shared.csproj" />
     <ProjectReference Include="..\..\Core\KbcTracker.ViewModels\KbcTracker.ViewModels.csproj" />
@@ -25,6 +30,8 @@
     <Using Include="KbcTracker.Components.Features.Shared" />
     <Using Include="KbcTracker.Components.Features.Shared.Layout" />
     <Using Include="KbcTracker.ViewModels.Features.Shared" />
+    <Using Include="KbcTracker.Shared.Features.Backend" />
+    <Using Include="KbcTracker.Web.Features.Authentication" />
     <Using Include="KbcTracker.Web.Features.Shared.Api" />
     <Using Include="KbcTracker.Web.Features.Shared.Shell" />
     <Using Include="Microsoft.AspNetCore.Components" />
